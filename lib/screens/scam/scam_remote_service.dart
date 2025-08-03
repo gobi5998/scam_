@@ -11,7 +11,7 @@ class ScamRemoteService {
     List<File>? documents,
   }) async {
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl1}/reports');
+      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
       print('🔗 Attempting to send report to: $url');
 
       // Create multipart request for file uploads
@@ -25,8 +25,8 @@ class ScamRemoteService {
       request.fields['type'] = report.reportTypeId ?? '';
       request.fields['severity'] = report.alertLevels ?? '';
       request.fields['date'] = report.createdAt?.toIso8601String() ?? '';
-      request.fields['phoneNumber'] = report.phoneNumber ?? '';
-      request.fields['email'] = report.email ?? '';
+      request.fields['phoneNumbers'] = report.phoneNumbers?.join(',') ?? '';
+      request.fields['emailAddresses'] = report.emailAddresses?.join(',') ?? '';
       request.fields['website'] = report.website ?? '';
 
       // Add file paths as JSON
@@ -89,7 +89,7 @@ class ScamRemoteService {
 
   Future<List<ScamReportModel>> fetchReports() async {
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl1}scam_reports');
+      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
       final response = await http.get(url);
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);
@@ -121,7 +121,31 @@ class ScamRemoteService {
   }
 
   static Future<void> submitScamReport(Map<String, dynamic> reportJson) async {
-    // Implement your API call here, e.g.:
-    // await http.post(Uri.parse('YOUR_API_URL'), body: jsonEncode(reportJson), headers: {...});
+    try {
+      print('📤 Submitting scam report to backend...');
+      print('📤 Report data: ${jsonEncode(reportJson)}');
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.mainBaseUrl}/api/reports'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(reportJson),
+      );
+
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Scam report submitted successfully');
+      } else {
+        print('❌ Failed to submit scam report. Status: ${response.statusCode}');
+        throw Exception('Failed to submit scam report');
+      }
+    } catch (e) {
+      print('❌ Error submitting scam report: $e');
+      throw e;
+    }
   }
 }

@@ -5,6 +5,8 @@ import 'package:security_alert/screens/login.dart';
 
 import '../custom/customTextfield.dart';
 import '../provider/auth_provider.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/responsive_widget.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -279,71 +281,76 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 700;
+    final isMediumScreen = screenSize.height >= 700 && screenSize.height < 900;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
+    // Calculate responsive values
+    final horizontalPadding = screenSize.width * 0.04; // 4% of screen width
+    final verticalSpacing = isSmallScreen ? 4.0 : (isMediumScreen ? 6.0 : 8.0);
+    final titleFontSize = isSmallScreen ? 20.0 : (isMediumScreen ? 22.0 : 24.0);
+    final subtitleFontSize = isSmallScreen
+        ? 10.0
+        : (isMediumScreen ? 11.0 : 12.0);
+    final buttonHeight = isSmallScreen ? 40.0 : (isMediumScreen ? 45.0 : 48.0);
+
     return Scaffold(
-      resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 10,
-                bottom: isKeyboardOpen
-                    ? MediaQuery.of(context).viewInsets.bottom + 10
-                    : 10,
-              ),
+        child: Container(
               width: double.infinity,
               height: double.infinity,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: 20),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                 child: Form(
                   key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Top section with back button and title
+                  Container(
+                    padding: EdgeInsets.only(top: isSmallScreen ? 4 : 8),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Back button - properly aligned to the left
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                        // // Back button
+                        // Align(
+                        //   alignment: Alignment.centerLeft,
+                        //   child: IconButton(
+                        //     icon: const Icon(Icons.arrow_back),
+                        //     onPressed: () => Navigator.pop(context),
+                        //   ),
+                        // ),
+                        // SizedBox(height: isSmallScreen ? 1 : 2),
 
                       // Title section
-                      const Center(
-                        child: Text(
+                        Text(
                           "Welcome!",
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: titleFontSize,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF064FAD),
+                            color: const Color(0xFF064FAD),
                             fontFamily: 'Poppins',
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Center(
-                        child: Text(
+                        SizedBox(height: isSmallScreen ? 1 : 4),
+                        Text(
                           "Sign up to get started.",
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: subtitleFontSize,
                             color: Colors.black,
                             fontFamily: 'Poppins',
                           ),
                         ),
+                        SizedBox(height: isSmallScreen ? 4 : 8),
+                      ],
+                        ),
                       ),
-                      const SizedBox(height: 10),
 
+                  // Error message
                       if (authProvider.errorMessage.isNotEmpty)
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(8),
+                      margin: EdgeInsets.only(bottom: verticalSpacing),
                           decoration: BoxDecoration(
                             color: Colors.red.shade50,
                             border: Border.all(color: Colors.red.shade200),
@@ -354,15 +361,15 @@ class _RegisterPageState extends State<RegisterPage> {
                               Icon(
                                 Icons.error_outline,
                                 color: Colors.red.shade600,
-                                size: 20,
+                            size: 16,
                               ),
-                              const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   authProvider.errorMessage,
                                   style: TextStyle(
                                     color: Colors.red.shade700,
-                                    fontSize: 14,
+                                fontSize: 12,
                                     fontFamily: 'Poppins',
                                   ),
                                 ),
@@ -371,7 +378,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 icon: Icon(
                                   Icons.close,
                                   color: Colors.red.shade600,
-                                  size: 20,
+                              size: 16,
                                 ),
                                 onPressed: () => authProvider.clearError(),
                               ),
@@ -379,6 +386,10 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
 
+                  // Form fields section
+                  Column(
+                    children: [
+                      // First Name
                       CustomTextField(
                         hintText: 'Enter your first name',
                         controller: _firstnameController,
@@ -395,12 +406,13 @@ class _RegisterPageState extends State<RegisterPage> {
                                 color: _isFirstNameValid
                                     ? Colors.green
                                     : Colors.red,
-                                size: 20,
+                                size: 16,
                               )
                             : null,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: verticalSpacing),
 
+                      // Last Name
                       CustomTextField(
                         hintText: 'Enter your last name',
                         controller: _lastnameController,
@@ -417,12 +429,13 @@ class _RegisterPageState extends State<RegisterPage> {
                                 color: _isLastNameValid
                                     ? Colors.green
                                     : Colors.red,
-                                size: 20,
+                                size: 16,
                               )
                             : null,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: verticalSpacing),
 
+                      // Email
                       CustomTextField(
                         hintText: 'Enter your email',
                         controller: _emailController,
@@ -437,11 +450,13 @@ class _RegisterPageState extends State<RegisterPage> {
                                 color: _isEmailValid
                                     ? Colors.green
                                     : Colors.red,
-                                size: 20,
+                                size: 16,
                               )
                             : null,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: verticalSpacing),
+
+                      // Role
                       CustomTextField(
                         hintText: 'Enter your role',
                         controller: _roleController,
@@ -452,32 +467,20 @@ class _RegisterPageState extends State<RegisterPage> {
                             ? Icon(
                                 _isRoleValid ? Icons.check_circle : Icons.error,
                                 color: _isRoleValid ? Colors.green : Colors.red,
-                                size: 20,
+                                size: 16,
                               )
                             : null,
                       ),
+                      SizedBox(height: verticalSpacing),
 
-                      const Text(
-                        "Password",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
+                      // Password
+                      CustomTextField(
+                        hintText: 'Enter your password',
                         controller: _passwordController,
+                        label: 'Password',
+                        validator: _validatePassword,
                         obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          hintText: 'Enter your password',
-                          hintStyle: const TextStyle(
-                            color: Colors.grey,
-                            fontFamily: 'Poppins',
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Colors.black),
-                          ),
+                        maxLines: 1,
                           errorText: _passwordError.isNotEmpty
                               ? _passwordError
                               : null,
@@ -492,7 +495,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   color: _isPasswordValid
                                       ? Colors.green
                                       : Colors.red,
-                                  size: 20,
+                                size: 16,
                                 ),
                               IconButton(
                                 icon: Icon(
@@ -506,19 +509,18 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                             ],
                           ),
-                        ),
-                        validator: _validatePassword,
                       ),
 
-                      // Password strength indicator
-                      if (_passwordController.text.isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                      // Password strength indicator - only show when not typing
+                      if (_passwordController.text.isNotEmpty &&
+                          !isKeyboardOpen) ...[
+                        SizedBox(height: isSmallScreen ? 2 : 4),
                         Row(
                           children: [
                             Text(
                               'Password Strength: ',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 10,
                                 color: Colors.grey[600],
                                 fontFamily: 'Poppins',
                               ),
@@ -528,7 +530,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _passwordController.text,
                               ),
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: _getPasswordStrengthColor(
                                   _passwordController.text,
@@ -538,57 +540,41 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isSmallScreen ? 2 : 4),
                         _buildPasswordStrengthIndicator(),
                       ],
 
-                      // Text(
-                      //   "✔ Password Strength: ${isStrong ? "Strong" : "Weak"}",
-                      //   style: TextStyle(color: isStrong ? Colors.green : Color(0xFF064FAD)),
-                      // ),
-                      // Text(
-                      //   "✔ cannot contain your name or email address",
-                      //   style: TextStyle(fontSize: 12, color: (notContainName && notContainEmail) ? Colors.black : Color(0xFF064FAD)),
-                      // ),
-                      // Text(
-                      //   "✔ at least 8 characters",
-                      //   style: TextStyle(fontSize: 12, color: hasMinLength ? Colors.black : Color(0xFF064FAD)),
-                      // ),
-                      // Text(
-                      //   "✔ contain numbers or symbols",
-                      //   style: TextStyle(fontSize: 12, color: hasNumberOrSymbol ? Colors.black : Color(0xFF064FAD)),
-                      // ),
-                      const SizedBox(height: 15),
-                      const Center(
-                        child: Text(
-                          "or",
-                          style: TextStyle(fontFamily: 'Poppins'),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
+                      // Bottom section with social login and sign up button
+                      SizedBox(height: isSmallScreen ? 8 : 12),
+                      const Text("or", style: TextStyle(fontFamily: 'Poppins')),
+                      SizedBox(height: isSmallScreen ? 4 : 8),
+
+                      // Social login buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           CircleAvatar(
                             backgroundColor: Colors.white,
-                            radius: 20,
+                            radius: isSmallScreen ? 14 : 16,
                             child: Image.asset(
                               'assets/image/google.png',
-                              height: 50,
+                              height: isSmallScreen ? 35 : 40,
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: isSmallScreen ? 8 : 10),
                           CircleAvatar(
                             backgroundColor: Colors.white,
-                            radius: 20,
+                            radius: isSmallScreen ? 14 : 16,
                             child: Image.asset(
                               'assets/image/facebook.jpg',
-                              height: 50,
+                              height: isSmallScreen ? 35 : 40,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 15),
+                      SizedBox(height: isSmallScreen ? 4 : 8),
+
+                      // Sign Up button
                       CustomButton(
                         text: 'Sign Up',
                         onPressed: (authProvider.isLoading || !_isFormValid())
@@ -631,13 +617,15 @@ class _RegisterPageState extends State<RegisterPage> {
                                 }
                               },
                         isLoading: authProvider.isLoading,
-                        width: 370,
-                        height: 55,
-                        fontSize: 16,
+                        width: screenSize.width * 0.9, // 90% of screen width
+                        height: buttonHeight,
+                        fontSize: isSmallScreen ? 12 : 14,
                         fontWeight: FontWeight.w600,
                         borderCircular: 6,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: isSmallScreen ? 2 : 4),
+
+                      // Login link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -665,13 +653,15 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+
+                      // Bottom padding for keyboard
+                      SizedBox(height: isKeyboardOpen ? 20 : 10),
                     ],
                   ),
-                ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );

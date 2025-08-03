@@ -6,8 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
 import 'package:security_alert/custom/customButton.dart';
 import 'package:security_alert/custom/customTextfield.dart';
+import 'package:currency_picker/currency_picker.dart';
+import '../../utils/responsive_helper.dart';
+import '../../widgets/responsive_widget.dart';
+import '../../custom/location_picker_screen.dart';
 
 import '../../models/scam_report_model.dart';
+import '../../services/api_service.dart';
+import '../../services/jwt_service.dart';
 import 'report_scam_2.dart';
 import 'view_pending_reports.dart';
 import 'scam_report_service.dart';
@@ -115,406 +121,6 @@ String? validateDescription(String? value) {
   return null;
 }
 
-// class ReportScam1 extends StatefulWidget {
-//   final String categoryId;
-//   const ReportScam1({Key? key, required this.categoryId}) : super(key: key);
-
-//   @override
-//   State<ReportScam1> createState() => _ReportScam1State();
-// }
-
-// class _ReportScam1State extends State<ReportScam1> {
-//   final _formKey = GlobalKey<FormState>();
-//   String? scamType, phone, email, website, description;
-//   bool _isOnline = true;
-
-//   List<Map<String, dynamic>> scamTypes = [];
-//   String? scamTypeId; // This will store the selected id
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _initHive();
-//     _setupConnectivityListener();
-//     _loadScamTypes();
-//   }
-
-//   Future<void> _initHive() async {
-//     final dir = await getApplicationDocumentsDirectory();
-//     Hive.init(dir.path);
-//     await Hive.openBox<ScamReportModel>('scam_reports');
-//   }
-
-//   Future<void> _loadScamTypes() async {
-//     // Call your API service with widget.categoryId
-//     scamTypes = await ScamReportService.fetchReportTypesByCategory(widget.categoryId);
-//     setState(() {});
-//   }
-
-//   void _setupConnectivityListener() {
-//     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-//       setState(() {
-//         _isOnline = result != ConnectivityResult.none;
-//       });
-//       if (_isOnline) {
-//         print('Internet connection restored, syncing reports...');
-//         ScamReportService.syncReports();
-//       }
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Report Scam'),
-//         centerTitle: true,
-//         backgroundColor: Colors.white,
-//         foregroundColor: Colors.black,
-//         elevation: 0,
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(20),
-//         child: Form(
-//           key: _formKey,
-//           child: ListView(
-//             children: [
-//               CustomDropdown(
-//                 label: 'Scam Type',
-//                 hint: 'Select a Scam Type',
-//                 items: scamTypes.map((e) => e['name'] as String).toList(),
-//                 value: scamTypes.firstWhere(
-//                   (e) => e['_id'] == scamTypeId,
-//                   orElse: () => {},
-//                 )['name'],
-//                 onChanged: (val) {
-//                   setState(() {
-//                     scamTypeId = scamTypes.firstWhere((e) => e['name'] == val)['_id'];
-//                   });
-//                 },
-//               ),
-
-// const SizedBox(height: 16),
-// const Text(
-//   'Scammer details',
-//   style: TextStyle(fontWeight: FontWeight.bold),
-// ),
-//               const SizedBox(height: 8),
-//               CustomTextField(label: 'Phone*',hintText: '+91-979864483',
-//                 onChanged:(val) => phone = val,
-//                 keyboardType: TextInputType.phone,
-//                 validator: validatePhone,
-//                  ),
-
-//               const SizedBox(height: 12),
-//               CustomTextField(label: 'Email*',hintText: 'fathanah@gmail.com',
-//                 onChanged:(val) => email = val,
-//                 keyboardType: TextInputType.emailAddress,
-//                 validator: validateEmail,
-//                ),
-
-//               const SizedBox(height: 12),
-//               CustomTextField(label: 'Website',hintText: 'www.fathanah.com',
-//                 onChanged:(val) => website = val,
-//                 keyboardType: TextInputType.webSearch,
-//                 validator: validateWebsite,
-//                 ),
-
-//               const SizedBox(height: 12),
-//               CustomTextField(label: 'Description*',hintText: 'Describe the scam...',
-//                 onChanged:(val) => description = val,
-//                 keyboardType: TextInputType.text,
-//                 validator: validateDescription,
-//                 ),
-//               // TextFormField(
-//               //   maxLines: 4,
-//               //   decoration: const InputDecoration(
-//               //     labelText: 'Description',
-//               //     hintText: 'Describe the scam...',
-//               //     border: OutlineInputBorder(),
-//               //   ),
-//               //   onChanged: (val) => description = val,
-//               // ),
-//               const SizedBox(height: 24),
-//               // CustomButton(text: 'Next', onPressed: () async{
-//               //   if (_formKey.currentState!.validate()) {
-//               //     Navigator.push(
-//               //       context,
-//               //       MaterialPageRoute(
-//               //         builder: (context) => ReportScam2(
-//               //           scamType: scamType ?? '',
-//               //           phone: phone,
-//               //           email: email,
-//               //           website: website,
-//               //           description: description,
-//               //         ),
-//               //       ),
-//               //     );
-//               //   }
-//               //   return;
-//               // },
-//               //     fontWeight: FontWeight.normal),
-
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//   Future<void> submitMalwareReport(ScamReportModel report) async {
-//     // Use the centralized service to save and sync the report
-//     await ScamReportService.saveReport(report);
-
-//     if (mounted) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text(report.isSynced
-//             ? 'Report sent and saved as synced!'
-//             : 'Report saved locally. Will sync when connection is restored.'),
-//           backgroundColor: report.isSynced ? Colors.green : Colors.orange,
-//         ),
-//       );
-//     }
-//   }
-// }
-
-// class ReportScam1 extends StatefulWidget {
-//   final String categoryId;
-//   const ReportScam1({required this.categoryId});
-//
-//   @override
-//   State<ReportScam1> createState() => _ReportScam1State();
-// }
-//
-// class _ReportScam1State extends State<ReportScam1> {
-//   final _formKey = GlobalKey<FormState>();
-//   String? scamType,scamTypeId, phone, email, website, description;
-//   List<Map<String, dynamic>> scamTypes = [];
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _loadScamTypes();
-//   }
-//
-//   Future<void> _loadScamTypes() async {
-//     scamTypes = await ScamReportService.fetchReportTypesByCategory(widget.categoryId);
-//     setState(() {});
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text('Report Scam')),
-//       body: Form(
-//         key: _formKey,
-//         child: ListView(
-//           padding: EdgeInsets.all(20),
-//           children: [
-//             CustomDropdown(
-//               label: 'Scam Type',
-//               hint: 'Select a Scam Type',
-//               items: scamTypes.map((e) => e['name'] as String).toList(),
-//               value: scamTypes.firstWhere(
-//                 (e) => e['_id'] == scamTypeId,
-//                 orElse: () => {},
-//               )['name'],
-//               onChanged: (val) {
-//                 setState(() {
-//                   scamTypeId = scamTypes.firstWhere((e) => e['name'] == val)['_id'];
-//                 });
-//               },
-//             ),
-//             const SizedBox(height: 16),
-//             const Text(
-//               'Scammer details',
-//               style: TextStyle(fontWeight: FontWeight.bold),
-//             ),
-//             const SizedBox(height: 8),
-//             CustomTextField(
-//               label: 'Phone*',
-//               hintText: '+91-979864483',
-//               onChanged: (val) => phone = val,
-//               keyboardType: TextInputType.phone,
-//               validator: validatePhone,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Email*',
-//               hintText: 'fathanah@gmail.com',
-//               onChanged: (val) => email = val,
-//               keyboardType: TextInputType.emailAddress,
-//               validator: validateEmail,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Website',
-//               hintText: 'www.fathanah.com',
-//               onChanged: (val) => website = val,
-//               keyboardType: TextInputType.url,
-//               validator: validateWebsite,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Description*',
-//               hintText: 'Describe the scam...',
-//               onChanged: (val) => description = val,
-//               keyboardType: TextInputType.text,
-//               validator: validateDescription,
-//             ),
-//             const SizedBox(height: 24),
-//         CustomButton(text: 'Next', onPressed: () async{
-//           if (_formKey.currentState!.validate()) {
-//             Navigator.push(
-//               context,
-//               MaterialPageRoute(
-//                 builder: (context) => ReportScam2(
-//                   scamType: scamType ?? '',
-//                   phone: phone,
-//                   email: email,
-//                   website: website,
-//                   description: description,
-//                 ),
-//               ),
-//             );
-//           }
-//           return;
-//         },
-//             fontWeight: FontWeight.normal),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
-// class ReportScam1 extends StatefulWidget {
-//   final String categoryId;
-//   const ReportScam1({required this.categoryId});
-//
-//   @override
-//   State<ReportScam1> createState() => _ReportScam1State();
-// }
-//
-// class _ReportScam1State extends State<ReportScam1> {
-//   final _formKey = GlobalKey<FormState>();
-//   String? scamTypeId, scamType, phone, email, website, description;
-//   List<Map<String, dynamic>> scamTypes = [];
-//   bool isOnline = true;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _loadScamTypes();
-//     _setupNetworkListener();
-//   }
-//
-//   void _setupNetworkListener() {
-//     Connectivity().onConnectivityChanged.listen((result) {
-//       setState(() => isOnline = result != ConnectivityResult.none);
-//       if (isOnline) ScamReportService.syncReports();
-//     });
-//   }
-//
-//   Future<void> _loadScamTypes() async {
-//     scamTypes = await ScamReportService.fetchReportTypesByCategory(widget.categoryId);
-//     setState(() {});
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text('Report Scam')),
-//       body: Form(
-//         key: _formKey,
-//         child: ListView(
-//           padding: EdgeInsets.all(20),
-//           children: [
-//             CustomDropdown(
-//               label: 'Scam Type',
-//               hint: 'Select a Scam Type',
-//               items: scamTypes.map((e) => e['name'] as String).toList(),
-//               value: scamTypes.firstWhere(
-//                     (e) => e['_id'] == scamTypeId,
-//                 orElse: () => {},
-//               )['name'],
-//               onChanged: (val) {
-//                 setState(() {
-//                   scamType = val;
-//                   scamTypeId = scamTypes.firstWhere((e) => e['name'] == val)['_id'];
-//                 });
-//               },
-//             ),
-//             const SizedBox(height: 16),
-//             const Text('Scammer details', style: TextStyle(fontWeight: FontWeight.bold)),
-//             const SizedBox(height: 8),
-//             CustomTextField(
-//               label: 'Phone*',
-//               hintText: '+91-979864483',
-//               onChanged: (val) => phone = val,
-//               keyboardType: TextInputType.phone,
-//               validator: validatePhone,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Email*',
-//               hintText: 'example@gmail.com',
-//               onChanged: (val) => email = val,
-//               keyboardType: TextInputType.emailAddress,
-//               validator: validateEmail,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Website',
-//               hintText: 'www.example.com',
-//               onChanged: (val) => website = val,
-//               keyboardType: TextInputType.url,
-//               validator: validateWebsite,
-//             ),
-//             const SizedBox(height: 12),
-//             CustomTextField(
-//               label: 'Description*',
-//               hintText: 'Describe the scam...',
-//               onChanged: (val) => description = val,
-//               keyboardType: TextInputType.text,
-//               validator: validateDescription,
-//             ),
-//             const SizedBox(height: 24),
-//             CustomButton(
-//               text: 'Next',
-//               onPressed: () async {
-//                 if (_formKey.currentState!.validate()) {
-//                   Navigator.push(
-//                     context,
-//                     MaterialPageRoute(
-//                       builder: (context) => ReportScam2(
-//                         report: ScamReportModel(
-//                           id: '', // or generate an id
-//                           title: scamType ?? '',
-//                           description: description ?? '',
-//                           type: scamType ?? '',
-//                           severity: '', // fill as needed
-//                           date: DateTime.now(),
-//                           email: email ?? '',
-//                           phone: phone ?? '',
-//                           website: website ?? '',
-//                           isSynced: false,
-//                         ),
-//                       ),
-//                     ),
-//                   );
-//                 }
-//               },
-//               fontWeight: FontWeight.normal,
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 class ReportScam1 extends StatefulWidget {
   final String categoryId;
   const ReportScam1({required this.categoryId});
@@ -526,7 +132,18 @@ class ReportScam1 extends StatefulWidget {
 class _ReportScam1State extends State<ReportScam1> {
   final _formKey = GlobalKey<FormState>();
   String? scamTypeId, phoneNumber, email, website, description;
+  String? scammerName, methodOfContact;
+  String? selectedMethodOfContactId;
+  String? selectedLocation;
+  String? selectedAddress;
+  DateTime? incidentDateTime;
+  double? amountLost;
+  String selectedCurrency = 'INR'; // Default currency
+  List<String> phoneNumbers = <String>[];
+  List<String> emailAddresses = <String>[];
+  List<String> socialMediaHandles = <String>[];
   List<Map<String, dynamic>> scamTypes = [];
+  List<Map<String, dynamic>> methodOfContactOptions = [];
   bool isOnline = true;
 
   // Controllers for real-time validation
@@ -534,6 +151,9 @@ class _ReportScam1State extends State<ReportScam1> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _websiteController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _scammerNameController = TextEditingController();
+  final TextEditingController _socialMediaController = TextEditingController();
+  final TextEditingController _amountLostController = TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
@@ -546,10 +166,13 @@ class _ReportScam1State extends State<ReportScam1> {
   String _websiteError = '';
   String _descriptionError = '';
 
+  // Method of contact options will be loaded from API
+
   @override
   void initState() {
     super.initState();
     _loadScamTypes();
+    _loadMethodOfContactOptions();
     _setupNetworkListener();
     _setupValidationListeners();
   }
@@ -572,6 +195,9 @@ class _ReportScam1State extends State<ReportScam1> {
     _emailController.dispose();
     _websiteController.dispose();
     _descriptionController.dispose();
+    _scammerNameController.dispose();
+    _socialMediaController.dispose();
+    _amountLostController.dispose();
     super.dispose();
   }
 
@@ -607,11 +233,98 @@ class _ReportScam1State extends State<ReportScam1> {
     });
   }
 
+  void _addPhoneNumber() {
+    final phone = _phoneController.text.trim();
+    print('📱 Attempting to add phone number: $phone');
+    print('📱 Current phone numbers: $phoneNumbers');
+
+    if (phone.isNotEmpty && validatePhone(phone) == null) {
+      setState(() {
+        if (!phoneNumbers.contains(phone)) {
+          phoneNumbers.add(phone);
+          print('📱 Added phone number: $phone');
+          print('📱 Total phone numbers: ${phoneNumbers.length}');
+          print('📱 All phone numbers: $phoneNumbers');
+          _phoneController.clear();
+          _phoneError = '';
+          _isPhoneValid = false;
+        } else {
+          print('📱 Phone number already exists: $phone');
+          _phoneError = 'This phone number is already added';
+        }
+      });
+    } else {
+      setState(() {
+        _phoneError = validatePhone(phone) ?? 'Invalid phone number';
+      });
+    }
+  }
+
+  void _removePhoneNumber(int index) {
+    setState(() {
+      phoneNumbers.removeAt(index);
+    });
+  }
+
+  void _addEmailAddress() {
+    final email = _emailController.text.trim();
+    print('📧 Attempting to add email: $email');
+    print('📧 Current emails: $emailAddresses');
+
+    if (email.isNotEmpty && validateEmail(email) == null) {
+      setState(() {
+        if (!emailAddresses.contains(email)) {
+          emailAddresses.add(email);
+          print('📧 Added email: $email');
+          print('📧 Total emails: ${emailAddresses.length}');
+          print('📧 All emails: $emailAddresses');
+          _emailController.clear();
+          _emailError = '';
+          _isEmailValid = false;
+        } else {
+          print('📧 Email already exists: $email');
+          _emailError = 'This email address is already added';
+        }
+      });
+    } else {
+      setState(() {
+        _emailError = validateEmail(email) ?? 'Invalid email address';
+      });
+    }
+  }
+
+  void _removeEmailAddress(int index) {
+    setState(() {
+      emailAddresses.removeAt(index);
+    });
+  }
+
+  void _addSocialMediaHandle() {
+    if (_socialMediaController.text.isNotEmpty) {
+      setState(() {
+        socialMediaHandles.add(_socialMediaController.text.trim());
+        print(
+          '📱 Added social media handle: ${_socialMediaController.text.trim()}',
+        );
+        print('📱 Total social media handles: ${socialMediaHandles.length}');
+        _socialMediaController.clear();
+      });
+    }
+  }
+
+  void _removeSocialMediaHandle(int index) {
+    setState(() {
+      socialMediaHandles.removeAt(index);
+    });
+  }
+
   bool _isFormValid() {
     return _isPhoneValid &&
         _isEmailValid &&
         _isDescriptionValid &&
-        scamTypeId != null;
+        scamTypeId != null &&
+        selectedMethodOfContactId != null &&
+        incidentDateTime != null;
   }
 
   void _setupNetworkListener() {
@@ -653,21 +366,149 @@ class _ReportScam1State extends State<ReportScam1> {
     }
   }
 
+  Future<void> _loadMethodOfContactOptions() async {
+    try {
+      print(
+        '🔍 UI: Starting to load method of contact options from backend...',
+      );
+
+      // Try to load from backend first
+      final apiService = ApiService();
+      final methodOfContactData = await apiService.fetchMethodOfContact();
+
+      if (methodOfContactData != null && methodOfContactData.isNotEmpty) {
+        setState(() {
+          methodOfContactOptions = methodOfContactData;
+        });
+
+        print(
+          '✅ UI: Method of contact options loaded from backend: ${methodOfContactOptions.length} items',
+        );
+
+        // Print the options for debugging
+        for (int i = 0; i < methodOfContactOptions.length; i++) {
+          final option = methodOfContactOptions[i];
+          print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
+        }
+      } else {
+        // Fallback to hardcoded options if backend fails
+        print('⚠️ UI: Backend returned empty data, using fallback options');
+        final fallbackOptions = [
+          {
+            '_id': '64e8b3d93c9f9c1e2aa1a444',
+            'name': 'Email',
+            'isActive': true,
+          },
+          {'_id': '64e8b3da3c9f9c1e2aa1a445', 'name': 'SMS', 'isActive': true},
+          {
+            '_id': '64e8b3db3c9f9c1e2aa1a446',
+            'name': 'Social Media',
+            'isActive': true,
+          },
+          {
+            '_id': '64e8b3dc3c9f9c1e2aa1a447',
+            'name': 'Phone Call',
+            'isActive': true,
+          },
+          {
+            '_id': '64e8b3dd3c9f9c1e2aa1a448',
+            'name': 'Website',
+            'isActive': true,
+          },
+          {
+            '_id': '64e8b3de3c9f9c1e2aa1a449',
+            'name': 'Other',
+            'isActive': true,
+          },
+        ];
+
+        setState(() {
+          methodOfContactOptions = fallbackOptions;
+        });
+
+        print(
+          '🔍 UI: Fallback method of contact options loaded: ${methodOfContactOptions.length} items',
+        );
+      }
+    } catch (e) {
+      print('❌ UI: Failed to load method of contact options from backend: $e');
+      print('🔍 UI: Using fallback options due to error');
+
+      // Use fallback options on error
+      final fallbackOptions = [
+        {'_id': '64e8b3d93c9f9c1e2aa1a444', 'name': 'Email', 'isActive': true},
+        {'_id': '64e8b3da3c9f9c1e2aa1a445', 'name': 'SMS', 'isActive': true},
+        {
+          '_id': '64e8b3db3c9f9c1e2aa1a446',
+          'name': 'Social Media',
+          'isActive': true,
+        },
+        {
+          '_id': '64e8b3dc3c9f9c1e2aa1a447',
+          'name': 'Phone Call',
+          'isActive': true,
+        },
+        {
+          '_id': '64e8b3dd3c9f9c1e2aa1a448',
+          'name': 'Website',
+          'isActive': true,
+        },
+        {'_id': '64e8b3de3c9f9c1e2aa1a449', 'name': 'Other', 'isActive': true},
+      ];
+
+      setState(() {
+        methodOfContactOptions = fallbackOptions;
+      });
+    }
+  }
+
   Future<void> _submitForm() async {
+    print('🔍 Form submission started...');
+    print('🔍 Selected method of contact ID: $selectedMethodOfContactId');
+    print('🔍 Form validation: ${_isFormValid()}');
+
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     final now = DateTime.now();
+    // Get current user information
+    final keycloakUserId = await JwtService.getCurrentUserId();
+    final userEmail = await JwtService.getCurrentUserEmail();
+
+    print('🔍 Current user ID: $keycloakUserId');
+    print('🔍 Current user email: $userEmail');
+
     final report = ScamReportModel(
       id: id,
       reportCategoryId: widget.categoryId,
       reportTypeId: scamTypeId!,
-      alertLevels: 'low',
-      phoneNumber: phoneNumber ?? '',
-      email: email!,
+      alertLevels: null, // Remove hardcoded value - will be set in Step 2
+      phoneNumbers: List<String>.from(phoneNumbers),
+      emailAddresses: List<String>.from(emailAddresses),
       website: website ?? '',
       description: description!,
       createdAt: now,
       updatedAt: now,
+      scammerName: scammerName,
+      socialMediaHandles: List<String>.from(
+        socialMediaHandles,
+      ), // Ensure proper list copy
+      incidentDateTime: incidentDateTime,
+      amountLost: amountLost,
+      currency: selectedCurrency,
+      methodOfContactId: selectedMethodOfContactId,
+      keycloakUserId: keycloakUserId,
+      name: userEmail, // Use user's email as the name/createdBy
     );
+
+    print(
+      '🔍 Report created with methodOfContactId: ${report.methodOfContactId}',
+    );
+    print('🔍 Phone Numbers: ${report.phoneNumbers}');
+    print('🔍 Email Addresses: ${report.emailAddresses}');
+    print('🔍 Social Media Handles: ${report.socialMediaHandles}');
+    print('🔍 Local phoneNumbers array: $phoneNumbers');
+    print('🔍 Local emailAddresses array: $emailAddresses');
+    print('🔍 Local socialMediaHandles array: $socialMediaHandles');
+    print('🔍 Report JSON: ${report.toJson()}');
 
     await ScamReportService.saveReport(report);
 
@@ -678,6 +519,23 @@ class _ReportScam1State extends State<ReportScam1> {
       // Refresh the thread database list when returning
       setState(() {});
     });
+  }
+
+  String? _getSelectedMethodOfContactName() {
+    if (selectedMethodOfContactId == null) return null;
+
+    try {
+      final selectedOption = methodOfContactOptions.firstWhere(
+        (e) => e['_id'] == selectedMethodOfContactId,
+        orElse: () => <String, dynamic>{},
+      );
+      return selectedOption.isNotEmpty
+          ? selectedOption['name'] as String?
+          : null;
+    } catch (e) {
+      print('❌ Error getting selected method of contact name: $e');
+      return null;
+    }
   }
 
   @override
@@ -697,7 +555,7 @@ class _ReportScam1State extends State<ReportScam1> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CustomDropdown(
-                label: 'Scam Type*',
+                label: 'Scam Type',
                 hint: 'Select a Scam Type',
                 items: scamTypes.map((e) => e['name'] as String).toList(),
                 value: scamTypes.firstWhere(
@@ -706,60 +564,504 @@ class _ReportScam1State extends State<ReportScam1> {
                 )['name'],
                 onChanged: (val) {
                   setState(() {
-                    scamTypeId = val;
-                    scamTypeId = scamTypes.firstWhere(
-                      (e) => e['name'] == val,
-                    )['_id'];
+                    if (val != null) {
+                      final selectedType = scamTypes.firstWhere(
+                        (e) => e['name'] == val,
+                        orElse: () => {'_id': null},
+                      );
+                      scamTypeId = selectedType['_id'];
+                      print('Selected scam type: $val with ID: $scamTypeId');
+                    }
                   });
                 },
               ),
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Phone*',
-                hintText: 'Enter phone number',
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [PhoneInputFormatter()],
+                label: 'Scammer Name',
+                hintText: 'Enter scammer name',
+                controller: _scammerNameController,
                 onChanged: (val) {
-                  phoneNumber = val;
-                  _validatePhoneField();
+                  scammerName = val;
                 },
-                validator: validatePhone,
-                errorText: _phoneError.isNotEmpty ? _phoneError : null,
-                suffixIcon: _phoneController.text.isNotEmpty
-                    ? Icon(
-                        _isPhoneValid ? Icons.check_circle : Icons.error,
-                        color: _isPhoneValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
-                    : null,
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Phone Number',
+                      hintText: 'Enter phone number',
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [PhoneInputFormatter()],
+                      onChanged: (val) {
+                        _validatePhoneField();
+                      },
+                      validator: validatePhone,
+                      errorText: _phoneError.isNotEmpty ? _phoneError : null,
+                      suffixIcon: _phoneController.text.isNotEmpty
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isPhoneValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isPhoneValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: _addPhoneNumber,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: Colors.blue,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            )
+                          : IconButton(
+                              onPressed: _addPhoneNumber,
+                              icon: Icon(
+                                Icons.add,
+                                color: Colors.blue,
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                    ),
+                  ),
+                  // Plus icon moved inside the field
+                ],
+              ),
+              if (phoneNumbers.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...phoneNumbers.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final phone = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(phone)),
+                        IconButton(
+                          onPressed: () => _removePhoneNumber(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Email Address',
+                      hintText: 'Enter email address',
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [EmailInputFormatter()],
+                      onChanged: (val) {
+                        _validateEmailField();
+                      },
+                      validator: validateEmail,
+                      errorText: _emailError.isNotEmpty ? _emailError : null,
+                      suffixIcon: _emailController.text.isNotEmpty
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isEmailValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isEmailValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: _addEmailAddress,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: Colors.blue,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            )
+                          : IconButton(
+                              onPressed: _addEmailAddress,
+                              icon: Icon(
+                                Icons.add,
+                                color: Colors.blue,
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                    ),
+                  ),
+                  // Plus icon moved inside the field
+                ],
+              ),
+              if (emailAddresses.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...emailAddresses.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final email = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(email)),
+                        IconButton(
+                          onPressed: () => _removeEmailAddress(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Website',
+                hintText: 'Enter website URL',
+                controller: _websiteController,
+                keyboardType: TextInputType.url,
+                onChanged: (val) {
+                  website = val;
+                },
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Social Media Handle',
+                      hintText: 'Enter social media handle',
+                      controller: _socialMediaController,
+                      onChanged: (val) {
+                        // Handle social media input
+                      },
+                      suffixIcon: _socialMediaController.text.isNotEmpty
+                          ? IconButton(
+                              onPressed: _addSocialMediaHandle,
+                              icon: Icon(
+                                Icons.add,
+                                color: Colors.blue,
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            )
+                          : IconButton(
+                              onPressed: _addSocialMediaHandle,
+                              icon: Icon(
+                                Icons.add,
+                                color: Colors.blue,
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                    ),
+                  ),
+                  // Plus icon moved inside the field
+                ],
+              ),
+              if (socialMediaHandles.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...socialMediaHandles.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final handle = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(handle)),
+                        IconButton(
+                          onPressed: () => _removeSocialMediaHandle(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              // Method of Contact Dropdown
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final dropdownItems = methodOfContactOptions
+                                .map((e) => e['name'] as String)
+                                .toList();
+
+                            print(
+                              '🔍 UI: Rendering dropdown with ${dropdownItems.length} items',
+                            );
+                            print('🔍 UI: Dropdown items: $dropdownItems');
+                            print(
+                              '🔍 UI: Selected ID: $selectedMethodOfContactId',
+                            );
+
+                            return CustomDropdown(
+                              label: 'Method of Contact *',
+                              hint: 'Select method of contact',
+                              items: dropdownItems,
+                              value: _getSelectedMethodOfContactName(),
+                              onChanged: (val) {
+                                print(
+                                  '🔍 UI: Dropdown onChanged called with: $val',
+                                );
+                                print(
+                                  '🔍 UI: Current methodOfContactOptions: $methodOfContactOptions',
+                                );
+                                setState(() {
+                                  if (val != null) {
+                                    print(
+                                      '🔍 UI: Looking for option with name: $val',
+                                    );
+                                    final selectedOption =
+                                        methodOfContactOptions.firstWhere(
+                                          (e) => e['name'] == val,
+                                          orElse: () => <String, dynamic>{},
+                                        );
+                                    print(
+                                      '🔍 UI: Found selectedOption: $selectedOption',
+                                    );
+                                    if (selectedOption.isNotEmpty) {
+                                      selectedMethodOfContactId =
+                                          selectedOption['_id'];
+                                      print(
+                                        '✅ UI: Selected method of contact ID: ${selectedOption['_id']}',
+                                      );
+                                      print(
+                                        '✅ UI: selectedMethodOfContactId set to: $selectedMethodOfContactId',
+                                      );
+                                    } else {
+                                      print(
+                                        '❌ UI: Could not find selected option for: $val',
+                                      );
+                                      print(
+                                        '❌ UI: Available options: ${methodOfContactOptions.map((e) => e['name']).toList()}',
+                                      );
+                                      selectedMethodOfContactId = null;
+                                    }
+                                  } else {
+                                    selectedMethodOfContactId = null;
+                                    print(
+                                      '🔍 UI: selectedMethodOfContactId cleared',
+                                    );
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  // Show selected method of contact
+                  if (selectedMethodOfContactId != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        border: Border.all(color: Colors.green.shade200),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green.shade600,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Method of contact selected',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              // Incident Date & Time
+              Text(
+                'Date & Time of Incident',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: incidentDateTime ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (pickedDate != null) {
+                    final TimeOfDay? pickedTime = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.now(),
+                    );
+                    if (pickedTime != null) {
+                      setState(() {
+                        incidentDateTime = DateTime(
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          pickedTime.hour,
+                          pickedTime.minute,
+                        );
+                      });
+                    }
+                  }
+                },
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(
+                        incidentDateTime != null
+                            ? '${incidentDateTime!.day}/${incidentDateTime!.month}/${incidentDateTime!.year} ${incidentDateTime!.hour}:${incidentDateTime!.minute.toString().padLeft(2, '0')}'
+                            : 'Select date and time',
+                        style: TextStyle(
+                          color: incidentDateTime != null
+                              ? Colors.black
+                              : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              // Currency Selection
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Currency *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      showCurrencyPicker(
+                        context: context,
+                        showFlag: true,
+                        showSearchField: true,
+                        showCurrencyName: true,
+                        showCurrencyCode: true,
+                        onSelect: (Currency currency) {
+                          setState(() {
+                            selectedCurrency = currency.code;
+                          });
+                        },
+                      );
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            selectedCurrency,
+                            style: TextStyle(fontSize: 16, color: Colors.black),
+                          ),
+                          Icon(Icons.arrow_drop_down, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              // Amount Lost
+              CustomTextField(
+                label: 'Amount of Money Lost',
+                hintText: 'Enter amount lost',
+                controller: _amountLostController,
+                keyboardType: TextInputType.number,
+                onChanged: (val) {
+                  amountLost = double.tryParse(val);
+                },
               ),
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Email*',
-                hintText: 'Enter email address',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                inputFormatters: [EmailInputFormatter()],
-                onChanged: (val) {
-                  email = val;
-                  _validateEmailField();
-                },
-                validator: validateEmail,
-                errorText: _emailError.isNotEmpty ? _emailError : null,
-                suffixIcon: _emailController.text.isNotEmpty
-                    ? Icon(
-                        _isEmailValid ? Icons.check_circle : Icons.error,
-                        color: _isEmailValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Description*',
+                label: 'Description',
                 hintText: 'Describe the scam in detail',
                 controller: _descriptionController,
                 maxLines: 5,
@@ -781,14 +1083,212 @@ class _ReportScam1State extends State<ReportScam1> {
                     : null,
               ),
 
+              // Location
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.location_on, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Location*',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () {
+                        LocationPickerBottomSheet.show(
+                          context,
+                          onLocationSelected: (location, address) {
+                            setState(() {
+                              selectedLocation = location;
+                              selectedAddress = address;
+                            });
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.search,
+                              color: Colors.grey[600],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                selectedLocation != null
+                                    ? selectedLocation!
+                                    : 'Select location',
+                                style: TextStyle(
+                                  color: selectedLocation != null
+                                      ? Colors.black87
+                                      : Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.grey[600],
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (selectedAddress != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              color: Colors.blue[600],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                selectedAddress!,
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               SizedBox(height: 24),
               CustomButton(
                 text: 'Next',
                 onPressed: () async {
+                  print('🔍 SUBMIT: Starting form validation...');
+                  print(
+                    '🔍 SUBMIT: selectedMethodOfContactId: $selectedMethodOfContactId',
+                  );
+                  print(
+                    '🔍 SUBMIT: methodOfContactOptions length: ${methodOfContactOptions.length}',
+                  );
+                  print('🔍 SUBMIT: phoneNumbers: $phoneNumbers');
+                  print('🔍 SUBMIT: emailAddresses: $emailAddresses');
+                  print('🔍 SUBMIT: description: $description');
+                  print('🔍 SUBMIT: incidentDateTime: $incidentDateTime');
+                  print('🔍 SUBMIT: scamTypeId: $scamTypeId');
+                  print('🔍 SUBMIT: selectedLocation: $selectedLocation');
+                  print('🔍 SUBMIT: selectedAddress: $selectedAddress');
+
+                  // Check if method of contact is selected
+                  if (selectedMethodOfContactId == null) {
+                    print('❌ SUBMIT: Method of contact not selected');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select a method of contact'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Check other required fields
+                  if (phoneNumbers.isEmpty) {
+                    print('❌ SUBMIT: No phone numbers added');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please add at least one phone number'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (emailAddresses.isEmpty) {
+                    print('❌ SUBMIT: No email addresses added');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please add at least one email address'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (description == null || description!.trim().isEmpty) {
+                    print('❌ SUBMIT: No description provided');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please provide a description'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (incidentDateTime == null) {
+                    print('❌ SUBMIT: No incident date/time selected');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select incident date and time'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (scamTypeId == null) {
+                    print('❌ SUBMIT: No scam type selected');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select a scam type'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  print(
+                    '✅ SUBMIT: All validations passed, proceeding to submit...',
+                  );
+
                   // Trigger validation manually to show errors
                   if (_formKey.currentState!.validate()) {
+                    print(
+                      '✅ SUBMIT: Form validation passed, calling _submitForm()',
+                    );
                     await _submitForm();
                   } else {
+                    print('❌ SUBMIT: Form validation failed');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(

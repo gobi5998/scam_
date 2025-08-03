@@ -1,54 +1,5 @@
-// import 'package:flutter/material.dart';
-//
-// class CustomButton extends StatefulWidget {
-//   final String text;
-//   final Future<void> Function()? onPressed;
-//
-//   final double? width;
-//   final double? height;
-//
-//   const CustomButton({
-//     super.key,
-//     required this.text,
-//     required this.onPressed,
-//     this.width,
-//     this.height,
-//   });
-//
-//   @override
-//   State<CustomButton> createState() => _CustomButtonState();
-// }
-//
-// class _CustomButtonState extends State<CustomButton> {
-//   @override
-//   Widget build(BuildContext context) {
-//     return SizedBox(
-//       width: widget.width, // null means auto-size
-//       height: widget.height, // null means auto-size
-//       child: ElevatedButton(
-//         onPressed: widget.onPressed,
-//         style: ElevatedButton.styleFrom(
-//           backgroundColor: const Color(0xFF003366),
-//           minimumSize: const Size(double.infinity, 48),
-//           shape: RoundedRectangleBorder(
-//             borderRadius: BorderRadius.circular(6),
-//           ),
-//           elevation: 0,
-//         ),
-//         child: Text(
-//           widget.text,
-//           style: const TextStyle(
-//             color: Colors.white,
-//             fontSize: 16,
-//             fontWeight: FontWeight.w600,
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 import 'package:flutter/material.dart';
+import '../utils/responsive_helper.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -77,9 +28,11 @@ class CustomButton extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final resolvedWidth = width ?? constraints.maxWidth;
-        final resolvedHeight = height ?? 48.0;
+        final resolvedHeight =
+            height ?? ResponsiveHelper.getResponsivePadding(context, 48);
         final resolvedBorderRadius = borderCircular ?? 12.0;
-        final resolvedFontSize = fontSize ?? 16.0; // ✅ FIXED here too
+        final resolvedFontSize =
+            fontSize ?? ResponsiveHelper.getResponsiveFontSize(context, 16);
 
         return SizedBox(
           width: resolvedWidth,

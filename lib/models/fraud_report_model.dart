@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../services/sync_service.dart';
 
@@ -19,45 +18,67 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   String? alertLevels;
 
   @HiveField(4)
-  String? phoneNumber;
-
-  @HiveField(5)
-  String? email;
-
-  @HiveField(6)
   String? website;
 
-  @HiveField(7)
+  @HiveField(5)
   String? description;
 
-  @HiveField(8)
+  @HiveField(6)
   DateTime? createdAt;
 
-  @HiveField(9)
+  @HiveField(7)
   DateTime? updatedAt;
 
-  @HiveField(10)
+  @HiveField(8)
   bool isSynced;
 
+  @HiveField(9)
+  List<String> screenshotPaths; // maps to screenshots
+
+  @HiveField(10)
+  List<String> documentPaths; // maps to documents
+
   @HiveField(11)
-  List<String> screenshotPaths;
+  String? name; // maps to createdBy
 
   @HiveField(12)
-  List<String> documentPaths;
+  String? keycloakUserId; // maps to keycloackUserId
 
   @HiveField(13)
-  String? name;
+  String? fraudsterName;
 
   @HiveField(14)
-  String? keycloakUserId; // Keycloak user ID from JWT token sub field
+  List<String> phoneNumbers;
+
+  @HiveField(15)
+  List<String> emailAddresses; // maps to emails
+
+  @HiveField(16)
+  String? companyName;
+
+  @HiveField(17)
+  List<String> socialMediaHandles; // maps to mediaHandles
+
+  @HiveField(18)
+  DateTime? incidentDateTime; // maps to incidentDate
+
+  @HiveField(19)
+  double? amountInvolved; // maps to moneyLost
+
+  @HiveField(20)
+  List<String> voiceRecordings; // maps to voiceMessages
+
+  @HiveField(21)
+  String? currency; // maps to currency
+
+  @HiveField(22)
+  String? methodOfContactId; // maps to methodOfContact
 
   FraudReportModel({
     this.id,
     this.reportCategoryId,
     this.reportTypeId,
     this.alertLevels,
-    this.phoneNumber,
-    this.email,
     this.website,
     this.description,
     this.createdAt,
@@ -67,46 +88,56 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     this.documentPaths = const [],
     this.name,
     this.keycloakUserId,
+    this.fraudsterName,
+    this.phoneNumbers = const [],
+    this.emailAddresses = const [],
+    this.companyName,
+    this.socialMediaHandles = const [],
+    this.incidentDateTime,
+    this.amountInvolved,
+    this.voiceRecordings = const [],
+    this.currency,
+    this.methodOfContactId,
   });
 
   @override
-  Map<String, dynamic> toSyncJson() => {
-    '_id': id,
-    'reportCategoryId': reportCategoryId,
-    'reportTypeId': reportTypeId,
-    'alertLevels': alertLevels,
-    'phoneNumber': int.tryParse(phoneNumber ?? '') ?? 0,
-    'email': email,
-    'website': website,
-    'description': description,
-    'createdAt': createdAt?.toIso8601String(),
-    'updatedAt': updatedAt?.toIso8601String(),
-    'isSynced': isSynced,
-    'screenshotPaths': screenshotPaths,
-    'documentPaths': documentPaths,
-    'name': name,
-    'keycloackUserId': keycloakUserId,
-  };
+  Map<String, dynamic> toSyncJson() => toJson();
 
   @override
-  String get endpoint => '/reports';
+  String get endpoint => '/api/reports';
+
+  bool get isInBox =>
+      Hive.box<FraudReportModel>('fraud_reports').containsKey(id);
 
   Map<String, dynamic> toJson() => {
     '_id': id,
     'reportCategoryId': reportCategoryId,
     'reportTypeId': reportTypeId,
     'alertLevels': alertLevels,
-    'name': name,
-    'phoneNumber': int.tryParse(phoneNumber ?? '') ?? 0,
-    'email': email,
+    'keycloackUserId': keycloakUserId,
+    'location': {
+      'type': 'Point',
+      'coordinates': [
+        79.8114,
+        11.9416,
+      ], // Default coordinates, should be updated with actual location
+    },
+    'phoneNumbers': phoneNumbers,
+    'emails': emailAddresses,
+    'mediaHandles': socialMediaHandles,
     'website': website,
+    'currency': currency ?? 'INR', // Use currency from model or default to INR
+    'moneyLost': amountInvolved?.toString(),
+    'reportOutcome': true, // Default value, should be made configurable
     'description': description,
-    'createdAt': createdAt?.toIso8601String(),
-    'updatedAt': updatedAt?.toIso8601String(),
-    'isSynced': isSynced,
-    'screenshotPaths': screenshotPaths,
-    'documentPaths': documentPaths,
-    'keycloakUserId': keycloakUserId,
+    'incidentDate': incidentDateTime?.toIso8601String(),
+    'fraudsterName': fraudsterName,
+    'companyName': companyName,
+    'createdBy': name, // Using name as createdBy for now
+    'methodOfContact': methodOfContactId, // Add method of contact ID
+    'screenshots': screenshotPaths,
+    'voiceMessages': voiceRecordings,
+    'documents': documentPaths,
   };
 
   factory FraudReportModel.fromJson(
@@ -116,9 +147,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     reportCategoryId: json['reportCategoryId'],
     reportTypeId: json['reportTypeId'],
     alertLevels: json['alertLevels'],
-    name: json['name'],
-    phoneNumber: json['phoneNumber']?.toString(),
-    email: json['email'],
+    name: json['createdBy'], // Using createdBy as name
     website: json['website'],
     description: json['description'],
     createdAt: json['createdAt'] != null
@@ -129,12 +158,29 @@ class FraudReportModel extends HiveObject implements SyncableReport {
         : null,
     isSynced: json['isSynced'] ?? false,
     screenshotPaths:
-        (json['screenshotPaths'] as List?)?.map((e) => e as String).toList() ??
-        [],
+        (json['screenshots'] as List?)?.map((e) => e.toString()).toList() ?? [],
     documentPaths:
-        (json['documentPaths'] as List?)?.map((e) => e as String).toList() ??
+        (json['documents'] as List?)?.map((e) => e.toString()).toList() ?? [],
+    keycloakUserId: json['keycloackUserId'],
+    fraudsterName: json['fraudsterName'],
+    phoneNumbers:
+        (json['phoneNumbers'] as List?)?.map((e) => e.toString()).toList() ??
         [],
-    keycloakUserId: json['keycloakUserId'],
+    emailAddresses:
+        (json['emails'] as List?)?.map((e) => e.toString()).toList() ?? [],
+    companyName: json['companyName'],
+    socialMediaHandles:
+        (json['mediaHandles'] as List?)?.map((e) => e.toString()).toList() ??
+        [],
+    incidentDateTime: json['incidentDate'] != null
+        ? DateTime.tryParse(json['incidentDate'])
+        : null,
+    amountInvolved: json['moneyLost'] != null
+        ? double.tryParse(json['moneyLost'].toString())
+        : null,
+    voiceRecordings:
+        (json['voiceMessages'] as List?)?.map((e) => e.toString()).toList() ??
+        [],
   );
 
   FraudReportModel copyWith({
@@ -143,8 +189,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     String? reportTypeId,
     String? alertLevels,
     String? name,
-    String? phoneNumber,
-    String? email,
     String? website,
     String? description,
     DateTime? createdAt,
@@ -153,6 +197,16 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     List<String>? screenshotPaths,
     List<String>? documentPaths,
     String? keycloakUserId,
+    String? fraudsterName,
+    List<String>? phoneNumbers,
+    List<String>? emailAddresses,
+    String? companyName,
+    List<String>? socialMediaHandles,
+    DateTime? incidentDateTime,
+    double? amountInvolved,
+    List<String>? voiceRecordings,
+    String? currency,
+    String? methodOfContactId,
   }) {
     return FraudReportModel(
       id: id ?? this.id,
@@ -160,8 +214,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
       reportTypeId: reportTypeId ?? this.reportTypeId,
       alertLevels: alertLevels ?? this.alertLevels,
       name: name ?? this.name,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
-      email: email ?? this.email,
       website: website ?? this.website,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
@@ -170,6 +222,16 @@ class FraudReportModel extends HiveObject implements SyncableReport {
       screenshotPaths: screenshotPaths ?? this.screenshotPaths,
       documentPaths: documentPaths ?? this.documentPaths,
       keycloakUserId: keycloakUserId ?? this.keycloakUserId,
+      fraudsterName: fraudsterName ?? this.fraudsterName,
+      phoneNumbers: phoneNumbers ?? this.phoneNumbers,
+      emailAddresses: emailAddresses ?? this.emailAddresses,
+      companyName: companyName ?? this.companyName,
+      socialMediaHandles: socialMediaHandles ?? this.socialMediaHandles,
+      incidentDateTime: incidentDateTime ?? this.incidentDateTime,
+      amountInvolved: amountInvolved ?? this.amountInvolved,
+      voiceRecordings: voiceRecordings ?? this.voiceRecordings,
+      currency: currency ?? this.currency,
+      methodOfContactId: methodOfContactId ?? this.methodOfContactId,
     );
   }
 }

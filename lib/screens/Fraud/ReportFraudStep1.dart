@@ -6,12 +6,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
 import 'package:security_alert/custom/customButton.dart';
 import 'package:security_alert/custom/customTextfield.dart';
+import '../../utils/responsive_helper.dart';
+import '../../widgets/responsive_widget.dart';
 
 import '../../models/fraud_report_model.dart';
+import '../../services/api_service.dart';
 import 'ReportFraudStep2.dart';
 import 'fraud_report_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:currency_picker/currency_picker.dart';
+import '../../custom/location_picker_screen.dart';
 
 // Phone input formatter to limit to 10 digits only
 class PhoneInputFormatter extends TextInputFormatter {
@@ -142,9 +147,31 @@ class ReportFraudStep1 extends StatefulWidget {
 
 class _ReportFraudStep1State extends State<ReportFraudStep1> {
   final _formKey = GlobalKey<FormState>();
-  String? fraudTypeId, phoneNumber, email, website, description, name;
+  String? fraudTypeId,
+      phoneNumber,
+      email,
+      website,
+      description,
+      name,
+      selectedSeverity;
+  String? fraudsterName, companyName, methodOfContact;
+  String? selectedMethodOfContactId;
+  DateTime? incidentDateTime;
+  double? amountInvolved;
+  String selectedCurrency = 'INR'; // Default currency
+  List<String> phoneNumbers = [];
+  List<String> emailAddresses = [];
+  List<String> socialMediaHandles = [];
   List<Map<String, dynamic>> fraudTypes = [];
+  List<Map<String, dynamic>> methodOfContactOptions = [];
   bool isOnline = true;
+
+  // Location variables
+  String? selectedLocation;
+  String? selectedAddress;
+
+  // Store the actual category ID from API
+  String? actualCategoryId;
 
   // Controllers for real-time validation
   final TextEditingController _phoneController = TextEditingController();
@@ -152,6 +179,12 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   final TextEditingController _websiteController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _fraudsterNameController =
+      TextEditingController();
+  final TextEditingController _companyNameController = TextEditingController();
+  final TextEditingController _socialMediaController = TextEditingController();
+  final TextEditingController _amountInvolvedController =
+      TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
@@ -170,6 +203,8 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   void initState() {
     super.initState();
     _loadFraudTypes();
+    _loadMethodOfContactOptions();
+    _loadCategoryId();
     _setupNetworkListener();
     _setupValidationListeners();
   }
@@ -195,6 +230,10 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     _websiteController.dispose();
     _descriptionController.dispose();
     _nameController.dispose();
+    _fraudsterNameController.dispose();
+    _companyNameController.dispose();
+    _socialMediaController.dispose();
+    _amountInvolvedController.dispose();
     super.dispose();
   }
 
@@ -238,12 +277,106 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     });
   }
 
+  void _addPhoneNumber() {
+    final phone = _phoneController.text.trim();
+    print('📱 Attempting to add phone number: $phone');
+    print('📱 Current phone numbers: $phoneNumbers');
+
+    if (phone.isNotEmpty && validatePhone(phone) == null) {
+      setState(() {
+        if (!phoneNumbers.contains(phone)) {
+          phoneNumbers.add(phone);
+          print('📱 Added phone number: $phone');
+          print('📱 Total phone numbers: ${phoneNumbers.length}');
+          print('📱 All phone numbers: $phoneNumbers');
+          _phoneController.clear();
+          _phoneError = '';
+          _isPhoneValid = false;
+        } else {
+          print('📱 Phone number already exists: $phone');
+          _phoneError = 'This phone number is already added';
+        }
+      });
+    } else {
+      setState(() {
+        _phoneError = validatePhone(phone) ?? 'Invalid phone number';
+      });
+    }
+  }
+
+  void _removePhoneNumber(int index) {
+    setState(() {
+      phoneNumbers.removeAt(index);
+    });
+  }
+
+  void _addEmailAddress() {
+    final email = _emailController.text.trim();
+    print('📧 Attempting to add email: $email');
+    print('📧 Current emails: $emailAddresses');
+
+    if (email.isNotEmpty && validateEmail(email) == null) {
+      setState(() {
+        if (!emailAddresses.contains(email)) {
+          emailAddresses.add(email);
+          print('📧 Added email: $email');
+          print('📧 Total emails: ${emailAddresses.length}');
+          print('📧 All emails: $emailAddresses');
+          _emailController.clear();
+          _emailError = '';
+          _isEmailValid = false;
+        } else {
+          print('📧 Email already exists: $email');
+          _emailError = 'This email address is already added';
+        }
+      });
+    } else {
+      setState(() {
+        _emailError = validateEmail(email) ?? 'Invalid email address';
+      });
+    }
+  }
+
+  void _removeEmailAddress(int index) {
+    setState(() {
+      emailAddresses.removeAt(index);
+    });
+  }
+
+  void _addSocialMediaHandle() {
+    final handle = _socialMediaController.text.trim();
+    print('📱 Attempting to add social media handle: $handle');
+    print('📱 Current social media handles: $socialMediaHandles');
+
+    if (handle.isNotEmpty) {
+      setState(() {
+        if (!socialMediaHandles.contains(handle)) {
+          socialMediaHandles.add(handle);
+          print('📱 Added social media handle: $handle');
+          print('📱 Total social media handles: ${socialMediaHandles.length}');
+          print('📱 All social media handles: $socialMediaHandles');
+          _socialMediaController.clear();
+        } else {
+          print('📱 Social media handle already exists: $handle');
+        }
+      });
+    }
+  }
+
+  void _removeSocialMediaHandle(int index) {
+    setState(() {
+      socialMediaHandles.removeAt(index);
+    });
+  }
+
   bool _isFormValid() {
     return _isPhoneValid &&
         _isEmailValid &&
         _isDescriptionValid &&
         _isNameValid &&
-        fraudTypeId != null;
+        fraudTypeId != null &&
+        selectedMethodOfContactId != null &&
+        selectedLocation != null;
   }
 
   void _setupNetworkListener() {
@@ -285,8 +418,127 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     }
   }
 
+  String? _getSelectedMethodOfContactName() {
+    if (selectedMethodOfContactId == null) return null;
+
+    try {
+      final selectedOption = methodOfContactOptions.firstWhere(
+        (e) => e['_id'] == selectedMethodOfContactId,
+        orElse: () => <String, dynamic>{},
+      );
+      return selectedOption['name'] as String?;
+    } catch (e) {
+      print('❌ Error getting selected method of contact name: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadMethodOfContactOptions() async {
+    try {
+      print(
+        '🔍 UI: Starting to load method of contact options from backend...',
+      );
+
+      // Try to load from backend first
+      final apiService = ApiService();
+      final methodOfContactData = await apiService.fetchMethodOfContact();
+
+      if (methodOfContactData != null && methodOfContactData.isNotEmpty) {
+        setState(() {
+          methodOfContactOptions = methodOfContactData;
+        });
+
+        print(
+          '✅ UI: Method of contact options loaded from backend: ${methodOfContactOptions.length} items',
+        );
+
+        // Print the options for debugging
+        for (int i = 0; i < methodOfContactOptions.length; i++) {
+          final option = methodOfContactOptions[i];
+          print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
+        }
+      } else {
+        // Fallback to hardcoded options if backend fails
+        print('⚠️ Using fallback method of contact options');
+        setState(() {
+          methodOfContactOptions = [
+            {'_id': '1', 'name': 'Email', 'type': 'Method of Contact'},
+            {'_id': '2', 'name': 'SMS', 'type': 'Method of Contact'},
+            {'_id': '3', 'name': 'Phone Call', 'type': 'Method of Contact'},
+            {'_id': '4', 'name': 'Social Media', 'type': 'Method of Contact'},
+            {'_id': '5', 'name': 'Website', 'type': 'Method of Contact'},
+            {'_id': '6', 'name': 'Other', 'type': 'Method of Contact'},
+          ];
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading method of contact options: $e');
+      // Fallback to hardcoded options
+      setState(() {
+        methodOfContactOptions = [
+          {'_id': '1', 'name': 'Email', 'type': 'Method of Contact'},
+          {'_id': '2', 'name': 'SMS', 'type': 'Method of Contact'},
+          {'_id': '3', 'name': 'Phone Call', 'type': 'Method of Contact'},
+          {'_id': '4', 'name': 'Social Media', 'type': 'Method of Contact'},
+          {'_id': '5', 'name': 'Website', 'type': 'Method of Contact'},
+          {'_id': '6', 'name': 'Other', 'type': 'Method of Contact'},
+        ];
+      });
+    }
+  }
+
+  Future<void> _loadCategoryId() async {
+    try {
+      final categories = await FraudReportService.fetchReportCategories();
+      // Find the fraud category
+      final fraudCategory = categories.firstWhere(
+        (category) =>
+            category['name']?.toString().toLowerCase().contains('fraud') ==
+                true ||
+            category['categoryName']?.toString().toLowerCase().contains(
+                  'fraud',
+                ) ==
+                true ||
+            category['title']?.toString().toLowerCase().contains('fraud') ==
+                true,
+        orElse: () => {},
+      );
+
+      if (fraudCategory.isNotEmpty) {
+        setState(() {
+          actualCategoryId =
+              fraudCategory['_id']?.toString() ??
+              fraudCategory['id']?.toString();
+        });
+        print('Found fraud category ID: $actualCategoryId');
+      } else {
+        print('No fraud category found, using default');
+        setState(() {
+          actualCategoryId = widget.categoryId;
+        });
+      }
+    } catch (e) {
+      print('Error loading category ID: $e');
+      setState(() {
+        actualCategoryId = widget.categoryId;
+      });
+    }
+  }
+
   Future<void> _submitForm() async {
     print('Submit button pressed');
+
+    // Check if location is selected
+    if (selectedLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a location'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_formKey.currentState!.validate()) {
       try {
         final id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -295,14 +547,21 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           id: id,
           reportCategoryId: widget.categoryId,
           reportTypeId: fraudTypeId!,
-          alertLevels: 'low',
+          alertLevels: null,
           name: name ?? '',
-          phoneNumber: phoneNumber ?? '',
-          email: email!,
+          phoneNumbers: phoneNumbers,
+          emailAddresses: emailAddresses,
           website: website ?? '',
           description: description!,
           createdAt: now,
           updatedAt: now,
+          fraudsterName: fraudsterName,
+          companyName: companyName,
+          socialMediaHandles: socialMediaHandles,
+          incidentDateTime: incidentDateTime,
+          amountInvolved: amountInvolved,
+          currency: selectedCurrency,
+          methodOfContactId: selectedMethodOfContactId,
         );
         print('Saving report...');
         try {
@@ -331,7 +590,12 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Report Fraud')),
+      appBar: AppBar(
+        title: Text(
+          'Report Fraud',
+          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -349,17 +613,439 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 )['name'],
                 onChanged: (val) {
                   setState(() {
-                    fraudTypeId = val;
-                    fraudTypeId = fraudTypes.firstWhere(
-                      (e) => e['name'] == val,
-                    )['_id'];
+                    if (val != null) {
+                      final selectedType = fraudTypes.firstWhere(
+                        (e) => e['name'] == val,
+                        orElse: () => {'_id': null},
+                      );
+                      fraudTypeId = selectedType['_id'];
+                      print('Selected fraud type: $val with ID: $fraudTypeId');
+                    }
                   });
                 },
               ),
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Name*',
+                label: 'Fraudster Name',
+                hintText: 'Enter fraudster name',
+                controller: _fraudsterNameController,
+                onChanged: (val) {
+                  fraudsterName = val;
+                },
+              ),
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Phone Number',
+                hintText: 'Enter phone number',
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [PhoneInputFormatter()],
+                onChanged: (val) {
+                  _validatePhoneField();
+                },
+                validator: validatePhone,
+                errorText: _phoneError.isNotEmpty ? _phoneError : null,
+                suffixIcon: _phoneController.text.isNotEmpty
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isPhoneValid ? Icons.check_circle : Icons.error,
+                            color: _isPhoneValid ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            onPressed: _addPhoneNumber,
+                            icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      )
+                    : IconButton(
+                        onPressed: _addPhoneNumber,
+                        icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+              ),
+              if (phoneNumbers.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...phoneNumbers.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final phone = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(phone)),
+                        IconButton(
+                          onPressed: () => _removePhoneNumber(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Email Address',
+                hintText: 'Enter email address',
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                inputFormatters: [EmailInputFormatter()],
+                onChanged: (val) {
+                  _validateEmailField();
+                },
+                validator: validateEmail,
+                errorText: _emailError.isNotEmpty ? _emailError : null,
+                suffixIcon: _emailController.text.isNotEmpty
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isEmailValid ? Icons.check_circle : Icons.error,
+                            color: _isEmailValid ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            onPressed: _addEmailAddress,
+                            icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      )
+                    : IconButton(
+                        onPressed: _addEmailAddress,
+                        icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+              ),
+              if (emailAddresses.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...emailAddresses.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final email = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(email)),
+                        IconButton(
+                          onPressed: () => _removeEmailAddress(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Website',
+                hintText: 'Enter website URL',
+                controller: _websiteController,
+                keyboardType: TextInputType.url,
+                onChanged: (val) {
+                  website = val;
+                },
+              ),
+
+              const SizedBox(height: 12),
+              // Method of Contact Dropdown
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final dropdownItems = methodOfContactOptions
+                                .map((e) => e['name'] as String)
+                                .toList();
+
+                            print(
+                              '🔍 UI: Rendering dropdown with ${dropdownItems.length} items',
+                            );
+                            print('🔍 UI: Dropdown items: $dropdownItems');
+                            print(
+                              '🔍 UI: Selected ID: $selectedMethodOfContactId',
+                            );
+
+                            return CustomDropdown(
+                              label: 'Method of Contact *',
+                              hint: 'Select method of contact',
+                              items: dropdownItems,
+                              value: _getSelectedMethodOfContactName(),
+                              onChanged: (val) {
+                                print(
+                                  '🔍 UI: Dropdown onChanged called with: $val',
+                                );
+                                print(
+                                  '🔍 UI: Current methodOfContactOptions: $methodOfContactOptions',
+                                );
+                                setState(() {
+                                  if (val != null) {
+                                    print(
+                                      '🔍 UI: Looking for option with name: $val',
+                                    );
+                                    final selectedOption =
+                                        methodOfContactOptions.firstWhere(
+                                          (e) => e['name'] == val,
+                                          orElse: () => <String, dynamic>{},
+                                        );
+                                    print(
+                                      '🔍 UI: Found selectedOption: $selectedOption',
+                                    );
+                                    if (selectedOption.isNotEmpty) {
+                                      selectedMethodOfContactId =
+                                          selectedOption['_id'];
+                                      print(
+                                        '✅ UI: Selected method of contact ID: ${selectedOption['_id']}',
+                                      );
+                                      print(
+                                        '✅ UI: selectedMethodOfContactId set to: $selectedMethodOfContactId',
+                                      );
+                                    } else {
+                                      print(
+                                        '❌ UI: Could not find selected option for: $val',
+                                      );
+                                      print(
+                                        '❌ UI: Available options: ${methodOfContactOptions.map((e) => e['name']).toList()}',
+                                      );
+                                      selectedMethodOfContactId = null;
+                                    }
+                                  } else {
+                                    selectedMethodOfContactId = null;
+                                    print(
+                                      '🔍 UI: selectedMethodOfContactId cleared',
+                                    );
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  // Show selected method of contact
+                  if (selectedMethodOfContactId != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Selected: ${_getSelectedMethodOfContactName()}',
+                              style: TextStyle(
+                                color: Colors.green[800],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Company Name',
+                hintText: 'Enter company name',
+                controller: _companyNameController,
+                onChanged: (val) {
+                  companyName = val;
+                },
+              ),
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Social Media Handle',
+                hintText: 'Enter social media handle',
+                controller: _socialMediaController,
+                onChanged: (val) {
+                  // Handle social media input
+                },
+                suffixIcon: IconButton(
+                  onPressed: _addSocialMediaHandle,
+                  icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+              if (socialMediaHandles.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...socialMediaHandles.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final handle = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(handle)),
+                        IconButton(
+                          onPressed: () => _removeSocialMediaHandle(index),
+                          icon: Icon(Icons.remove_circle, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: incidentDateTime ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (pickedDate != null) {
+                    final TimeOfDay? pickedTime = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.now(),
+                    );
+                    if (pickedTime != null) {
+                      setState(() {
+                        incidentDateTime = DateTime(
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          pickedTime.hour,
+                          pickedTime.minute,
+                        );
+                      });
+                    }
+                  }
+                },
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(
+                        incidentDateTime != null
+                            ? '${incidentDateTime!.day}/${incidentDateTime!.month}/${incidentDateTime!.year} ${incidentDateTime!.hour}:${incidentDateTime!.minute.toString().padLeft(2, '0')}'
+                            : 'Select date and time',
+                        style: TextStyle(
+                          color: incidentDateTime != null
+                              ? Colors.black
+                              : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Amount Involved',
+                hintText: 'Enter amount involved',
+                controller: _amountInvolvedController,
+                keyboardType: TextInputType.number,
+                onChanged: (val) {
+                  amountInvolved = double.tryParse(val);
+                },
+              ),
+
+              const SizedBox(height: 12),
+              // Currency Picker
+              InkWell(
+                onTap: () {
+                  showCurrencyPicker(
+                    context: context,
+                    showFlag: true,
+                    showSearchField: true,
+                    showCurrencyName: true,
+                    showCurrencyCode: true,
+                    onSelect: (Currency currency) {
+                      setState(() {
+                        selectedCurrency = currency.code;
+                      });
+                      print('Selected currency: ${currency.code}');
+                    },
+                    favorite: ['INR', 'USD', 'EUR'],
+                  );
+                },
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.attach_money, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Currency: $selectedCurrency',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                      Spacer(),
+                      Icon(Icons.arrow_drop_down, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              CustomTextField(
+                label: 'Name',
                 hintText: 'Enter name',
                 controller: _nameController,
                 onChanged: (val) {
@@ -379,50 +1065,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Phone*',
-                hintText: 'Enter phone number',
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [PhoneInputFormatter()],
-                onChanged: (val) {
-                  phoneNumber = val;
-                  _validatePhoneField();
-                },
-                validator: validatePhone,
-                errorText: _phoneError.isNotEmpty ? _phoneError : null,
-                suffixIcon: _phoneController.text.isNotEmpty
-                    ? Icon(
-                        _isPhoneValid ? Icons.check_circle : Icons.error,
-                        color: _isPhoneValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
-                    : null,
-              ),
-
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Email*',
-                hintText: 'Enter email address',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                inputFormatters: [EmailInputFormatter()],
-                onChanged: (val) {
-                  email = val;
-                  _validateEmailField();
-                },
-                validator: validateEmail,
-                errorText: _emailError.isNotEmpty ? _emailError : null,
-                suffixIcon: _emailController.text.isNotEmpty
-                    ? Icon(
-                        _isEmailValid ? Icons.check_circle : Icons.error,
-                        color: _isEmailValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Description*',
+                label: 'Description',
                 hintText: 'Describe the fraud in detail',
                 controller: _descriptionController,
                 maxLines: 5,
@@ -444,10 +1087,130 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                     : null,
               ),
 
+              const SizedBox(height: 12),
+              // Location
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.location_on, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Location*',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () {
+                        LocationPickerBottomSheet.show(
+                          context,
+                          onLocationSelected: (location, address) {
+                            setState(() {
+                              selectedLocation = location;
+                              selectedAddress = address;
+                            });
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.search,
+                              color: Colors.grey[600],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                selectedLocation != null
+                                    ? selectedLocation!
+                                    : 'Select location',
+                                style: TextStyle(
+                                  color: selectedLocation != null
+                                      ? Colors.black87
+                                      : Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.grey[600],
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (selectedAddress != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              color: Colors.blue[600],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                selectedAddress!,
+                                style: TextStyle(
+                                  color: Colors.blue[800],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
               SizedBox(height: 24),
               CustomButton(
                 text: 'Next',
                 onPressed: () async {
+                  // Check if location is selected
+                  if (selectedLocation == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select a location'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
                   // Trigger validation manually to show errors
                   if (_formKey.currentState!.validate()) {
                     await _submitForm();

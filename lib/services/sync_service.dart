@@ -15,8 +15,8 @@ abstract class SyncableReport {
 
 class SyncService {
   static Future<void> syncAllUnsynced<T extends SyncableReport>(
-      String boxName,
-      ) async {
+    String boxName,
+  ) async {
     final connectivityResult = await Connectivity().checkConnectivity();
     final isOnline = connectivityResult != ConnectivityResult.none;
     if (!isOnline) return;
@@ -27,7 +27,7 @@ class SyncService {
       final report = reports[i];
       if (!report.isSynced) {
         final response = await http.post(
-          Uri.parse('${ApiConfig.baseUrl1}${report.endpoint}'),
+          Uri.parse('${ApiConfig.mainBaseUrl}/api${report.endpoint}'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(report.toSyncJson()),
         );

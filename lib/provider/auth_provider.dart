@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/jwt_service.dart'; // Added import for JwtService
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -27,16 +28,20 @@ class AuthProvider with ChangeNotifier {
       final token = prefs.getString('auth_token');
 
       if (token != null && token.isNotEmpty) {
-        // Try to get user profile to validate token
-        try {
-          final userData = await _apiService.getProfile();
-          _currentUser = User.fromJson(userData as Map<String, dynamic>);
+        // Decode JWT token to get user information
+        final userData = JwtService.decodeToken(token);
+        if (userData != null) {
+          // Create user object from JWT token data
+          _currentUser = User(
+            id: userData['sub'] ?? '',
+            username: userData['preferred_username'] ?? '',
+            email: userData['email'] ?? '',
+          );
           _isLoggedIn = true;
           _errorMessage = '';
-          print('opopiooioiuiuvghb$userData');
           print('User is logged in: ${_currentUser?.username}');
-        } catch (e) {
-          print('Token validation failed: $e');
+        } else {
+          print('Token validation failed: Invalid token');
           // Token is invalid, clear it
           await _clearAllData();
         }
@@ -65,12 +70,31 @@ class AuthProvider with ChangeNotifier {
 
       final response = await _apiService.login(username, password);
       print('Login API response: $response');
-      if (response == null || response['user'] == null) {
+
+      if (response == null) {
         throw Exception('Invalid response from server');
       }
-      final profileResponse = await _apiService.getProfile();
-      print('ttttttttttttttttttttttttttttttttttt$profileResponse');
-      _currentUser = User.fromJson(response['user']);
+
+      // Extract user data from JWT token instead of making separate profile call
+      final accessToken = response['access_token'];
+      if (accessToken == null) {
+        throw Exception('No access token received');
+      }
+
+      // Decode JWT token to get user information
+      final userData = JwtService.decodeToken(accessToken);
+      if (userData == null) {
+        throw Exception('Failed to decode user token');
+      }
+
+      // Create user object from JWT token data
+      final user = User(
+        id: userData['sub'] ?? '',
+        username: userData['preferred_username'] ?? username,
+        email: userData['email'] ?? username,
+      );
+
+      _currentUser = user;
       _isLoggedIn = true;
       _errorMessage = '';
 
@@ -111,7 +135,37 @@ class AuthProvider with ChangeNotifier {
         password,
         role,
       );
-      _currentUser = User.fromJson(response['user']);
+
+      if (response == null) {
+        throw Exception('Invalid response from server');
+      }
+
+      // Check if we have an access token from registration
+      final accessToken = response['access_token'];
+      if (accessToken != null) {
+        // Decode JWT token to get user information
+        final userData = JwtService.decodeToken(accessToken);
+        if (userData != null) {
+          // Create user object from JWT token data
+          final user = User(
+            id: userData['sub'] ?? '',
+            username: userData['preferred_username'] ?? username,
+            email: userData['email'] ?? username,
+          );
+          _currentUser = user;
+        } else {
+          throw Exception('Failed to decode user token');
+        }
+      } else {
+        // If no token returned, create user object from registration data
+        final user = User(
+          id: '', // Will be set when user logs in
+          username: username,
+          email: username,
+        );
+        _currentUser = user;
+      }
+
       _isLoggedIn = true;
       _errorMessage = '';
 
@@ -171,12 +225,23 @@ class AuthProvider with ChangeNotifier {
       final token = prefs.getString('auth_token');
 
       if (token != null && token.isNotEmpty) {
-        final userData = await _apiService.getProfile();
-        _currentUser = User.fromJson(userData! as Map<String, dynamic>);
-        _isLoggedIn = true;
-        _errorMessage = '';
-        print('Login state restored for user: ${_currentUser?.username}');
-        notifyListeners();
+        // Decode JWT token to get user information
+        final userData = JwtService.decodeToken(token);
+        if (userData != null) {
+          // Create user object from JWT token data
+          _currentUser = User(
+            id: userData['sub'] ?? '',
+            username: userData['preferred_username'] ?? '',
+            email: userData['email'] ?? '',
+          );
+          _isLoggedIn = true;
+          _errorMessage = '';
+          print('Login state restored for user: ${_currentUser?.username}');
+          notifyListeners();
+        } else {
+          print('Failed to restore login state: Invalid token');
+          await _clearAllData();
+        }
       }
     } catch (e) {
       print('Error restoring login state: $e');

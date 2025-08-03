@@ -1,121 +1,3 @@
-// import 'package:hive/hive.dart';
-// import 'package:http/http.dart' as http;
-// import 'dart:convert';
-// import 'package:connectivity_plus/connectivity_plus.dart';
-//
-// import '../../models/fraud_report_model.dart';
-// import '../../models/scam_report_model.dart';
-// import '../../config/api_config.dart';
-//
-// class FraudReportService {
-//   static final _box = Hive.box<FraudReportModel>('fraud_reports');
-//
-//   static Future<void> saveReport(FraudReportModel report) async {
-//     final connectivity = await Connectivity().checkConnectivity();
-//     if (connectivity != ConnectivityResult.none) {
-//       // Try to send to backend
-//       bool success = await sendToBackend(report);
-//       if (success) {
-//         report.isSynced = true;
-//       }
-//     }
-//     // Always save to local storage
-//     await _box.add(report);
-//   }
-//
-//   static Future<void> syncReports() async {
-//     final box = Hive.box<FraudReportModel>('fraud_reports');
-//     final reports = box.values.toList();
-//     for (int i = 0; i < reports.length; i++) {
-//       final report = reports[i];
-//       if (!report.isSynced) {
-//         try {
-//           final response = await http.post(
-//             Uri.parse('${ApiConfig.baseUrl2}fraud-reports'),
-//             headers: {
-//               'Content-Type': 'application/json',
-//               'Accept': 'application/json',
-//             },
-//             body: jsonEncode({
-//
-//               'name': report.name,
-//
-//               'email': report.email,
-//               'phone': report.phoneNumber,
-//               'website': report.website, // Fixed: was report.type
-//               'alertlevels': report.alertlevels,
-//
-//               'date': report.date.toIso8601String(),
-//               'id': report.id,
-//             }),
-//           );
-//
-//           print('Sync response status: ${response.statusCode}');
-//           print('Sync response body: ${response.body}');
-//
-//           if (response.statusCode == 200 || response.statusCode == 201) {
-//             // Update as synced
-//             final key = box.keyAt(i);
-//             final syncedReport = FraudReportModel(
-//               id: report.id,
-//
-//               name: report.name,
-//
-//               alertLevels: report.alertLevels,
-//               date: report.date,
-//               email: report.email,
-//               phoneNumber: report.phoneNumber,
-//               website: report.website,
-//               isSynced: true,
-//             );
-//             await box.put(key, syncedReport);
-//             print('Successfully synced report: ${report.id}');
-//           } else {
-//             print('Failed to sync report. Status: ${response.statusCode}, Body: ${response.body}');
-//           }
-//         } catch (e) {
-//           print('Error syncing report: $e');
-//         }
-//       }
-//     }
-//   }
-//
-//   static Future<bool> sendToBackend(FraudReportModel report) async {
-//     try {
-//       final response = await http.post(
-//         Uri.parse('${ApiConfig.baseUrl2}fraud-reports'),
-//         headers: {
-//           'Content-Type': 'application/json',
-//           'Accept': 'application/json',
-//         },
-//         body: jsonEncode({
-//
-//           'name': report.name,
-//           'type': report.type,
-//           'email': report.email,
-//           'phone': report.phoneNumber,
-//           'website': report.website,
-//           'alertlevels': report.alertlevels,
-//           'date': report.date.toIso8601String(),
-//           'id': report.id,
-//         }),
-//       );
-//
-//       print('Send to backend response status: ${response.statusCode}');
-//       print('Send to backend response body: ${response.body}');
-//
-//       return response.statusCode == 200 || response.statusCode == 201;
-//     } catch (e) {
-//       print('Error sending to backend: $e');
-//       return false;
-//     }
-//   }
-//
-//   static List<FraudReportModel> getLocalReports() {
-//     return _box.values.toList();
-//   }
-// }
-
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -125,6 +7,7 @@ import '../../models/fraud_report_model.dart';
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 import '../../services/jwt_service.dart';
+import '../../services/report_reference_service.dart';
 
 class FraudReportService {
   static final _box = Hive.box<FraudReportModel>('fraud_reports');
@@ -133,8 +16,21 @@ class FraudReportService {
   static Future<void> saveReport(FraudReportModel report) async {
     // Get current user ID from JWT token
     final keycloakUserId = await JwtService.getCurrentUserId();
+
+    // Run diagnostics if no user ID found (device-specific issue)
+    if (keycloakUserId == null) {
+      print('⚠️ No user ID found - running token storage diagnostics...');
+      await JwtService.diagnoseTokenStorage();
+    }
+
     if (keycloakUserId != null) {
       report = report.copyWith(keycloakUserId: keycloakUserId);
+    } else {
+      // Fallback for device-specific issues
+      print('⚠️ Using fallback user ID for device compatibility');
+      report = report.copyWith(
+        keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
+      );
     }
 
     // Ensure unique timestamp for each report
@@ -147,18 +43,43 @@ class FraudReportService {
       updatedAt: uniqueTimestamp,
     );
 
+    // Always save to local storage first (offline-first approach)
+    await _box.add(report);
+    print('✅ Fraud report saved locally with type ID: ${report.reportTypeId}');
+
+    // AUTOMATIC DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
+    // print('🧹 Auto-cleaning duplicates after saving new fraud report...');
+    // await removeDuplicateFraudReports();
+
+    // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
-      // Try to send to backend
-      bool success = await sendToBackend(report);
-      if (success) {
-        report = report.copyWith(isSynced: true);
-      }
-    }
-    // Always save to local storage
-    await _box.add(report);
+      print('🌐 Online - attempting to sync report...');
+      try {
+        // Initialize reference service before syncing
+        await ReportReferenceService.initialize();
+        bool success = await sendToBackend(report);
+        if (success) {
+          // Mark as synced
+          final key = _box.keyAt(
+            _box.length - 1,
+          ); // Get the key of the last added item
+          final updated = report.copyWith(isSynced: true);
+          await _box.put(key, updated);
+          print('✅ Fraud report synced successfully!');
 
-    print('Fraud report saved with unique timestamp: ${report.createdAt}');
+          // AUTOMATIC BACKEND DUPLICATE CLEANUP after syncing
+          print('🧹 Auto-cleaning backend duplicates after syncing...');
+          await _apiService.removeDuplicateScamFraudReports();
+        } else {
+          print('⚠️ Failed to sync report - will retry later');
+        }
+      } catch (e) {
+        print('❌ Error syncing report: $e - will retry later');
+      }
+    } else {
+      print('📱 Offline - report saved locally for later sync');
+    }
   }
 
   static Future<void> saveReportOffline(FraudReportModel report) async {
@@ -167,42 +88,125 @@ class FraudReportService {
     if (keycloakUserId != null) {
       report = report.copyWith(keycloakUserId: keycloakUserId);
     }
+
+    // Save the new report first
     print('Saving fraud report to local storage: ${report.toSyncJson()}');
     await _box.add(report);
     print('Fraud report saved successfully. Box length: ${_box.length}');
+
+    // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
+    // print('🧹 Auto-cleaning duplicates after saving offline fraud report...');
+    // await removeDuplicateFraudReports();
+  }
+
+  static Future<void> cleanDuplicates() async {
+    final box = Hive.box<FraudReportModel>('fraud_reports');
+    final allReports = box.values.toList();
+    final uniqueReports = <FraudReportModel>[];
+    final seenKeys = <String>{};
+
+    print('🧹 Starting fraud report duplicate cleanup...');
+    print('🔍 Total reports before cleanup: ${allReports.length}');
+
+    for (var report in allReports) {
+      // More comprehensive key including all relevant fields
+      final key =
+          '${report.phoneNumbers.join(',')}_${report.emailAddresses.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+
+      if (!seenKeys.contains(key)) {
+        seenKeys.add(key);
+        uniqueReports.add(report);
+        print(
+          '✅ Keeping report: ${report.phoneNumbers.join(',')} - ${report.description}',
+        );
+      } else {
+        print(
+          '🗑️ Removing duplicate: ${report.phoneNumbers.join(',')} - ${report.description}',
+        );
+      }
+    }
+
+    if (uniqueReports.length < allReports.length) {
+      print(
+        '🧹 Cleaning up ${allReports.length - uniqueReports.length} duplicate fraud reports',
+      );
+      await box.clear();
+      for (var report in uniqueReports) {
+        await box.add(report);
+      }
+      print('✅ Duplicates removed. Box length: ${box.length}');
+    } else {
+      print('✅ No duplicates found in fraud reports');
+    }
   }
 
   static Future<void> syncReports() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity == ConnectivityResult.none) {
+      print('📱 No internet connection - cannot sync');
+      return;
+    }
+
+    // Initialize reference service before syncing
+    print('🔄 Initializing report reference service for sync...');
+    await ReportReferenceService.initialize();
+
     final box = Hive.box<FraudReportModel>('fraud_reports');
     final unsyncedReports = box.values
         .where((r) => r.isSynced != true)
         .toList();
 
+    print('🔄 Syncing ${unsyncedReports.length} unsynced fraud reports...');
+
     for (var report in unsyncedReports) {
       try {
-        // Send to backend with upsert logic
+        print('📤 Syncing report with type ID: ${report.reportTypeId}');
         final success = await FraudReportService.sendToBackend(report);
         if (success) {
           // Mark as synced
           final key = box.keyAt(box.values.toList().indexOf(report));
           final updated = report.copyWith(isSynced: true);
           await box.put(key, updated);
+          print(
+            '✅ Successfully synced report with type ID: ${report.reportTypeId}',
+          );
+        } else {
+          print('❌ Failed to sync report with type ID: ${report.reportTypeId}');
         }
       } catch (e) {
-        print('Failed to sync report: $e');
+        print('❌ Error syncing report with type ID ${report.reportTypeId}: $e');
       }
     }
+
+    print('✅ Sync completed for fraud reports');
   }
 
   static Future<bool> sendToBackend(FraudReportModel report) async {
     try {
-      // Prepare data with fallback values for missing authentication
+      // Get actual ObjectId values from reference service
+      final reportCategoryId = ReportReferenceService.getReportCategoryId(
+        'fraud',
+      );
+
+      print('🔄 Using ObjectId values for fraud report:');
+      print('  - reportCategoryId: $reportCategoryId');
+      print(
+        '  - reportTypeId: ${report.reportTypeId} (from selected dropdown)',
+      );
+      print('  - alertLevels: ${report.alertLevels} (from user selection)');
+
+      // Prepare data with actual ObjectId values
       final reportData = {
-        'reportCategoryId': report.reportCategoryId ?? 'fraud_category_id',
+        'reportCategoryId': reportCategoryId.isNotEmpty
+            ? reportCategoryId
+            : (report.reportCategoryId ?? 'fraud_category_id'),
         'reportTypeId': report.reportTypeId ?? 'fraud_type_id',
-        'alertLevels': report.alertLevels ?? 'medium',
-        'phoneNumber': report.phoneNumber ?? '',
-        'email': report.email ?? '',
+        'alertLevels': report.alertLevels ?? '',
+        'severity':
+            report.alertLevels ??
+            '', // Also send as severity for backend compatibility
+        'phoneNumbers': report.phoneNumbers.join(','),
+        'emails': report.emailAddresses.join(','),
         'website': report.website ?? '',
         'description': report.description ?? '',
         'createdAt':
@@ -211,25 +215,74 @@ class FraudReportService {
         'updatedAt':
             report.updatedAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
-        'keycloackUserId':
-            report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
+        'keycloackUserId': report.keycloakUserId, // Fallback for no auth
         'name': report.name ?? 'Fraud Report',
+        'screenshotUrls': report.screenshotPaths ?? [],
+        'documentUrls': report.documentPaths ?? [],
+        'voiceMessageUrls':
+            [], // Fraud reports don't typically have voice files
       };
 
       print('📤 Sending fraud report to backend...');
       print('📤 Report data: ${jsonEncode(reportData)}');
+      print('🔍 Final alert level being sent: ${reportData['alertLevels']}');
+      print('🔍 Original report alert level: ${report.alertLevels}');
+      print('🔍 Report ID: ${report.id}');
+      print('🔍 Alert level in reportData: "${reportData['alertLevels']}"');
+      print(
+        '🔍 Alert level in reportData type: ${reportData['alertLevels'].runtimeType}',
+      );
+      print(
+        '🔍 Alert level in reportData is null: ${reportData['alertLevels'] == null}',
+      );
+      print(
+        '🔍 Alert level in reportData is empty: ${(reportData['alertLevels'] as String?)?.isEmpty}',
+      );
+      print(
+        '🔍 Alert level in reportData length: ${(reportData['alertLevels'] as String?)?.length}',
+      );
+      print('🔍 Full reportData keys: ${reportData.keys.toList()}');
+      print('🔍 Full reportData values: ${reportData.values.toList()}');
+      print('🔍 Alert level in report object: ${report.alertLevels}');
+      print('🔍 Alert level type in report: ${report.alertLevels.runtimeType}');
+      print('🔍 Alert level is null in report: ${report.alertLevels == null}');
+      print(
+        '🔍 Alert level is empty in report: ${report.alertLevels?.isEmpty}',
+      );
+
+      // ADDITIONAL DEBUGGING
+      print('🔍 DEBUG - Raw report object: ${report.toJson()}');
+      print('🔍 DEBUG - reportData before JSON encoding: $reportData');
+      print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
+      print('🔍 DEBUG - Content-Type header: application/json');
+      print('🔍 DEBUG - URL: ${ApiConfig.mainBaseUrl}/api/reports');
+
+      final requestBody = jsonEncode(reportData);
+      print('🔍 DEBUG - Request URL: ${ApiConfig.mainBaseUrl}/api/reports');
+      print(
+        '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
+      );
+      print('🔍 DEBUG - Request body length: ${requestBody.length}');
+      print('🔍 DEBUG - Request body: $requestBody');
 
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl2}/reports'),
+        Uri.parse('${ApiConfig.mainBaseUrl}/api/reports'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode(reportData),
+        body: requestBody,
       );
 
       print('📥 Send to backend response status: ${response.statusCode}');
+      print('📥 Send to backend response headers: ${response.headers}');
       print('📥 Send to backend response body: ${response.body}');
+      print(
+        '🔍 DEBUG - Response content-type: ${response.headers['content-type']}',
+      );
+      print(
+        '🔍 DEBUG - Response content-length: ${response.headers['content-length']}',
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ Fraud report sent successfully!');
@@ -272,28 +325,43 @@ class FraudReportService {
 
   static Future<void> removeDuplicateReports() async {
     final box = Hive.box<FraudReportModel>('fraud_reports');
-    final reports = box.values.toList();
-    final seenIds = <String>{};
-    final toDelete = <int>[];
+    final allReports = box.values.toList();
+    final uniqueReports = <FraudReportModel>[];
+    final seenKeys = <String>{};
 
-    for (int i = 0; i < reports.length; i++) {
-      final report = reports[i];
-      final uniqueId = '${report.id}_${report.description}_${report.createdAt}';
+    print('🧹 Starting fraud report duplicate removal...');
+    print('🔍 Total reports before removal: ${allReports.length}');
 
-      if (seenIds.contains(uniqueId)) {
-        toDelete.add(i);
+    for (var report in allReports) {
+      // More comprehensive key including all relevant fields
+      final key =
+          '${report.phoneNumbers.join(',')}_${report.emailAddresses.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+
+      if (!seenKeys.contains(key)) {
+        seenKeys.add(key);
+        uniqueReports.add(report);
+        print(
+          '✅ Keeping report: ${report.phoneNumbers.join(',')} - ${report.description}',
+        );
       } else {
-        seenIds.add(uniqueId);
+        print(
+          '🗑️ Removing duplicate: ${report.phoneNumbers.join(',')} - ${report.description}',
+        );
       }
     }
 
-    // Delete duplicates in reverse order to maintain indices
-    for (int i = toDelete.length - 1; i >= 0; i--) {
-      final key = box.keyAt(toDelete[i]);
-      await box.delete(key);
+    if (uniqueReports.length < allReports.length) {
+      print(
+        '🧹 Removing ${allReports.length - uniqueReports.length} duplicate fraud reports',
+      );
+      await box.clear();
+      for (var report in uniqueReports) {
+        await box.add(report);
+      }
+      print('✅ Duplicates removed. Box length: ${box.length}');
+    } else {
+      print('✅ No duplicates found in fraud reports');
     }
-
-    print('Removed ${toDelete.length} duplicate fraud reports');
   }
 
   static Future<List<Map<String, dynamic>>> fetchReportTypes() async {
@@ -310,5 +378,71 @@ class FraudReportService {
     final categories = await _apiService.fetchReportCategories();
     print('API returned: $categories'); // Debug print
     return categories;
+  }
+
+  // NUCLEAR OPTION - Clear all data and start fresh
+  static Future<void> clearAllData() async {
+    print('☢️ NUCLEAR OPTION - Clearing ALL fraud report data...');
+    await _box.clear();
+    print('✅ All fraud report data cleared');
+  }
+
+  // TARGETED DUPLICATE REMOVAL - Only removes exact duplicates
+  static Future<void> removeDuplicateFraudReports() async {
+    try {
+      print('🔍 Starting targeted duplicate removal for fraud reports...');
+
+      final allReports = _box.values.toList();
+      print('📊 Found ${allReports.length} fraud reports in local storage');
+
+      // Group by unique identifiers to find duplicates
+      final Map<String, List<FraudReportModel>> groupedReports = {};
+
+      for (var report in allReports) {
+        // Create unique key based on phone, email, description, and alertLevels
+        final phone = report.phoneNumbers.join(',');
+        final email = report.emailAddresses.join(',');
+        final description = report.description ?? '';
+        final alertLevels = report.alertLevels ?? '';
+
+        final uniqueKey = '${phone}_${email}_${description}_${alertLevels}';
+
+        if (!groupedReports.containsKey(uniqueKey)) {
+          groupedReports[uniqueKey] = [];
+        }
+        groupedReports[uniqueKey]!.add(report);
+      }
+
+      // Find and remove duplicates (keep the oldest one)
+      int duplicatesRemoved = 0;
+      for (var entry in groupedReports.entries) {
+        final reports = entry.value;
+        if (reports.length > 1) {
+          print('🔍 Found ${reports.length} duplicates for key: ${entry.key}');
+
+          // Sort by creation date (oldest first)
+          reports.sort((a, b) {
+            final aDate = a.createdAt ?? DateTime.now();
+            final bDate = b.createdAt ?? DateTime.now();
+            return aDate.compareTo(bDate);
+          });
+
+          // Keep the oldest, remove the rest
+          for (int i = 1; i < reports.length; i++) {
+            final key = _box.keyAt(_box.values.toList().indexOf(reports[i]));
+            await _box.delete(key);
+            duplicatesRemoved++;
+            print('🗑️ Removed duplicate fraud report: ${reports[i].id}');
+          }
+        }
+      }
+
+      print('✅ TARGETED FRAUD DUPLICATE REMOVAL COMPLETED');
+      print('📊 Summary:');
+      print('  - Total fraud reports: ${allReports.length}');
+      print('  - Duplicates removed: $duplicatesRemoved');
+    } catch (e) {
+      print('❌ Error during targeted fraud duplicate removal: $e');
+    }
   }
 }

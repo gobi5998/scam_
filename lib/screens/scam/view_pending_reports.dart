@@ -18,8 +18,8 @@ class ViewPendingReports extends StatelessWidget {
         itemBuilder: (context, i) {
           final report = pending[i];
           return ListTile(
-
-            subtitle: Text(report.phoneNumber ?? ''),
+            title: Text(report.phoneNumbers?.join(',') ?? ''),
+            subtitle: Text(report.emailAddresses?.join(',') ?? ''),
             trailing: Icon(Icons.sync_problem, color: Colors.orange),
           );
         },

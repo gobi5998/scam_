@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/login.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/responsive_widget.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ResponsiveScaffold(
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -34,33 +36,54 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: IntrinsicHeight(
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: ResponsiveHelper.getResponsiveEdgeInsets(
+                        context,
+                        20,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Spacer(),
                           Container(
-                            width: 160,
-                            height: 160,
+                            width: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              160,
+                            ),
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              160,
+                            ),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.grey[200],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(20.0),
+                              padding: ResponsiveHelper.getResponsiveEdgeInsets(
+                                context,
+                                20,
+                              ),
                               child: Image.asset(
                                 'assets/image/splash.png',
                                 fit: BoxFit.contain,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          const Text(
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              20,
+                            ),
+                          ),
+                          Text(
                             'Security Alert',
                             style: TextStyle(
-                              fontSize: 25,
-                              color: Color(0xFF064FAD),
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                25,
+                              ),
+                              color: const Color(0xFF064FAD),
                               fontWeight: FontWeight.w600,
+                              fontFamily: 'Poppins',
                             ),
                           ),
                           const Spacer(),
@@ -78,23 +101,34 @@ class _SplashScreenState extends State<SplashScreen> {
                                 side: const BorderSide(
                                   color: Color(0xFF064FAD),
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 30,
-                                  vertical: 15,
-                                ),
+                                padding:
+                                    ResponsiveHelper.getResponsiveEdgeInsets(
+                                      context,
+                                      30,
+                                    ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(30),
                                 ),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Get Started',
                                 style: TextStyle(
-                                  color: Color(0xFF064FAD),
-                                  fontSize: 25,
+                                  color: const Color(0xFF064FAD),
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                        context,
+                                        25,
+                                      ),
+                                  fontFamily: 'Poppins',
                                 ),
                               ),
                             ),
-                          const SizedBox(height: 40),
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              40,
+                            ),
+                          ),
                         ],
                       ),
                     ),

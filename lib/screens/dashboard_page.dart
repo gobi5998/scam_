@@ -12,6 +12,8 @@ import '../provider/dashboard_provider.dart';
 import '../widget/graph_widget.dart';
 import '../widget/Drawer/appDrawer.dart';
 import '../services/biometric_service.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/responsive_widget.dart';
 import 'ReportedFeatureCard.dart';
 import 'ReportedFeatureItem.dart';
 import 'alert.dart';
@@ -28,7 +30,9 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>(
+    debugLabel: 'dashboard_scaffold',
+  );
   List<Map<String, dynamic>> reportTypes = [];
   bool isLoadingTypes = true;
   List<Map<String, dynamic>> reportCategories = [];
@@ -66,19 +70,44 @@ class _DashboardPageState extends State<DashboardPage> {
       if (reportCategories.isEmpty) {
         print('⚠️ API returned empty categories, using fallback');
         reportCategories = [
-          {'_id': 'scam_category', 'name': 'Report Scam'},
-          {'_id': 'malware_category', 'name': 'Report Malware'},
-          {'_id': 'fraud_category', 'name': 'Report Fraud'},
+          {
+            '_id': '6874f8ba98e4e5a7dc75f42c',
+            'name': 'Report Scam',
+          }, // Use actual ObjectId
+          {
+            '_id': '6874f8cb98e4e5a7dc75f42e',
+            'name': 'Report Malware',
+          }, // Use actual ObjectId
+          {
+            '_id': '6874f8d598e4e5a7dc75f430',
+            'name': 'Report Fraud',
+          }, // Use actual ObjectId
         ];
         print('📋 Using fallback categories: $reportCategories');
+      } else {
+        print(
+          '✅ Successfully loaded ${reportCategories.length} categories from API',
+        );
+        for (var category in reportCategories) {
+          print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
+        }
       }
     } catch (e) {
       print('❌ Error loading categories: $e');
       // Provide fallback categories on error
       reportCategories = [
-        {'_id': 'scam_category', 'name': 'Report Scam'},
-        {'_id': 'malware_category', 'name': 'Report Malware'},
-        {'_id': 'fraud_category', 'name': 'Report Fraud'},
+        {
+          '_id': '6874f8ba98e4e5a7dc75f42c',
+          'name': 'Report Scam',
+        }, // Use actual ObjectId
+        {
+          '_id': '6874f8cb98e4e5a7dc75f42e',
+          'name': 'Report Malware',
+        }, // Use actual ObjectId
+        {
+          '_id': '6874f8d598e4e5a7dc75f430',
+          'name': 'Report Fraud',
+        }, // Use actual ObjectId
       ];
       print('📋 Using fallback categories due to error: $reportCategories');
     }
@@ -93,7 +122,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final provider = Provider.of<DashboardProvider>(context);
 
-    return Scaffold(
+    return ResponsiveScaffold(
       key: _scaffoldKey,
       drawer: const DashboardDrawer(),
       extendBody: true,
@@ -114,13 +143,13 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           "Security Alert",
           style: TextStyle(
             color: Colors.white,
             fontFamily: 'Poppins',
             fontWeight: FontWeight.w600,
-            fontSize: 18,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
           ),
         ),
         leading: IconButton(
@@ -138,18 +167,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 onPressed: () {},
               ),
-              // Positioned(
-              //   right: 8,
-              //   top: 8,
-              //   child: Container(
-              //     width: 8,
-              //     height: 8,
-              //     decoration: const BoxDecoration(
-              //       color: Colors.red,
-              //       shape: BoxShape.circle,
-              //     ),
-              //   ),
-              // ),
             ],
           ),
           IconButton(
@@ -177,21 +194,29 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(color: Color(0xFFf0f2f5)),
-
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Report buttons row (separate from nav bar)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: ResponsiveHelper.getResponsiveEdgeInsets(context, 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          1,
+                        ),
+                      ),
                       child: CustomButton(
                         text: 'Report Scam',
+                        height: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          56,
+                        ),
                         onPressed: () async {
                           if (isLoadingTypes) return;
 
@@ -204,9 +229,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             scamCategory = null;
                           }
 
-                          // If category not found, use fallback
+                          // If category not found, show error
                           if (scamCategory == null) {
-                            scamCategory = {'_id': 'scam_category'};
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Scam category not found. Please try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
                           }
 
                           Navigator.push(
@@ -218,14 +251,27 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                         fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14,
+                        ),
                       ),
                     ),
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          1,
+                        ),
+                      ),
                       child: CustomButton(
                         text: 'Report Malware',
+                        height: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          56,
+                        ),
                         onPressed: () async {
                           if (isLoadingCategories) return;
 
@@ -238,9 +284,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             malwareCategory = null;
                           }
 
-                          // If category not found, use fallback
+                          // If category not found, show error
                           if (malwareCategory == null) {
-                            malwareCategory = {'_id': 'malware_category'};
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Malware category not found. Please try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
                           }
 
                           Navigator.push(
@@ -253,14 +307,27 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                         fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14,
+                        ),
                       ),
                     ),
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          1,
+                        ),
+                      ),
                       child: CustomButton(
                         text: 'Report Fraud',
+                        height: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          56,
+                        ),
                         onPressed: () async {
                           if (isLoadingCategories) return;
 
@@ -273,9 +340,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             fraudCategory = null;
                           }
 
-                          // If category not found, use fallback
+                          // If category not found, show error
                           if (fraudCategory == null) {
-                            fraudCategory = {'_id': 'fraud_category'};
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Fraud category not found. Please try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
                           }
 
                           Navigator.push(
@@ -288,6 +363,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                         fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
                       ),
                     ),
                   ),
@@ -299,10 +378,8 @@ class _DashboardPageState extends State<DashboardPage> {
               backgroundColor: Color(0xFFf0f2f5),
               elevation: 8,
               selectedItemColor: Colors.black,
-
               items: [
                 customBottomNavItem(BottomNav: BottomNav.home, label: 'Home'),
-
                 customBottomNavItem(BottomNav: BottomNav.alert, label: 'Alert'),
                 customBottomNavItem(
                   BottomNav: BottomNav.profile,
@@ -331,7 +408,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
@@ -356,101 +433,108 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           const SizedBox(height: 8),
 
-                          // Show error message
-                          if (provider.errorMessage.isNotEmpty)
-                            // Carousel
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-
-                              child: CarouselSlider(
-                                options: CarouselOptions(
-                                  height: 170.0,
-                                  enlargeCenterPage: true,
-                                  enableInfiniteScroll: true,
-                                  autoPlay: true,
-                                ),
-                                items:
-                                    [
-                                      "assets/image/security1.jpg",
-                                      "assets/image/security2.png",
-                                      "assets/image/security3.jpg",
-                                      "assets/image/security4.jpg",
-                                      "assets/image/security5.jpg",
-                                      "assets/image/security6.jpg",
-                                    ].map((imagePath) {
-                                      return Builder(
-                                        builder: (BuildContext context) {
-                                          return ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            child: Image.asset(
-                                              imagePath,
-                                              fit: BoxFit.cover,
-                                              width: MediaQuery.of(
-                                                context,
-                                              ).size.width,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    }).toList(),
-                              ),
-                            ),
-
-                          // ScamCarousel(),
-                          const SizedBox(height: 16),
-
-                          // Feature stats
-                          // Container(
-                          //   padding: const EdgeInsets.all(16),
-                          //   decoration: BoxDecoration(
-                          //     color: Colors.black.withOpacity(0.2),
-                          //     borderRadius: BorderRadius.circular(16),
-                          //   ),
-                          //   child: Column(
-                          //     children: provider.reportedFeatures.entries.map((
-                          //       entry,
-                          //     ) {
-                          //       return Padding(
-                          //         padding: const EdgeInsets.symmetric(
-                          //           vertical: 8.0,
-                          //         ),
-                          //         child: Row(
-                          //           children: [
-                          //             Expanded(flex: 2, child: Text(entry.key)),
-                          //             Expanded(
-                          //               flex: 5,
-                          //               child: LinearProgressIndicator(
-                          //                 value: (entry.value is int)
-                          //                     ? entry.value.toDouble()
-                          //                     : entry.value,
-                          //                 color: Colors.blue,
-                          //                 backgroundColor: Colors.white,
-                          //               ),
-                          //             ),
-                          //             const SizedBox(width: 8),
-                          //             Text("${(entry.value * 100).toInt()}%"),
-                          //           ],
-                          //         ),
-                          //       );
-                          //     }).toList(),
-                          //   ),
-                          // ),
-                          ReportedFeaturesPanel(),
-                          const SizedBox(height: 16),
-
-                          // Stats
+                          // Carousel
                           Container(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            padding: const EdgeInsets.all(20),
+                            padding: ResponsiveHelper.getResponsiveEdgeInsets(
+                              context,
+                              16,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsivePadding(
+                                    context,
+                                    16,
+                                  ),
+                                ),
+
+                                // Carousel Slider with Auto Scroll
+                                CarouselSlider(
+                                  options: CarouselOptions(
+                                    height:
+                                        ResponsiveHelper.getResponsivePadding(
+                                          context,
+                                          200,
+                                        ),
+                                    enlargeCenterPage: true,
+                                    enableInfiniteScroll: true,
+                                    autoPlay: true,
+                                    autoPlayInterval: const Duration(
+                                      seconds: 3,
+                                    ),
+                                    autoPlayAnimationDuration: const Duration(
+                                      milliseconds: 800,
+                                    ),
+                                    autoPlayCurve: Curves.fastOutSlowIn,
+                                    viewportFraction: 0.8,
+                                    aspectRatio: 16 / 9,
+                                  ),
+                                  items:
+                                      [
+                                        "assets/image/security1.jpg",
+                                        "assets/image/security2.png",
+                                        "assets/image/security3.jpg",
+                                        "assets/image/security4.jpg",
+                                        "assets/image/security5.jpg",
+                                        "assets/image/security6.jpg",
+                                      ].map((imagePath) {
+                                        return Builder(
+                                          builder: (BuildContext context) {
+                                            return Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.2),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                child: Image.asset(
+                                                  imagePath,
+                                                  fit: BoxFit.cover,
+                                                  width: double.infinity,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      }).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              16,
+                            ),
+                          ),
+
+                          // Reported Features Panel with Responsive Design
+                          Container(
+                            padding: ResponsiveHelper.getResponsiveEdgeInsets(
+                              context,
+                              16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,20 +543,25 @@ class _DashboardPageState extends State<DashboardPage> {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
-                                      "Thread Statistics",
+                                    Text(
+                                      'Reported Features',
                                       style: TextStyle(
+                                        fontSize:
+                                            ResponsiveHelper.getResponsiveFontSize(
+                                              context,
+                                              18,
+                                            ),
+                                        fontWeight: FontWeight.bold,
                                         color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 18,
                                         fontFamily: 'Poppins',
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
+                                      padding:
+                                          ResponsiveHelper.getResponsiveEdgeInsets(
+                                            context,
+                                            8,
+                                          ),
                                       decoration: BoxDecoration(
                                         color: Colors.blue.shade800,
                                         borderRadius: BorderRadius.circular(12),
@@ -484,23 +573,93 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'Weekly',
                                             style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: 12,
+                                              fontSize:
+                                                  ResponsiveHelper.getResponsiveFontSize(
+                                                    context,
+                                                    12,
+                                                  ),
                                               fontWeight: FontWeight.w500,
                                               fontFamily: 'Poppins',
                                             ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
+                                          SizedBox(
+                                            width:
+                                                ResponsiveHelper.getResponsivePadding(
+                                                  context,
+                                                  4,
+                                                ),
+                                          ),
+                                          Icon(
                                             Icons.keyboard_arrow_down,
                                             color: Colors.white,
-                                            size: 16,
+                                            size:
+                                                ResponsiveHelper.getResponsiveFontSize(
+                                                  context,
+                                                  16,
+                                                ),
                                           ),
                                         ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 18),
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsivePadding(
+                                    context,
+                                    16,
+                                  ),
+                                ),
+                                // Feature items will be handled by ReportedFeaturesPanel
+                                ReportedFeaturesPanel(),
+                              ],
+                            ),
+                          ),
+
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              16,
+                            ),
+                          ),
+
+                          // Stats
+                          Container(
+                            margin: EdgeInsets.symmetric(
+                              vertical: ResponsiveHelper.getResponsivePadding(
+                                context,
+                                8,
+                              ),
+                            ),
+                            padding: ResponsiveHelper.getResponsiveEdgeInsets(
+                              context,
+                              20,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Thread Statistics",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize:
+                                        ResponsiveHelper.getResponsiveFontSize(
+                                          context,
+                                          18,
+                                        ),
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsivePadding(
+                                    context,
+                                    18,
+                                  ),
+                                ),
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,
@@ -512,7 +671,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                         highlight: true,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      width:
+                                          ResponsiveHelper.getResponsivePadding(
+                                            context,
+                                            8,
+                                          ),
+                                    ),
                                     Expanded(
                                       child: _StatCard(
                                         label: '10K+',
@@ -520,7 +685,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                         highlight: true,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      width:
+                                          ResponsiveHelper.getResponsivePadding(
+                                            context,
+                                            8,
+                                          ),
+                                    ),
                                     Expanded(
                                       child: _StatCard(
                                         label: '24/7',
@@ -534,27 +705,27 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                           ),
 
-                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              16,
+                            ),
+                          ),
 
+                          // Thread Analysis Card
                           ThreadAnalysisCard(),
 
-                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsivePadding(
+                              context,
+                              12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-
-                // Loading overlay
-                if (provider.isLoading)
-                  Container(
-                    color: Colors.black.withOpacity(0.3),
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                  ),
               ],
             );
           },
@@ -578,9 +749,11 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 90,
-      margin: const EdgeInsets.symmetric(horizontal: 1),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      height: ResponsiveHelper.getResponsivePadding(context, 90),
+      margin: EdgeInsets.symmetric(
+        horizontal: ResponsiveHelper.getResponsivePadding(context, 1),
+      ),
+      padding: ResponsiveHelper.getResponsiveEdgeInsets(context, 6),
       decoration: BoxDecoration(
         color: const Color(0xFF064FAD),
         borderRadius: BorderRadius.circular(12),
@@ -597,8 +770,8 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
               fontWeight: FontWeight.bold,
               color: Colors.white,
               fontFamily: 'Poppins',
@@ -607,14 +780,14 @@ class _StatCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: ResponsiveHelper.getResponsivePadding(context, 4)),
           Text(
             desc,
             textAlign: TextAlign.center,
             maxLines: 1,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white70,
-              fontSize: 8,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 8),
               fontWeight: FontWeight.w500,
               fontFamily: 'Poppins',
             ),
@@ -624,48 +797,3 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-
-// class _ReportButton extends StatelessWidget {
-//   final String label;
-//   final IconData icon;
-//
-//   const _ReportButton({required this.label, required this.icon});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         CircleAvatar(
-//           radius: 26,
-//           backgroundColor: Colors.white,
-//           child: Icon(icon, color: Color(0xFF1E3A8A)),
-//         ),
-//         const SizedBox(height: 6),
-//         Text(
-//           label,
-//           style: const TextStyle(color: Colors.white, fontSize: 12),
-//         ),
-//       ],
-//     );
-//   }
-// }
-//
-// class _BottomReportButton extends StatelessWidget {
-//   final String label;
-//   const _BottomReportButton({required this.label});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(20),
-//       ),
-//       child: Text(
-//         label,
-//         style: const TextStyle(color: Color(0xFF064FAD), fontWeight: FontWeight.bold),
-//       ),
-//     );
-//   }
-// }

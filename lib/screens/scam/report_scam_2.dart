@@ -1,330 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'dart:io';
-// import 'package:hive/hive.dart';
-// import 'package:connectivity_plus/connectivity_plus.dart';
-// import 'package:image_picker/image_picker.dart';
-// import 'package:file_picker/file_picker.dart';
-// import 'package:security_alert/screens/scam/scam_report_service.dart';
-
-// import '../../models/scam_report_model.dart';
-
-// import '../../custom/customButton.dart';
-// import '../../custom/customDropdown.dart';
-// import '../../custom/Success_page.dart';
-// import '../../services/api_service.dart';
-// import '../../custom/fileUpload.dart';
-
-// class ReportScam2 extends StatefulWidget {
-//   final ScamReportModel report;
-//   const ReportScam2({required this.report});
-
-//   @override
-//   State<ReportScam2> createState() => _ReportScam2State();
-// }
-
-// class _ReportScam2State extends State<ReportScam2> {
-//   final _formKey = GlobalKey<FormState>();
-//   String? alertLevel;
-//   List<File> screenshots = [], documents = [], voices = [];
-//   final List<String> alertLevels = ['Low', 'Medium', 'High', 'Critical'];
-//   final ImagePicker picker = ImagePicker();
-//   bool isUploading = false;
-//   String? uploadStatus = '';
-//   final GlobalKey<FileUploadWidgetState> _fileUploadKey = GlobalKey<FileUploadWidgetState>();
-
-//   Future<void> _pickFiles(String type) async {
-//     List<String> extensions = [];
-//     switch (type) {
-//       case 'screenshot':
-//         final images = await picker.pickMultiImage();
-//         if (images != null) {
-//           setState(() => screenshots.addAll(images.map((e) => File(e.path))));
-//         }
-//         break;
-//       case 'document':
-//         extensions = ['pdf', 'doc', 'docx', 'txt'];
-//         break;
-//       case 'voice':
-//         extensions = ['mp3', 'wav', 'm4a'];
-//         break;
-//     }
-
-//     if (type != 'screenshot') {
-//       final result = await FilePicker.platform.pickFiles(
-//         allowMultiple: true,
-//         type: FileType.custom,
-//         allowedExtensions: extensions,
-//       );
-//       if (result != null) {
-//         setState(() {
-//           final files = result.paths.map((e) => File(e!)).toList();
-//           if (type == 'document') documents.addAll(files);
-//           if (type == 'voice') voices.addAll(files);
-//         });
-//       }
-//     }
-//   }
-
-//   Future<void> _submitFinalReport() async {
-//     if (mounted) {
-//       Navigator.pushAndRemoveUntil(
-//         context,
-//         MaterialPageRoute(
-//           builder: (_) => const ReportSuccess(label: 'Scam Report'),
-//         ),
-//         (route) => false,
-//       );
-//     }
-//     try {
-//       final connectivity = await Connectivity().checkConnectivity();
-//       final isOnline = connectivity != ConnectivityResult.none;
-
-//       final updatedReport = widget.report..alertLevels = alertLevel ?? '';
-
-//       // 1. Save locally (Always)
-//       await ScamReportService.saveReportOffline(updatedReport);
-
-//       // 2. If online, send to backend and update local status
-//       if (isOnline) {
-//         try {
-//           print('Sending to backend: ${updatedReport.toJson()}');
-//           await ApiService().submitScamReport(updatedReport.toJson());
-//           print('Backend response: submitted');
-//           // Update the synced status without creating a new object
-//           updatedReport.isSynced = true;
-//           await ScamReportService.updateReport(updatedReport);
-//         } catch (e) {
-//           debugPrint('❌ Failed to sync now, will retry later: $e');
-//         }
-//       }
-
-//        List<Map<String, dynamic>> uploadedFiles = [];
-//        if (_fileUploadKey.currentState != null) {
-//         uploadedFiles = await _fileUploadKey.currentState!.triggerUpload();
-//       // 3. Navigate to success page
-//       print('Navigating to success page...');
-//       if (mounted) {
-//         Navigator.pushAndRemoveUntil(
-//           context,
-//           MaterialPageRoute(
-//             builder: (_) => const ReportSuccess(label: 'Scam Report'),
-//           ),
-//           (route) => false,
-//         );
-//       }
-//     } catch (e, stack) {
-//       print('Error in _submitFinalReport: $e\n$stack');
-//       // Optionally show a snackbar or dialog
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: Text(
-//           'Upload Evidence',
-//           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
-//         ),
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(20),
-//         child: Form(
-//           key: _formKey,
-//           child: ListView(
-//             children: [
-//               Column(
-//                 children: [
-//                   ListTile(
-//                     leading: Image.asset('assets/image/document.png'),
-//                     title: Text(
-//                       'Add Screenshots',
-//                       style: TextStyle(
-//                         fontFamily: 'Poppins',
-//                         fontWeight: FontWeight.w500,
-//                       ),
-//                     ),
-//                     subtitle: Text(
-//                       'Selected: /5',
-//                       style: TextStyle(fontFamily: 'Poppins'),
-//                     ),
-//                     // onTap: _pickScreenshots,
-//                   ),
-//                 ],
-//               ),
-
-//               // Display selected screenshots
-//               // if (selectedScreenshots.isNotEmpty) ...[
-//               //   const SizedBox(height: 8),
-//               //   Container(
-//               //     height: 100,
-//               //     child: ListView.builder(
-//               //       scrollDirection: Axis.horizontal,
-//               //       // itemCount: selectedScreenshots.length,
-//               //       itemBuilder: (context, index) {
-//               //         return Padding(
-//               //           padding: const EdgeInsets.only(right: 8),
-//               //           child: Stack(
-//               //             children: [
-//               //               Container(
-//               //                 width: 100,
-//               //                 height: 100,
-//               //                 decoration: BoxDecoration(
-//               //                   borderRadius: BorderRadius.circular(8),
-//               //                   border: Border.all(color: Colors.grey),
-//               //                 ),
-//               //                 child: ClipRRect(
-//               //                   borderRadius: BorderRadius.circular(8),
-//               //                   child: Image.file(
-//               //                     selectedScreenshots[index],
-//               //                     fit: BoxFit.cover,
-//               //                   ),
-//               //                 ),
-//               //               ),
-//               //               Positioned(
-//               //                 top: 4,
-//               //                 right: 4,
-//               //                 child: GestureDetector(
-//               //                   onTap: () => _removeScreenshot(index),
-//               //                   child: Container(
-//               //                     padding: const EdgeInsets.all(2),
-//               //                     decoration: const BoxDecoration(
-//               //                       color: Colors.red,
-//               //                       shape: BoxShape.circle,
-//               //                     ),
-//               //                     child: const Icon(
-//               //                       Icons.close,
-//               //                       color: Colors.white,
-//               //                       size: 16,
-//               //                     ),
-//               //                   ),
-//               //                 ),
-//               //               ),
-//               //             ],
-//               //           ),
-//               //         );
-//               //       },
-//               //     ),
-//               //   ),
-//               // ],
-//               const SizedBox(height: 16),
-
-//               // Documents Section
-//               Column(
-//                 children: [
-//                   FileUploadWidget(
-//                 reportId: '123',
-//                 onFilesUploaded: (List<Map<String, dynamic>> files) {
-//                   // Handle uploaded files
-//                 },
-//               ),
-//                   // ListTile(
-//               //       leading: Image.asset('assets/image/document.png'),
-//               //       title: Text(
-//               //         'Add Documents',
-//               //         style: TextStyle(
-//               //           fontFamily: 'Poppins',
-//               //           fontWeight: FontWeight.w500,
-//               //         ),
-//               //       ),
-//               //       subtitle: Text(
-//               //         'Selected:  files',
-//               //         style: TextStyle(fontFamily: 'Poppins'),
-//               //       ),
-//               //       // onTap: _pickDocuments,
-//               //     ),
-//               //   ],
-//               // ),
-
-//               // Display selected documents
-//               // if (selectedDocuments.isNotEmpty) ...[
-//               //   const SizedBox(height: 8),
-//               //   ...selectedDocuments.asMap().entries.map((entry) {
-//               //     int index = entry.key;
-//               //     File file = entry.value;
-//               //     return Card(
-//               //       child: ListTile(
-//               //         leading: const Icon(Icons.description),
-//               //         title: Text(file.path.split('/').last),
-//               //         subtitle: Text(
-//               //           '${(file.lengthSync() / 1024).toStringAsFixed(1)} KB',
-//               //         ),
-//               //         trailing: IconButton(
-//               //           icon: const Icon(Icons.close, color: Colors.red),
-//               //           onPressed: () => _removeDocument(index),
-//               //         ),
-//               //       ),
-//               //     );
-//               //   }).toList(),
-//               // ],
-
-//               CustomDropdown(
-//                 label: 'Alert Severity*',
-//                 hint: 'Select severity level',
-//                 items: alertLevels,
-//                 value: alertLevel,
-//                 onChanged: (val) => setState(() => alertLevel = val),
-//               ),
-//               const SizedBox(height: 20),
-//               // ListTile(
-//               //   leading: const Icon(Icons.image),
-//               //   title: const Text('Add Screenshots'),
-//               //   subtitle: Text('${screenshots.length} selected'),
-//               //   onTap: () => _pickFiles('screenshot'),
-//               // ),
-//               // ListTile(
-//               //   leading: const Icon(Icons.insert_drive_file),
-//               //   title: const Text('Add Documents'),
-//               //   subtitle: Text('${documents.length} selected'),
-//               //   onTap: () => _pickFiles('document'),
-//               // ),
-//               // ListTile(
-//               //   leading: const Icon(Icons.mic),
-//               //   title: const Text('Add Voice Notes'),
-//               //   subtitle: Text('${voices.length} selected'),
-//               //   onTap: () => _pickFiles('voice'),
-//               // ),
-//               const SizedBox(height: 40),
-//               CustomButton(
-//                 text: 'Submit',
-//                 onPressed: () async {
-//                   // Check if alert level is selected
-//                   if (alertLevel == null || alertLevel!.isEmpty) {
-//                     ScaffoldMessenger.of(context).showSnackBar(
-//                       SnackBar(
-//                         content: Text('Please select an alert severity level'),
-//                         backgroundColor: Colors.red,
-//                       ),
-//                     );
-//                     return;
-//                   }
-
-//                   // Trigger validation manually
-//                   if (_formKey.currentState!.validate()) {
-//                     await _submitFinalReport();
-//                   } else {
-//                     ScaffoldMessenger.of(context).showSnackBar(
-//                       SnackBar(
-//                         content: Text(
-//                           'Please fill all required fields correctly',
-//                         ),
-//                         backgroundColor: Colors.red,
-//                       ),
-//                     );
-//                   }
-//                 },
-//                 fontWeight: FontWeight.w600,
-//               ),
-//             ],
-//           ),
-//             ],
-//           ),
-//       ),
-//       )
-//     );
-//   }
-// }
-
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:hive/hive.dart';
@@ -334,10 +7,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
 import '../../services/jwt_service.dart';
-
+import '../../services/token_storage.dart';
 import '../../models/scam_report_model.dart';
-
 import '../../custom/customButton.dart';
 import '../../custom/customDropdown.dart';
 import '../../custom/Success_page.dart';
@@ -355,137 +28,463 @@ class ReportScam2 extends StatefulWidget {
 class _ReportScam2State extends State<ReportScam2> {
   final _formKey = GlobalKey<FormState>();
   String? alertLevel;
-  List<File> screenshots = [], documents = [], voices = [];
+  String? alertLevelId; // Add alert level ID
   final List<String> alertLevels = ['Low', 'Medium', 'High', 'Critical'];
-  final ImagePicker picker = ImagePicker();
+  List<Map<String, dynamic>> alertLevelOptions =
+      []; // Store alert level options from API
   bool isUploading = false;
   String uploadStatus = '';
+  Map<String, dynamic>? uploadedFilesData;
+  bool filesUploaded = false;
+
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>();
+      GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
 
-  Future<void> _pickFiles(String type) async {
-    List<String> extensions = [];
-    switch (type) {
-      case 'screenshot':
-        final images = await picker.pickMultiImage();
-        if (images != null) {
-          setState(() => screenshots.addAll(images.map((e) => File(e.path))));
+  @override
+  void initState() {
+    super.initState();
+    alertLevel = widget.report.alertLevels;
+    _loadAlertLevels();
+
+    // Debug: Print received data
+    print('🔍 Received report data in Step 2:');
+    print('🔍 - Phone Numbers: ${widget.report.phoneNumbers}');
+    print('🔍 - Email Addresses: ${widget.report.emailAddresses}');
+    print('🔍 - Social Media Handles: ${widget.report.socialMediaHandles}');
+    print('🔍 - Report ID: ${widget.report.id}');
+    print('🔍 - Report JSON: ${widget.report.toJson()}');
+  }
+
+  Future<void> _loadAlertLevels() async {
+    try {
+      print('🔍 Loading alert levels from API...');
+
+      // Try to fetch alert levels from backend
+      try {
+        final apiService = ApiService();
+        final alertLevels = await apiService.fetchAlertLevels();
+
+        if (alertLevels.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              alertLevelOptions = alertLevels;
+            });
+            print('🔍 Loaded ${alertLevels.length} alert levels from API');
+          }
+        } else {
+          throw Exception('No alert levels returned from API');
         }
-        break;
-      case 'document':
-        extensions = ['pdf', 'doc', 'docx', 'txt'];
-        break;
-      case 'voice':
-        extensions = ['mp3', 'wav', 'm4a'];
-        break;
-    }
+      } catch (e) {
+        print('❌ Error loading alert levels from API: $e');
+        print('🔍 Using fallback alert levels...');
 
-    if (type != 'screenshot') {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: true,
-        type: FileType.custom,
-        allowedExtensions: extensions,
-      );
-      if (result != null) {
-        setState(() {
-          final files = result.paths.map((e) => File(e!)).toList();
-          if (type == 'document') documents.addAll(files);
-          if (type == 'voice') voices.addAll(files);
-        });
+        // Use fallback alert levels if API fails
+        final fallbackLevels = [
+          {
+            '_id': '68873fe402621a53392dc7a2',
+            'name': 'critical',
+            'isActive': true,
+          },
+          {'_id': '6887488fdc01fe5e05839d88', 'name': 'low', 'isActive': true},
+          {
+            '_id': '6887488fdc01fe5e05839d89',
+            'name': 'medium',
+            'isActive': true,
+          },
+          {'_id': '6887488fdc01fe5e05839d90', 'name': 'high', 'isActive': true},
+        ];
+
+        if (mounted) {
+          setState(() {
+            alertLevelOptions = fallbackLevels;
+          });
+          print('🔍 Loaded ${fallbackLevels.length} fallback alert levels');
+        }
       }
+    } catch (e) {
+      print('❌ Error loading alert levels: $e');
+    }
+  }
+
+  // Debug method to test backend connectivity
+  Future<void> _testBackendConnectivity() async {
+    print('🧪 Testing backend connectivity...');
+
+    try {
+      // Test 1: Check if we can reach the backend
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+      print('🌐 Network connectivity: ${isOnline ? 'Online' : 'Offline'}');
+
+      if (!isOnline) {
+        print('❌ No internet connection');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No internet connection detected'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Test 2: Check authentication token
+      final token = await TokenStorage.getAccessToken();
+      print(
+        '🔐 Authentication token: ${token != null && token.isNotEmpty ? 'Present' : 'Not present'}',
+      );
+
+      if (token == null || token.isEmpty) {
+        print('❌ No authentication token found');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Authentication token not found'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Test 3: Try a simple API call
+      try {
+        final response = await ApiService().fetchAllReports();
+        print(
+          '✅ Backend API test successful: ${response.length} reports found',
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Backend connection successful! Found ${response.length} reports',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        print('❌ Backend API test failed: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backend connection failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Backend connectivity test failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connectivity test failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   Future<void> _submitFinalReport() async {
+    print('🚀 Starting scam report submission...');
+    print('🚀 Alert level: $alertLevel');
+    print('🚀 Report ID: ${widget.report.id}');
+    print('🚀 Report type: ${widget.report.reportTypeId}');
+
+    if (alertLevel == null || alertLevel!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select an alert severity level'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       isUploading = true;
       uploadStatus = 'Preparing files for upload...';
     });
 
-    // Get user ID from JWT token
-    final keycloakUserId = await JwtService.getCurrentUserId();
-
-    if (keycloakUserId == null || keycloakUserId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('User ID not found. Please log in again.')),
-      );
-      setState(() {
-        isUploading = false;
-      });
-      return;
-    }
-
-    // Upload files first
-    List<Map<String, dynamic>> uploadedFiles = [];
-    if (_fileUploadKey.currentState != null) {
-      uploadedFiles = await _fileUploadKey.currentState!.triggerUpload();
-    }
-
-    // if (mounted) {
-    //   Navigator.pushAndRemoveUntil(
-    //     context,
-    //     MaterialPageRoute(builder: (_) => const ReportSuccess(label: 'Scam Report')),
-    //     (route) => false,
-    //   );
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Scam Successfully Reported'),
-    //       duration: Duration(seconds: 2),
-    //       backgroundColor: Colors.green,
-    //     ),
-    //   );
-    // }
     try {
+      // Test backend connectivity first
+      await _testBackendConnectivity();
+
+      Map<String, dynamic> uploadedFiles = {
+        'screenshots': [],
+        'documents': [],
+        'voiceMessages': [],
+      };
+
+      // Upload files if any are selected
+      if (_fileUploadKey.currentState != null) {
+        final state = _fileUploadKey.currentState!;
+        print('🚀 File upload state found');
+        print('🚀 Selected images: ${state.selectedImages.length}');
+        print('🚀 Selected documents: ${state.selectedDocuments.length}');
+        print('🚀 Selected voice files: ${state.selectedVoiceFiles.length}');
+
+        if (state.selectedImages.isNotEmpty ||
+            state.selectedDocuments.isNotEmpty ||
+            state.selectedVoiceFiles.isNotEmpty) {
+          setState(() {
+            uploadStatus = 'Uploading files to backend...';
+          });
+
+          print('🚀 Starting file upload during submit...');
+          try {
+            // Upload files only during submit, not automatically
+            uploadedFiles = await state.triggerUpload();
+            print('🚀 File upload completed during submit');
+            print('🚀 Uploaded files: $uploadedFiles');
+
+            setState(() {
+              uploadedFilesData = uploadedFiles;
+              filesUploaded = true;
+              uploadStatus = 'Files uploaded successfully!';
+            });
+          } catch (e) {
+            print('⚠️ File upload failed: $e');
+            print('⚠️ Continuing with report submission without files...');
+            setState(() {
+              uploadStatus =
+                  'File upload failed, continuing with report submission...';
+            });
+            // Continue with empty files
+            uploadedFiles = {
+              'screenshots': [],
+              'documents': [],
+              'voiceMessages': [],
+            };
+          }
+        } else {
+          print('🚀 No files selected for upload');
+        }
+      } else {
+        print('🚀 File upload state not found');
+      }
+
+      // Extract file URLs for backend submission
+      final screenshotUrls = (uploadedFiles['screenshots'] as List)
+          .map((f) => f['url']?.toString() ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList();
+
+      final documentUrls = (uploadedFiles['documents'] as List)
+          .map((f) => f['url']?.toString() ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList();
+
+      final voiceMessageUrls = (uploadedFiles['voiceMessages'] as List)
+          .map((f) => f['url']?.toString() ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList();
+
+      print('🚀 Extracted file URLs:');
+      print('🚀 - Screenshots: ${screenshotUrls.length}');
+      print('🚀 - Documents: ${documentUrls.length}');
+      print('🚀 - Voice messages: ${voiceMessageUrls.length}');
+
+      // Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
       final isOnline = connectivity != ConnectivityResult.none;
+      print('🚀 Connectivity status: ${isOnline ? 'Online' : 'Offline'}');
 
-      final updatedReport = widget.report..alertLevels = alertLevel ?? '';
-
-      // 1. Save locally (Always)
-      final box = Hive.box<ScamReportModel>('scam_reports');
-      if (updatedReport.isInBox) {
-        // If already in box, update by key
-        await ScamReportService.updateReport(updatedReport);
-      } else {
-        // If not in box, add as new
-        await ScamReportService.saveReportOffline(updatedReport);
+      // Validate alert level ID before submission
+      if (alertLevelId == null || alertLevelId!.isEmpty) {
+        print('❌ Alert level ID is null or empty');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please select an alert severity level'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          isUploading = false;
+        });
+        return;
       }
 
-      // 2. If online, send to backend and update local status
+      print('✅ Alert level ID validated: $alertLevelId');
+
+      // Prepare form data for backend submission - EXACT FORMAT MATCH
+      final formData = {
+        // Required fields with exact backend format
+        'reportCategoryId': widget.report.reportCategoryId,
+        'reportTypeId': widget.report.reportTypeId,
+        'alertLevels':
+            alertLevelId, // This should be the alert level ID, not name
+        'keycloackUserId':
+            await JwtService.getCurrentUserId() ??
+            widget.report.keycloakUserId ??
+            '',
+        'createdBy':
+            await JwtService.getCurrentUserEmail() ??
+            await JwtService.getCurrentUserId() ??
+            widget.report.keycloakUserId ??
+            '',
+        'isActive': true,
+        'status': 'draft',
+        'location': await _getCurrentLocation(), // Dynamic coordinates
+        'phoneNumbers': widget.report.phoneNumbers ?? [],
+        'emails': widget.report.emailAddresses ?? [],
+        'mediaHandles': widget.report.socialMediaHandles ?? [],
+        'methodOfContact': widget.report.methodOfContactId ?? '',
+        'website': widget.report.website ?? '',
+        'currency': widget.report.currency ?? 'INR',
+        'moneyLost': widget.report.amountLost?.toString() ?? '0',
+        'reportOutcome': true,
+        'description': widget.report.description ?? '',
+        'incidentDate':
+            widget.report.incidentDateTime?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
+        'scammerName': widget.report.scammerName ?? '',
+        'screenshots': screenshotUrls,
+        'voiceMessages': voiceMessageUrls,
+        'documents': documentUrls,
+        'createdAt':
+            widget.report.createdAt?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      print('🚀 Form data prepared for backend submission');
+      print('🚀 Form data keys: ${formData.keys.toList()}');
+      print('🚀 Report Category ID: ${formData['reportCategoryId']}');
+      print('🚀 Report Type ID: ${formData['reportTypeId']}');
+      print('🚀 Alert Levels: ${formData['alertLevels']}');
+      print('🚀 Keycloak User ID: ${formData['keycloackUserId']}');
+      print('🚀 Created By: ${formData['createdBy']}');
+      print(
+        '🚀 Phone Numbers: ${formData['phoneNumbers']} (type: ${formData['phoneNumbers'].runtimeType})',
+      );
+      print(
+        '🚀 Emails: ${formData['emails']} (type: ${formData['emails'].runtimeType})',
+      );
+      print(
+        '🚀 Media Handles: ${formData['mediaHandles']} (type: ${formData['mediaHandles'].runtimeType})',
+      );
+      print('🚀 Phone Numbers from widget: ${widget.report.phoneNumbers}');
+      print('🚀 Emails from widget: ${widget.report.emailAddresses}');
+      print(
+        '🚀 Media Handles from widget: ${widget.report.socialMediaHandles}',
+      );
+
+      // Validate arrays are not empty
+      if (widget.report.phoneNumbers?.isEmpty ?? true) {
+        print('⚠️ Warning: Phone numbers array is empty');
+      }
+      if (widget.report.emailAddresses?.isEmpty ?? true) {
+        print('⚠️ Warning: Email addresses array is empty');
+      }
+      if (widget.report.socialMediaHandles?.isEmpty ?? true) {
+        print('⚠️ Warning: Social media handles array is empty');
+      }
+      print('🚀 Screenshots: ${formData['screenshots']}');
+      print('🚀 Voice Messages: ${formData['voiceMessages']}');
+      print('🚀 Documents: ${formData['documents']}');
+
+      // Create updated report model with all data including uploaded files
+      final updatedReport = widget.report.copyWith(
+        alertLevels: alertLevel,
+        screenshotPaths: screenshotUrls,
+        documentPaths: documentUrls,
+        voiceRecordings: voiceMessageUrls,
+        updatedAt: DateTime.now(),
+        isSynced: isOnline, // Mark as synced if online
+      );
+
+      print('🚀 Updated report model created');
+
+      // Save to local thread database first (offline-first approach)
+      setState(() {
+        uploadStatus = 'Saving to local database...';
+      });
+
+      print('💾 Starting local database save...');
+      final box = Hive.box<ScamReportModel>('scam_reports');
+      print('💾 Box length before save: ${box.length}');
+      print('💾 Report to save: ${updatedReport.toJson()}');
+
+      if (updatedReport.isInBox) {
+        await ScamReportService.updateReport(updatedReport);
+        print('✅ Updated existing report in local database');
+      } else {
+        await ScamReportService.saveReportOffline(updatedReport);
+        print('✅ Saved new report to local database');
+      }
+
+      print('💾 Box length after save: ${box.length}');
+
+      // Verify the save by reading back the data
+      final allReports = box.values.toList();
+      print('💾 Total reports in database: ${allReports.length}');
+      if (allReports.isNotEmpty) {
+        final lastReport = allReports.last;
+        print('💾 Last saved report: ${lastReport.toJson()}');
+      }
+
+      // Additional verification - check if we can read the data back
+      print('🔍 Verifying data persistence...');
+      final verificationBox = Hive.box<ScamReportModel>('scam_reports');
+      final allStoredReports = verificationBox.values.toList();
+      print('🔍 Total reports after save: ${allStoredReports.length}');
+
+      if (allStoredReports.isNotEmpty) {
+        final latestReport = allStoredReports.last;
+        print('🔍 Latest report details:');
+        print('🔍 - ID: ${latestReport.id}');
+        print('🔍 - Description: ${latestReport.description}');
+        print('🔍 - Alert Level: ${latestReport.alertLevels}');
+        print('🔍 - Created At: ${latestReport.createdAt}');
+        print('🔍 - Is Synced: ${latestReport.isSynced}');
+        print('🔍 - Screenshot Paths: ${latestReport.screenshotPaths}');
+        print('🔍 - Document Paths: ${latestReport.documentPaths}');
+      }
+
+      // Test thread database visibility
+      print('🧪 Testing thread database visibility...');
+      await _testThreadDatabaseVisibility();
+
+      // Submit to backend if online - TEMPORARILY BYPASS CONNECTIVITY TEST
       if (isOnline) {
         try {
-          print('Sending to backend: ${updatedReport.toJson()}');
-          await ApiService().submitScamReport(updatedReport.toJson());
-          print('Backend response: submitted');
-          updatedReport.isSynced = true;
-          // Clone the object before updating to avoid HiveError
-          final clonedReport = ScamReportModel(
-            id: updatedReport.id,
-            keycloakUserId: updatedReport.keycloakUserId,
-            reportCategoryId: updatedReport.reportCategoryId,
-            reportTypeId: updatedReport.reportTypeId,
-            alertLevels: updatedReport.alertLevels,
-            phoneNumber: updatedReport.phoneNumber,
-            email: updatedReport.email,
-            website: updatedReport.website,
-            description: updatedReport.description,
-            createdAt: updatedReport.createdAt,
-            updatedAt: DateTime.now(),
-            isSynced: true,
-          );
-          await ScamReportService.updateReport(clonedReport); // mark synced
+          setState(() {
+            uploadStatus = 'Submitting to backend...';
+          });
+
+          print('🌐 Starting backend submission...');
+          print('🌐 Form data being sent: ${jsonEncode(formData)}');
+
+          await ApiService().submitScamReport(formData);
+          print('✅ Backend submission successful');
+
+          // Update local report to mark as synced
+          final syncedReport = updatedReport.copyWith(isSynced: true);
+          if (syncedReport.isInBox) {
+            await ScamReportService.updateReport(syncedReport);
+            print('✅ Updated local report as synced');
+          } else {
+            await ScamReportService.saveReportOffline(syncedReport);
+            print('✅ Saved synced report to local database');
+          }
+
+          setState(() {
+            uploadStatus = 'Successfully saved to backend and local database!';
+          });
         } catch (e) {
-          debugPrint('❌ Failed to sync now, will retry later: $e');
+          print('❌ Error syncing with backend: $e');
+          print('❌ Error stack trace: ${StackTrace.current}');
+          setState(() {
+            uploadStatus =
+                'Saved locally, but backend sync failed. Will retry later.';
+          });
         }
+      } else {
+        setState(() {
+          uploadStatus = 'Saved to local database. Will sync when online.';
+        });
+        print('📱 Offline mode - report saved locally for later sync');
       }
 
       setState(() {
         isUploading = false;
-        uploadStatus = '';
       });
 
-      // 3. Navigate to success page
-      print('Navigating to success page...');
+      // Show success message and navigate
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -494,33 +493,224 @@ class _ReportScam2State extends State<ReportScam2> {
           ),
           (route) => false,
         );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Scam Successfully Reported'),
-            duration: Duration(seconds: 2),
+            content: Text(
+              isOnline
+                  ? 'Scam report successfully submitted and saved locally!'
+                  : 'Scam report saved locally. Will sync when online.',
+            ),
+            duration: Duration(seconds: 3),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e, stack) {
-      print('Error in _submitFinalReport: $e\n$stack');
+      print('❌ Submission failed: $e\n$stack');
       setState(() {
         isUploading = false;
         uploadStatus = '';
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error submitting report: $e'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
         ),
       );
     }
   }
 
-  void _removeFile(List<File> fileList, int index) {
-    setState(() {
-      fileList.removeAt(index);
-    });
+  Future<void> _ensureFilesSelected() async {
+    if (_fileUploadKey.currentState != null) {
+      final state = _fileUploadKey.currentState!;
+
+      if (state.selectedImages.isEmpty &&
+          state.selectedDocuments.isEmpty &&
+          state.selectedVoiceFiles.isEmpty) {
+        final shouldSelectFiles = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text('No Files Selected'),
+            content: Text(
+              'Would you like to select files before submitting the report?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text('Submit Without Files'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text('Select Files'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldSelectFiles == true) {
+          try {
+            final images = await ImagePicker().pickMultiImage();
+            if (images != null) {
+              setState(() {
+                state.selectedImages.addAll(images.map((e) => File(e.path)));
+              });
+            }
+
+            final documents = await FilePicker.platform.pickFiles(
+              allowMultiple: true,
+              type: FileType.custom,
+              allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+            );
+
+            if (documents != null) {
+              setState(() {
+                state.selectedDocuments.addAll(
+                  documents.paths.whereType<String>().map((path) => File(path)),
+                );
+              });
+            }
+          } catch (e) {
+            print('❌ Error selecting files: $e');
+          }
+        }
+      }
+    }
+  }
+
+  // Add method to check if files are ready for upload
+  bool _hasFilesToUpload() {
+    if (_fileUploadKey.currentState != null) {
+      final state = _fileUploadKey.currentState!;
+      return state.selectedImages.isNotEmpty ||
+          state.selectedDocuments.isNotEmpty ||
+          state.selectedVoiceFiles.isNotEmpty;
+    }
+    return false;
+  }
+
+  // Add method to get file count for display
+  String _getFileCountText() {
+    if (_fileUploadKey.currentState != null) {
+      final state = _fileUploadKey.currentState!;
+      final totalFiles =
+          state.selectedImages.length +
+          state.selectedDocuments.length +
+          state.selectedVoiceFiles.length;
+
+      if (totalFiles == 0) return '';
+
+      List<String> parts = [];
+      if (state.selectedImages.isNotEmpty) {
+        parts.add('${state.selectedImages.length} image(s)');
+      }
+      if (state.selectedDocuments.isNotEmpty) {
+        parts.add('${state.selectedDocuments.length} document(s)');
+      }
+      if (state.selectedVoiceFiles.isNotEmpty) {
+        parts.add('${state.selectedVoiceFiles.length} voice file(s)');
+      }
+
+      return 'Selected: ${parts.join(', ')}';
+    }
+    return '';
+  }
+
+  // Add method to validate form before submission
+  bool _validateForm() {
+    if (alertLevel == null || alertLevel!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select an alert severity level'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  // Add method to get current location dynamically
+  Future<Map<String, dynamic>> _getCurrentLocation() async {
+    try {
+      print('📍 Getting current location...');
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('❌ Location services are disabled');
+        return {
+          'type': 'Point',
+          'coordinates': [0.0, 0.0], // Fallback coordinates
+        };
+      }
+
+      // Check location permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('❌ Location permission denied');
+          return {
+            'type': 'Point',
+            'coordinates': [0.0, 0.0], // Fallback coordinates
+          };
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('❌ Location permission denied forever');
+        return {
+          'type': 'Point',
+          'coordinates': [0.0, 0.0], // Fallback coordinates
+        };
+      }
+
+      // Get current position
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      print('✅ Location obtained: ${position.latitude}, ${position.longitude}');
+
+      return {
+        'type': 'Point',
+        'coordinates': [
+          position.longitude,
+          position.latitude,
+        ], // [lng, lat] format
+      };
+    } catch (e) {
+      print('❌ Error getting location: $e');
+      return {
+        'type': 'Point',
+        'coordinates': [0.0, 0.0], // Fallback coordinates
+      };
+    }
+  }
+
+  // Add a test method to verify thread database visibility
+  Future<void> _testThreadDatabaseVisibility() async {
+    final box = Hive.box<ScamReportModel>('scam_reports');
+    final allReports = box.values.toList();
+    print('🧪 Thread Database Visibility Test:');
+    print('🧪 - Total reports in thread box: ${allReports.length}');
+    if (allReports.isNotEmpty) {
+      final latestReport = allReports.last;
+      print('🧪 - Latest report in thread box:');
+      print('🧪   - ID: ${latestReport.id}');
+      print('🧪   - Description: ${latestReport.description}');
+      print('🧪   - Alert Level: ${latestReport.alertLevels}');
+      print('🧪   - Created At: ${latestReport.createdAt}');
+      print('🧪   - Is Synced: ${latestReport.isSynced}');
+      print('🧪   - Screenshot Paths: ${latestReport.screenshotPaths}');
+      print('🧪   - Document Paths: ${latestReport.documentPaths}');
+    } else {
+      print('🧪 - No reports found in thread box.');
+    }
   }
 
   @override
@@ -533,51 +723,113 @@ class _ReportScam2State extends State<ReportScam2> {
           key: _formKey,
           child: ListView(
             children: [
-              // Screenshots
-              // ListTile(
-              //   title: const Text('Add Screenshots'),
-              //   subtitle: Text('Selected: ${screenshots.length}'),
-              //   onTap: () => _pickFiles('screenshot'),
-              // ),
-              //
-              // // Documents
-              // ListTile(
-              //   title: const Text('Add Documents'),
-              //   subtitle: Text('Selected: ${documents.length}'),
-              //   onTap: () => _pickFiles('document'),
-              // ),
-              //
-              // // Voice Files
-              // ListTile(
-              //   title: const Text('Add Voice Notes'),
-              //   subtitle: Text('Selected: ${voices.length}'),
-              //   onTap: () => _pickFiles('voice'),
-              // ),
               FileUploadWidget(
                 key: _fileUploadKey,
-                reportId: widget.report.id ?? '123',
-                autoUpload: true,
-                onFilesUploaded: (List<Map<String, dynamic>> uploadedFiles) {
-                  // Handle uploaded files
-                  print('Files uploaded: ${uploadedFiles.length}');
+                config: FileUploadConfig(
+                  reportType: 'scam',
+                  reportId: widget.report.id ?? '123',
+                  autoUpload: false, // Disable auto-upload
+                  showProgress: true,
+                  allowMultipleFiles: true,
+                ),
+                onFilesUploaded: (files) {
+                  setState(() {
+                    uploadedFilesData = files;
+                    filesUploaded = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Files uploaded successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                onError: (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('File upload error: $error'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 },
               ),
               const SizedBox(height: 20),
-
               CustomDropdown(
-                label: 'Alert Severity',
-                hint: 'Select severity',
-                items: alertLevels,
+                label: 'Alert Severity *',
+                hint: 'Select severity (Required)',
+                items: alertLevelOptions.isNotEmpty
+                    ? alertLevelOptions
+                          .map((level) => level['name'] as String)
+                          .toList()
+                    : alertLevels,
                 value: alertLevel,
-                onChanged: (val) => setState(() => alertLevel = val),
+                onChanged: (val) {
+                  setState(() {
+                    alertLevel = val;
+                    // Find the corresponding ID
+                    if (val != null && alertLevelOptions.isNotEmpty) {
+                      try {
+                        final selectedLevel = alertLevelOptions.firstWhere(
+                          (level) => level['name'] == val,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        if (selectedLevel.isNotEmpty) {
+                          alertLevelId = selectedLevel['_id'];
+                          print(
+                            '✅ Selected alert level: $val with ID: $alertLevelId',
+                          );
+                        } else {
+                          print('❌ Could not find alert level ID for: $val');
+                          print(
+                            '❌ Available options: ${alertLevelOptions.map((e) => e['name']).toList()}',
+                          );
+                          alertLevelId = null;
+                        }
+                      } catch (e) {
+                        print('❌ Error finding alert level ID: $e');
+                        alertLevelId = null;
+                      }
+                    } else {
+                      alertLevelId = null;
+                      print('🔍 Alert level cleared');
+                    }
+                  });
+                },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-              // Upload status
-              if (uploadStatus.isNotEmpty)
+              // Show file selection status
+              if (_hasFilesToUpload()) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    border: Border.all(color: Colors.green.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_upload, color: Colors.green.shade600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _getFileCountText(),
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (uploadStatus.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     border: Border.all(color: Colors.blue.shade200),
@@ -585,30 +837,45 @@ class _ReportScam2State extends State<ReportScam2> {
                   ),
                   child: Row(
                     children: [
-                      if (isUploading)
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                      Icon(Icons.info_outline, color: Colors.blue.shade600),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           uploadStatus,
                           style: TextStyle(
                             color: Colors.blue.shade700,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
+              ],
 
-              const SizedBox(height: 40),
+              // Debug button to test connectivity
+              if (!isUploading) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: CustomButton(
+                    text: 'Test Backend Connection',
+                    onPressed: () async {
+                      await _testBackendConnectivity();
+                    },
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
+
               CustomButton(
                 text: isUploading ? 'Uploading...' : 'Submit',
-                onPressed: isUploading ? null : _submitFinalReport,
+                onPressed: isUploading
+                    ? null
+                    : () async {
+                        if (_validateForm()) {
+                          await _submitFinalReport();
+                        }
+                      },
                 fontWeight: FontWeight.normal,
               ),
             ],

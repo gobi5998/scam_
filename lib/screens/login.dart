@@ -5,6 +5,8 @@ import '../custom/customButton.dart';
 import '../custom/customTextfield.dart';
 import '../provider/auth_provider.dart';
 import '../services/api_service.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/responsive_widget.dart';
 import 'dashboard_page.dart';
 import 'reset_password_request.dart';
 
@@ -95,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
     final authProvider = Provider.of<AuthProvider>(context);
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
+    return ResponsiveScaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: LayoutBuilder(

@@ -7,12 +7,12 @@ import '../../models/scam_report_model.dart';
 
 class FraudRemoteService {
   Future<bool> sendReport(
-      FraudReportModel report, {
-        List<File>? screenshots,
-        List<File>? documents,
-      }) async {
+    FraudReportModel report, {
+    List<File>? screenshots,
+    List<File>? documents,
+  }) async {
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl2}fraud_reports');
+      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
       print('🔗 Attempting to send report to: $url');
 
       // Create multipart request for file uploads
@@ -26,8 +26,8 @@ class FraudRemoteService {
       request.fields['type'] = report.reportTypeId ?? '';
       request.fields['alertLevels'] = report.alertLevels ?? '';
       request.fields['date'] = report.createdAt?.toIso8601String() ?? '';
-      request.fields['phoneNumber'] = report.phoneNumber ?? '';
-      request.fields['email'] = report.email ?? '';
+      request.fields['phoneNumbers'] = report.phoneNumbers.join(',');
+      request.fields['emails'] = report.emailAddresses.join(',');
       request.fields['website'] = report.website ?? '';
 
       // Add file paths as JSON
@@ -96,17 +96,17 @@ class FraudRemoteService {
 
   Future<List<FraudReportModel>> fetchReports() async {
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl2}fraud_reports');
+      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
       final response = await http.get(url);
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);
         return data
             .map(
               (e) => FraudReportModel(
-            id:
-            e['_id'] ??
-                e['id'] ??
-                DateTime.now().millisecondsSinceEpoch.toString(),
+                id:
+                    e['_id'] ??
+                    e['id'] ??
+                    DateTime.now().millisecondsSinceEpoch.toString(),
 
                 description: e['description'] ?? '',
                 alertLevels: e['alertLevels'] ?? 'Medium',
@@ -114,9 +114,8 @@ class FraudRemoteService {
                 isSynced: true,
                 reportCategoryId: '',
                 reportTypeId: '',
-
-          ),
-        )
+              ),
+            )
             .toList();
       } else {
         print('Failed to fetch reports. Status: ${response.statusCode}');

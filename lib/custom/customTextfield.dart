@@ -1,6 +1,7 @@
 // lib/widgets/custom_text_field.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/responsive_helper.dart';
 
 class CustomTextField extends StatelessWidget {
   final String label;
@@ -49,13 +50,13 @@ class CustomTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w500,
             fontFamily: 'Poppins',
-            fontSize: 16,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: ResponsiveHelper.getResponsivePadding(context, 6)),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
@@ -69,16 +70,22 @@ class CustomTextField extends StatelessWidget {
           focusNode: focusNode,
           onTap: onTap,
           readOnly: readOnly,
-          style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+          ),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: const TextStyle(
+            hintStyle: TextStyle(
               fontFamily: 'Poppins',
               color: Colors.grey,
-              fontSize: 14,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
             ),
             errorText: errorText,
-            errorStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 12),
+            errorStyle: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+            ),
             suffixIcon: suffixIcon,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8.0),

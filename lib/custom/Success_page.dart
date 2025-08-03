@@ -66,7 +66,6 @@ class _ReportSuccessState extends State<ReportSuccess> {
                               MaterialPageRoute(
                                 builder: (_) => ThreadDatabaseListPage(
                                   searchQuery: '',
-                                  scamTypeId: '',
                                 ),
                               ),
                             );

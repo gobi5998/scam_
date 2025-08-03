@@ -47,5 +47,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
     <string>Why is my app authenticating using face id?</string>
+	<!-- Location permissions for dynamic coordinates -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to location when open to get your current coordinates for scam reports.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to location when in the background to get your current coordinates for scam reports.</string>
 </dict>
 </plist>

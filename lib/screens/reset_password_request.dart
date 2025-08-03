@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/responsive_widget.dart';
 import 'reset_password_success.dart';
 
 class ResetPasswordRequestScreen extends StatefulWidget {
@@ -66,7 +68,7 @@ class _ResetPasswordRequestScreenState
   Widget build(BuildContext context) {
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
+    return ResponsiveScaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: LayoutBuilder(

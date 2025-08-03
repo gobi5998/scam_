@@ -62,7 +62,13 @@ class _CustomDropdownState extends State<CustomDropdown> {
           items: widget.items
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
               .toList(),
-          onChanged: widget.onChanged,
+          onChanged: (String? value) {
+            print('🔍 CustomDropdown - onChanged called with: $value');
+            print('🔍 CustomDropdown - value type: ${value.runtimeType}');
+            print('🔍 CustomDropdown - value is null: ${value == null}');
+            print('🔍 CustomDropdown - value is empty: ${value?.isEmpty}');
+            widget.onChanged(value);
+          },
           validator: (val) => val == null ? "Required" : null,
         ),
       ],

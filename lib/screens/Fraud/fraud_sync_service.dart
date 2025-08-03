@@ -1,6 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../models/fraud_report_model.dart';
-import '../../models/scam_report_model.dart';
 import 'fraud_local_service.dart';
 import 'fraud_remote_service.dart';
 

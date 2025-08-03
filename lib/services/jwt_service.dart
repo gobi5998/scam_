@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 class JwtService {
+  static const String _tokenKey = 'auth_token';
+  static const String _backupTokenKey = 'auth_token_backup';
+
   static Map<String, dynamic>? decodeToken(String token) {
     try {
       final parts = token.split('.');
@@ -38,19 +42,195 @@ class JwtService {
     return null;
   }
 
+  static String? getUserEmailFromToken(String token) {
+    final payload = decodeToken(token);
+    if (payload != null && payload.containsKey('email')) {
+      return payload['email'];
+    }
+    return null;
+  }
+
+  static Future<String?> getCurrentUserEmail() async {
+    try {
+      final token = await getTokenWithFallback();
+      if (token != null) {
+        final email = getUserEmailFromToken(token);
+        print('JWT Service - User email from token: $email');
+        return email;
+      }
+      return null;
+    } catch (e) {
+      print('JWT Service - Error getting current user email: $e');
+      return null;
+    }
+  }
+
   static Future<String?> getCurrentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    try {
+      final token = await getTokenWithFallback();
 
-    print('JWT Service - Token exists: ${token != null}');
+      print('JWT Service - Token exists: ${token != null}');
+      print('JWT Service - Device: ${defaultTargetPlatform}');
 
-    if (token != null) {
-      final userId = getUserIdFromToken(token);
-      print('JWT Service - User ID from token: $userId');
-      return userId;
+      if (token != null) {
+        final userId = getUserIdFromToken(token);
+        print('JWT Service - User ID from token: $userId');
+        return userId;
+      }
+
+      print('JWT Service - No auth token found');
+      return null;
+    } catch (e) {
+      print('JWT Service - Error getting current user ID: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> getTokenWithFallback() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Try primary token storage
+      String? token = prefs.getString(_tokenKey);
+
+      if (token != null && token.isNotEmpty) {
+        print('JWT Service - Found token in primary storage');
+        return token;
+      }
+
+      // Try backup token storage
+      token = prefs.getString(_backupTokenKey);
+      if (token != null && token.isNotEmpty) {
+        print('JWT Service - Found token in backup storage');
+        // Restore to primary storage
+        await prefs.setString(_tokenKey, token);
+        return token;
+      }
+
+      print('JWT Service - No token found in any storage');
+      return null;
+    } catch (e) {
+      print('JWT Service - Error accessing SharedPreferences: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> saveToken(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Save to primary storage
+      await prefs.setString(_tokenKey, token);
+
+      // Also save to backup storage for device compatibility
+      await prefs.setString(_backupTokenKey, token);
+
+      print('JWT Service - Token saved successfully to both storages');
+      return true;
+    } catch (e) {
+      print('JWT Service - Error saving token: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> clearToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Clear from both storages
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_backupTokenKey);
+
+      print('JWT Service - Token cleared from both storages');
+      return true;
+    } catch (e) {
+      print('JWT Service - Error clearing token: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> hasValidToken() async {
+    try {
+      final token = await getTokenWithFallback();
+      if (token == null) return false;
+
+      final payload = decodeToken(token);
+      if (payload == null) return false;
+
+      // Check if token has expiration
+      if (payload.containsKey('exp')) {
+        final exp = payload['exp'] as int;
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        return exp > now;
+      }
+
+      return true; // If no expiration, assume valid
+    } catch (e) {
+      print('JWT Service - Error checking token validity: $e');
+      return false;
+    }
+  }
+
+  // Diagnostic method for device-specific issues
+  static Future<Map<String, dynamic>> diagnoseTokenStorage() async {
+    final diagnostics = <String, dynamic>{
+      'device': defaultTargetPlatform.toString(),
+      'timestamp': DateTime.now().toIso8601String(),
+      'primary_storage': null,
+      'backup_storage': null,
+      'jwt_service_token': null,
+      'errors': <String>[],
+    };
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Check primary storage
+      try {
+        final primaryToken = prefs.getString(_tokenKey);
+        diagnostics['primary_storage'] = {
+          'exists': primaryToken != null,
+          'length': primaryToken?.length ?? 0,
+          'preview': primaryToken != null
+              ? '${primaryToken!.substring(0, 20)}...'
+              : null,
+        };
+      } catch (e) {
+        diagnostics['errors'].add('Primary storage error: $e');
+      }
+
+      // Check backup storage
+      try {
+        final backupToken = prefs.getString(_backupTokenKey);
+        diagnostics['backup_storage'] = {
+          'exists': backupToken != null,
+          'length': backupToken?.length ?? 0,
+          'preview': backupToken != null
+              ? '${backupToken!.substring(0, 20)}...'
+              : null,
+        };
+      } catch (e) {
+        diagnostics['errors'].add('Backup storage error: $e');
+      }
+
+      // Check JWT service
+      try {
+        final jwtToken = await getTokenWithFallback();
+        diagnostics['jwt_service_token'] = {
+          'exists': jwtToken != null,
+          'length': jwtToken?.length ?? 0,
+          'preview': jwtToken != null
+              ? '${jwtToken!.substring(0, 20)}...'
+              : null,
+        };
+      } catch (e) {
+        diagnostics['errors'].add('JWT service error: $e');
+      }
+    } catch (e) {
+      diagnostics['errors'].add('General error: $e');
     }
 
-    print('JWT Service - No auth token found');
-    return null;
+    print('JWT Service - Token storage diagnostics: $diagnostics');
+    return diagnostics;
   }
 }

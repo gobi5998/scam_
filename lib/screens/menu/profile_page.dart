@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-
+import '../../utils/responsive_helper.dart';
+import '../../widgets/responsive_widget.dart';
 import 'edit_profile_page.dart';
+import '../../services/app_version_service.dart';
 
 class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ResponsiveScaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -19,7 +21,10 @@ class ProfilePage extends StatelessWidget {
             children: [
               // Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 child: Row(
                   children: [
                     IconButton(
@@ -62,24 +67,21 @@ class ProfilePage extends StatelessWidget {
                     ),
                     Text(
                       'sample123@gmail.com',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     Text(
                       'Total Reported: 20',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                   ],
                 ),
               ),
               // Personal Info Card
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
@@ -88,22 +90,28 @@ class ProfilePage extends StatelessWidget {
                   child: Column(
                     children: [
                       ListTile(
-                        title: Text('Personal Information', style: TextStyle(fontWeight: FontWeight.bold)),
+                        title: Text(
+                          'Personal Information',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         trailing: GestureDetector(
                           onTap: () {
-                           Navigator.push(
+                            Navigator.push(
                               context,
-                                MaterialPageRoute(
-                               builder: (context) => EditProfilePage(),
-                                  ),
-                                 );
+                              MaterialPageRoute(
+                                builder: (context) => EditProfilePage(),
+                              ),
+                            );
                           },
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.edit, size: 18, color: Colors.blue),
                               SizedBox(width: 4),
-                              Text('Edit', style: TextStyle(color: Colors.blue)),
+                              Text(
+                                'Edit',
+                                style: TextStyle(color: Colors.blue),
+                              ),
                             ],
                           ),
                         ),
@@ -135,7 +143,10 @@ class ProfilePage extends StatelessWidget {
               ),
               // Utilities
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
@@ -168,6 +179,34 @@ class ProfilePage extends StatelessWidget {
                         onTap: () {},
                       ),
                     ],
+                  ),
+                ),
+              ),
+              // App Version Section
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    leading: Icon(Icons.info_outline, color: Colors.grey[600]),
+                    title: Text(
+                      'App Version',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    trailing: Text(
+                      AppVersionService.displayVersionWithBuild,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
                   ),
                 ),
               ),
