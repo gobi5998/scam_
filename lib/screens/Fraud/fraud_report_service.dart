@@ -195,7 +195,7 @@ class FraudReportService {
       );
       print('  - alertLevels: ${report.alertLevels} (from user selection)');
 
-      // Prepare data with actual ObjectId values
+      // Prepare data with actual ObjectId values (like scam report)
       final reportData = {
         'reportCategoryId': reportCategoryId.isNotEmpty
             ? reportCategoryId
@@ -205,18 +205,36 @@ class FraudReportService {
         'severity':
             report.alertLevels ??
             '', // Also send as severity for backend compatibility
-        'phoneNumbers': report.phoneNumbers.join(','),
-        'emails': report.emailAddresses.join(','),
+        'phoneNumbers': report.phoneNumbers ?? [],
+        'emailAddresses': report.emailAddresses ?? [],
+        'mediaHandles': report.socialMediaHandles ?? [],
         'website': report.website ?? '',
         'description': report.description ?? '',
+        'incidentDate':
+            report.incidentDateTime?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
+        'fraudsterName': report.fraudsterName ?? '',
+        'companyName': report.companyName ?? '',
         'createdAt':
             report.createdAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
         'updatedAt':
             report.updatedAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
-        'keycloackUserId': report.keycloakUserId, // Fallback for no auth
+        'keycloackUserId':
+            report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
+        'createdBy': report.keycloakUserId ?? 'anonymous_user',
+        'isActive': true,
+        'status': 'draft',
+        'reportOutcome': true,
+        'location': {
+          'type': 'Point',
+          'coordinates': [0.0, 0.0], // Fallback coordinates
+        },
         'name': report.name ?? 'Fraud Report',
+        'currency': report.currency ?? 'INR', // Add currency to payload
+        'moneyLost':
+            report.amountInvolved?.toString() ?? '0.0', // Add amount involved
         'screenshotUrls': report.screenshotPaths ?? [],
         'documentUrls': report.documentPaths ?? [],
         'voiceMessageUrls':
@@ -255,10 +273,14 @@ class FraudReportService {
       print('🔍 DEBUG - reportData before JSON encoding: $reportData');
       print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
       print('🔍 DEBUG - Content-Type header: application/json');
-      print('🔍 DEBUG - URL: ${ApiConfig.mainBaseUrl}/api/reports');
+      print(
+        '🔍 DEBUG - URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
+      );
 
       final requestBody = jsonEncode(reportData);
-      print('🔍 DEBUG - Request URL: ${ApiConfig.mainBaseUrl}/api/reports');
+      print(
+        '🔍 DEBUG - Request URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
+      );
       print(
         '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
       );
@@ -266,7 +288,9 @@ class FraudReportService {
       print('🔍 DEBUG - Request body: $requestBody');
 
       final response = await http.post(
-        Uri.parse('${ApiConfig.mainBaseUrl}/api/reports'),
+        Uri.parse(
+          '${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -300,6 +324,27 @@ class FraudReportService {
   static Future<void> updateReport(FraudReportModel report) async {
     final box = Hive.box<FraudReportModel>('fraud_reports');
     await box.put(report.id, report);
+  }
+
+  // Dynamic methods to get ObjectIds from reference service
+  static Future<String> _getDynamicReportCategoryId(String categoryName) async {
+    try {
+      await ReportReferenceService.initialize();
+      return ReportReferenceService.getReportCategoryId(categoryName);
+    } catch (e) {
+      print('❌ Error getting dynamic report category ID: $e');
+      return '';
+    }
+  }
+
+  static Future<String> _getDynamicReportTypeId(String typeName) async {
+    try {
+      await ReportReferenceService.initialize();
+      return ReportReferenceService.getReportTypeId(typeName);
+    } catch (e) {
+      print('❌ Error getting dynamic report type ID: $e');
+      return '';
+    }
   }
 
   static List<FraudReportModel> getLocalReports() {

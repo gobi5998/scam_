@@ -71,9 +71,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   @HiveField(21)
   String? currency; // maps to currency
 
-  @HiveField(22)
-  String? methodOfContactId; // maps to methodOfContact
-
   FraudReportModel({
     this.id,
     this.reportCategoryId,
@@ -97,7 +94,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     this.amountInvolved,
     this.voiceRecordings = const [],
     this.currency,
-    this.methodOfContactId,
   });
 
   @override
@@ -134,7 +130,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     'fraudsterName': fraudsterName,
     'companyName': companyName,
     'createdBy': name, // Using name as createdBy for now
-    'methodOfContact': methodOfContactId, // Add method of contact ID
+
     'screenshots': screenshotPaths,
     'voiceMessages': voiceRecordings,
     'documents': documentPaths,
@@ -206,7 +202,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     double? amountInvolved,
     List<String>? voiceRecordings,
     String? currency,
-    String? methodOfContactId,
   }) {
     return FraudReportModel(
       id: id ?? this.id,
@@ -231,7 +226,6 @@ class FraudReportModel extends HiveObject implements SyncableReport {
       amountInvolved: amountInvolved ?? this.amountInvolved,
       voiceRecordings: voiceRecordings ?? this.voiceRecordings,
       currency: currency ?? this.currency,
-      methodOfContactId: methodOfContactId ?? this.methodOfContactId,
     );
   }
 }

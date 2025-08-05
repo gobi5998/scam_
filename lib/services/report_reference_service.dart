@@ -30,7 +30,7 @@ class ReportReferenceService {
   // Fetch report categories from backend
   static Future<void> _fetchReportCategories() async {
     try {
-      final url = '${ApiConfig.mainBaseUrl}/api/report-category';
+      final url = '${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}';
       print('🔄 Fetching report categories from: $url');
       final response = await http.get(Uri.parse(url));
 
@@ -66,7 +66,7 @@ class ReportReferenceService {
   // Fetch report types from backend
   static Future<void> _fetchReportTypes() async {
     try {
-      final url = '${ApiConfig.mainBaseUrl}/api/report-type';
+      final url = '${ApiConfig.mainBaseUrl}${ApiConfig.reportTypeEndpoint}';
       print('🔄 Fetching report types from: $url');
       final response = await http.get(Uri.parse(url));
 

@@ -3,50 +3,51 @@ class ApiConfig {
   // static const String baseUrl =
   //     'https://6694dcc2db28.ngrok-free.app'; // Main server (working)
   static const String authBaseUrl =
-      'https://151de55d0d0a.ngrok-free.app/api/v1'; // Auth server
+      'https://da8417e34b3a.ngrok-free.app'; // Auth server
   static const String mainBaseUrl =
-      'https://3c7559afbf4a.ngrok-free.app/api/v1'; // Main server
+      'https://c90afdb074b1.ngrok-free.app'; // Main server
   static const String fileUploadBaseUrl =
-      'https://3c7559afbf4a.ngrok-free.app/api/v1'; // File upload server (using same as main server)
+      'https://3c7559afbf4a.ngrok-free.app'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://3c7559afbf4a.ngrok-free.app/api/v1'; // Reports server
+      'https://c90afdb074b1.ngrok-free.app'; // Reports server
 
   // API Endpoints
   // Authentication endpoints
-  static const String loginEndpoint = '/auth/login-user';
-  static const String registerEndpoint = '/auth/create-user';
-  static const String logoutEndpoint = '/auth/logout';
-  static const String userProfileEndpoint = '/auth/profile';
-  static const String updateProfileEndpoint = '/auth/profile';
-  static const String forgotPasswordEndpoint = '/auth/forgot-password';
-  static const String resetPasswordEndpoint = '/auth/reset-password';
+  static const String loginEndpoint = '/api/v1/auth/login-user';
+  static const String registerEndpoint = '/api/v1/auth/create-user';
+  static const String logoutEndpoint = '/api/v1/auth/logout';
+  static const String userProfileEndpoint = '/api/v1/auth/profile';
+  static const String updateProfileEndpoint = '/api/v1/auth/profile';
+  static const String forgotPasswordEndpoint = '/api/v1/auth/forgot-password';
+  static const String resetPasswordEndpoint = '/api/v1/auth/reset-password';
 
   // Security endpoints
-  static const String reportTypeEndpoint = '/report-type';
-  static const String reportCategoryEndpoint = '/report-category';
-  static const String securityAlertsEndpoint = '/alerts';
-  static const String dashboardStatsEndpoint = '/dashboard/stats';
-  static const String reportSecurityIssueEndpoint = '/reports';
-  static const String malwareDropsEndpoint = '/reports';
-  static const String threatHistoryEndpoint = '/alerts/history';
-  static const String alertLevelsEndpoint = '/alert-level';
-  static const String methodOfContactEndpoint = '/method-of-contact';
-
+  static const String reportTypeEndpoint = '/api/v1/report-type';
+  static const String reportCategoryEndpoint = '/api/v1/report-category';
+  static const String securityAlertsEndpoint = '/api/v1/alerts';
+  static const String dashboardStatsEndpoint = '/api/v1/dashboard/stats';
+  static const String reportSecurityIssueEndpoint = '/api/v1/reports';
+  static const String malwareDropsEndpoint = '/api/v1/reports';
+  static const String threatHistoryEndpoint = '/api/v1/alerts/history';
+  static const String alertLevelsEndpoint = '/api/v1/alert-level';
+  static const String dropdownEndpoint = '/api/v1/drop-down?limit=200';
   // File upload endpoints
-  static const String fileUploadEndpoint = '/file-upload';
+  static const String fileUploadEndpoint = '/api/v1/file-upload';
   static const String malwareFileUploadEndpoint =
-      '/file-upload/threads-malware';
-  static const String fraudFileUploadEndpoint = '/file-upload/threads-fraud';
-  static const String scamFileUploadEndpoint = '/file-upload/threads-scam';
+      '/api/v1/file-upload/threads-malware';
+  static const String fraudFileUploadEndpoint =
+      '/api/v1/file-upload/threads-fraud';
+  static const String scamFileUploadEndpoint =
+      '/api/v1/file-upload/threads-scam';
 
   // Report endpoints
-  static const String scamReportsEndpoint = '/reports/scam';
-  static const String fraudReportsEndpoint = '/reports/fraud';
-  static const String malwareReportsEndpoint = '/reports/malware';
+  static const String scamReportsEndpoint = '/api/v1/reports/scam';
+  static const String fraudReportsEndpoint = '/api/v1/reports/fraud';
+  static const String malwareReportsEndpoint = '/api/v1/reports/malware';
 
   // User management endpoints
-  static const String usersEndpoint = '/users';
-  static const String userProfileUpdateEndpoint = '/user/profile';
+  static const String usersEndpoint = '/api/v1/users';
+  static const String userProfileUpdateEndpoint = '/api/v1/user/profile';
 
   // API Headers
   static const Map<String, String> defaultHeaders = {

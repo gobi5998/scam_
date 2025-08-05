@@ -12,8 +12,10 @@ class FraudRemoteService {
     List<File>? documents,
   }) async {
     try {
-      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
-      print('🔗 Attempting to send report to: $url');
+      final url = Uri.parse(
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
+      );
+      print('🔗 Attempting to send fraud report to: $url');
 
       // Create multipart request for file uploads
       var request = http.MultipartRequest('POST', url);
@@ -96,7 +98,9 @@ class FraudRemoteService {
 
   Future<List<FraudReportModel>> fetchReports() async {
     try {
-      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
+      final url = Uri.parse(
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
+      );
       final response = await http.get(url);
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);

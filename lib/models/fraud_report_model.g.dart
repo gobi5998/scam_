@@ -38,13 +38,14 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       incidentDateTime: fields[18] as DateTime?,
       amountInvolved: fields[19] as double?,
       voiceRecordings: (fields[20] as List).cast<String>(),
+      currency: fields[21] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, FraudReportModel obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -86,7 +87,9 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(19)
       ..write(obj.amountInvolved)
       ..writeByte(20)
-      ..write(obj.voiceRecordings);
+      ..write(obj.voiceRecordings)
+      ..writeByte(21)
+      ..write(obj.currency);
   }
 
   @override

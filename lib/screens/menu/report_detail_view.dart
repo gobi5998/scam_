@@ -6,11 +6,8 @@ class ReportDetailView extends StatefulWidget {
   final Map<String, dynamic> report;
   final ReportModel? typedReport;
 
-  const ReportDetailView({
-    Key? key,
-    required this.report,
-    this.typedReport,
-  }) : super(key: key);
+  const ReportDetailView({Key? key, required this.report, this.typedReport})
+    : super(key: key);
 
   @override
   State<ReportDetailView> createState() => _ReportDetailViewState();
@@ -74,7 +71,8 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
     // Determine report type and severity
     final reportType = _getReportType(report);
-    final severity = report['alertLevels'] ?? report['alertSeverityLevel'] ?? 'Unknown';
+    final severity =
+        report['alertLevels'] ?? report['alertSeverityLevel'] ?? 'Unknown';
     final severityColor = _getSeverityColor(severity);
 
     return Container(
@@ -133,7 +131,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
           SizedBox(height: 16),
           // Report Title
           Text(
-           _getCategoryType(report),
+            _getCategoryType(report),
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -143,7 +141,8 @@ class _ReportDetailViewState extends State<ReportDetailView> {
           SizedBox(height: 8),
 
           // Description
-          if (report['description'] != null && report['description'].toString().isNotEmpty)
+          if (report['description'] != null &&
+              report['description'].toString().isNotEmpty)
             Text(
               report['description'],
               style: TextStyle(
@@ -160,8 +159,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
             children: [
               _buildStatusChip(),
               SizedBox(width: 12),
-              if (_getPriority(report) != null)
-                _buildPriorityChip(),
+              if (_getPriority(report) != null) _buildPriorityChip(),
             ],
           ),
         ],
@@ -176,12 +174,13 @@ class _ReportDetailViewState extends State<ReportDetailView> {
       title: 'Basic Information',
       icon: Icons.info_outline,
       children: [
-
         _buildInfoRow('Category', _getCategoryName(report)),
         _buildInfoRow('Type', _getTypeName(report)),
-        _buildInfoRow('Severity Level', report['alertLevels'] ?? report['alertSeverityLevel'] ?? 'Unknown'),
-        if (report['status'] != null)
-          _buildInfoRow('Status', report['status']),
+        _buildInfoRow(
+          'Severity Level',
+          report['alertLevels'] ?? report['alertSeverityLevel'] ?? 'Unknown',
+        ),
+        if (report['status'] != null) _buildInfoRow('Status', report['status']),
         if (report['priority'] != null)
           _buildInfoRow('Priority', 'Level ${report['priority']}'),
       ],
@@ -190,9 +189,10 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
   Widget _buildContactInfoSection() {
     final report = widget.report;
-    final hasContactInfo = report['email'] != null ||
-                          report['phoneNumber'] != null ||
-                          report['website'] != null;
+    final hasContactInfo =
+        report['email'] != null ||
+        report['phoneNumber'] != null ||
+        report['website'] != null;
 
     if (!hasContactInfo) return SizedBox.shrink();
 
@@ -235,8 +235,23 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     }
 
     // General technical details
-    if (report['location'] != null)
-      children.add(_buildInfoRow('Location', report['location']));
+    if (report['location'] != null) {
+      final location = report['location'];
+      String locationString;
+      if (location is Map<String, dynamic>) {
+        if (location['coordinates'] is List &&
+            location['coordinates'].length >= 2) {
+          final lat = location['coordinates'][1];
+          final lng = location['coordinates'][0];
+          locationString = '$lat, $lng';
+        } else {
+          locationString = location.toString();
+        }
+      } else {
+        locationString = location.toString();
+      }
+      children.add(_buildInfoRow('Location', locationString));
+    }
     if (report['ipAddress'] != null)
       children.add(_buildInfoRow('IP Address', report['ipAddress']));
     if (report['userAgent'] != null)
@@ -282,9 +297,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     return _buildSection(
       title: 'Evidence Files',
       icon: Icons.attach_file,
-      children: [
-        ...evidence.map((path) => _buildEvidenceItem(path)),
-      ],
+      children: [...evidence.map((path) => _buildEvidenceItem(path))],
     );
   }
 
@@ -341,11 +354,15 @@ class _ReportDetailViewState extends State<ReportDetailView> {
             Wrap(
               spacing: 8,
               runSpacing: 4,
-              children: typedReport!.tags.map((tag) => Chip(
-                label: Text(tag),
-                backgroundColor: Colors.blue.withOpacity(0.1),
-                labelStyle: TextStyle(color: Colors.blue.shade700),
-              )).toList(),
+              children: typedReport!.tags
+                  .map(
+                    (tag) => Chip(
+                      label: Text(tag),
+                      backgroundColor: Colors.blue.withOpacity(0.1),
+                      labelStyle: TextStyle(color: Colors.blue.shade700),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -439,6 +456,26 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   Widget _buildInfoRow(String label, dynamic value, {bool isLink = false}) {
     if (value == null || value.toString().isEmpty) return SizedBox.shrink();
 
+    // Handle different value types safely
+    String displayValue;
+    if (value is Map<String, dynamic>) {
+      // If it's a map, try to extract a meaningful string
+      if (value.containsKey('name')) {
+        displayValue = value['name'].toString();
+      } else if (value.containsKey('coordinates')) {
+        final coords = value['coordinates'];
+        if (coords is List && coords.length >= 2) {
+          displayValue = '${coords[1]}, ${coords[0]}';
+        } else {
+          displayValue = value.toString();
+        }
+      } else {
+        displayValue = value.toString();
+      }
+    } else {
+      displayValue = value.toString();
+    }
+
     return Padding(
       padding: EdgeInsets.only(bottom: 12),
       child: Row(
@@ -462,11 +499,11 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                     onTap: () {
                       // TODO: Implement link handling
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Link: $value')),
+                        SnackBar(content: Text('Link: $displayValue')),
                       );
                     },
                     child: Text(
-                      value.toString(),
+                      displayValue,
                       style: TextStyle(
                         color: Colors.blue,
                         decoration: TextDecoration.underline,
@@ -475,11 +512,8 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                     ),
                   )
                 : Text(
-                    value.toString(),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                    displayValue,
+                    style: TextStyle(fontSize: 14, color: Colors.black87),
                   ),
           ),
         ],
@@ -509,9 +543,9 @@ class _ReportDetailViewState extends State<ReportDetailView> {
           IconButton(
             onPressed: () {
               // TODO: Implement file preview/download
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('File: $path')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('File: $path')));
             },
             icon: Icon(Icons.download, size: 20),
           ),
@@ -603,7 +637,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
   String _getCategoryType(Map<String, dynamic> report) {
     final categoryObj = report['reportCategoryId'];
-    if (categoryObj is Map) {
+    if (categoryObj is Map<String, dynamic>) {
       return categoryObj['name']?.toString() ?? 'Unknown Category';
     } else if (categoryObj is String) {
       return categoryObj;
@@ -613,7 +647,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
   String _getCategoryName(Map<String, dynamic> report) {
     final categoryObj = report['reportCategoryId'];
-    if (categoryObj is Map) {
+    if (categoryObj is Map<String, dynamic>) {
       return categoryObj['name']?.toString() ?? 'Unknown Category';
     } else if (categoryObj is String) {
       return categoryObj;
@@ -623,7 +657,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
   String _getTypeName(Map<String, dynamic> report) {
     final typeObj = report['reportTypeId'];
-    if (typeObj is Map) {
+    if (typeObj is Map<String, dynamic>) {
       return typeObj['name']?.toString() ?? 'Unknown Type';
     } else if (typeObj is String) {
       return typeObj;

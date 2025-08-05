@@ -14,6 +14,7 @@ import '../widget/Drawer/appDrawer.dart';
 import '../services/biometric_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/responsive_widget.dart';
+import '../config/api_config.dart';
 import 'ReportedFeatureCard.dart';
 import 'ReportedFeatureItem.dart';
 import 'alert.dart';
@@ -50,6 +51,49 @@ class _DashboardPageState extends State<DashboardPage> {
     });
     _loadReportTypes();
     _loadReportCategories();
+
+    // Test API connection
+    _testApiConnection();
+  }
+
+  Future<void> _testApiConnection() async {
+    try {
+      print('🧪 Testing API connection for report categories...');
+      print(
+        '🧪 Using URL: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-category',
+      );
+
+      final categories = await ScamReportService.fetchReportCategories();
+      print('✅ API test successful - found ${categories.length} categories');
+
+      for (var category in categories) {
+        print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
+      }
+
+      // Show a snackbar with the results for debugging
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'API Test: Found ${categories.length} categories from backend',
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ API test failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('API Test Failed: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadReportTypes() async {
@@ -62,54 +106,65 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadReportCategories() async {
     try {
-      print('🔍 Attempting to load report categories...');
-      reportCategories = await ScamReportService.fetchReportCategories();
-      print('✅ Loaded categories: $reportCategories'); // Debug print
+      print('🔍 Attempting to load report categories from API...');
+      print(
+        '🔍 Using URL: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-category',
+      );
+      print(
+        '🔍 Full endpoint: ${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}',
+      );
 
-      // If API fails or returns empty, provide fallback categories
-      if (reportCategories.isEmpty) {
-        print('⚠️ API returned empty categories, using fallback');
-        reportCategories = [
-          {
-            '_id': '6874f8ba98e4e5a7dc75f42c',
-            'name': 'Report Scam',
-          }, // Use actual ObjectId
-          {
-            '_id': '6874f8cb98e4e5a7dc75f42e',
-            'name': 'Report Malware',
-          }, // Use actual ObjectId
-          {
-            '_id': '6874f8d598e4e5a7dc75f430',
-            'name': 'Report Fraud',
-          }, // Use actual ObjectId
-        ];
-        print('📋 Using fallback categories: $reportCategories');
-      } else {
+      reportCategories = await ScamReportService.fetchReportCategories();
+      print('✅ Loaded categories from API: $reportCategories');
+
+      // Only use API response, no fallback
+      if (reportCategories.isNotEmpty) {
         print(
           '✅ Successfully loaded ${reportCategories.length} categories from API',
         );
         for (var category in reportCategories) {
           print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
         }
+      } else {
+        print('⚠️ API returned empty categories');
+        reportCategories = [];
+
+        // Show user-friendly error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No categories found. Please check your ngrok tunnel.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('❌ Error loading categories: $e');
-      // Provide fallback categories on error
-      reportCategories = [
-        {
-          '_id': '6874f8ba98e4e5a7dc75f42c',
-          'name': 'Report Scam',
-        }, // Use actual ObjectId
-        {
-          '_id': '6874f8cb98e4e5a7dc75f42e',
-          'name': 'Report Malware',
-        }, // Use actual ObjectId
-        {
-          '_id': '6874f8d598e4e5a7dc75f430',
-          'name': 'Report Fraud',
-        }, // Use actual ObjectId
-      ];
-      print('📋 Using fallback categories due to error: $reportCategories');
+      print('❌ Error type: ${e.runtimeType}');
+      if (e.toString().contains('SocketException')) {
+        print('❌ Network connection issue - check ngrok tunnel');
+      } else if (e.toString().contains('TimeoutException')) {
+        print('❌ Request timeout - check ngrok tunnel');
+      } else if (e.toString().contains('HttpException')) {
+        print('❌ HTTP error - check ngrok tunnel and backend server');
+      }
+
+      reportCategories = [];
+
+      // Show user-friendly error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load categories: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     }
 
     setState(() {
@@ -212,18 +267,37 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ),
                       child: CustomButton(
-                        text: 'Report Scam',
+                        text: isLoadingCategories
+                            ? 'Loading...'
+                            : 'Report Scam',
                         height: ResponsiveHelper.getResponsivePadding(
                           context,
                           56,
                         ),
+                        isLoading: isLoadingCategories,
                         onPressed: () async {
-                          if (isLoadingTypes) return;
+                          if (isLoadingCategories) return;
+
+                          if (reportCategories.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'No categories available. Please check your connection and try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
                           Map<String, dynamic>? scamCategory;
                           try {
                             scamCategory = reportCategories.firstWhere(
-                              (e) => e['name'] == 'Report Scam',
+                              (e) =>
+                                  e['name']?.toString().toLowerCase().contains(
+                                    'scam',
+                                  ) ==
+                                  true,
                             );
                           } catch (_) {
                             scamCategory = null;
@@ -234,7 +308,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Scam category not found. Please try again.',
+                                  'Scam category not found in API response. Available categories: ${reportCategories.map((c) => c['name']).join(', ')}',
                                 ),
                                 backgroundColor: Colors.red,
                               ),
@@ -242,6 +316,12 @@ class _DashboardPageState extends State<DashboardPage> {
                             return;
                           }
 
+                          print(
+                            '🎯 Navigating to Report Scam with category ID: ${scamCategory!['_id']}',
+                          );
+                          print(
+                            '🎯 Will fetch types from: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-type?id=${scamCategory!['_id']}',
+                          );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -267,18 +347,37 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ),
                       child: CustomButton(
-                        text: 'Report Malware',
+                        text: isLoadingCategories
+                            ? 'Loading...'
+                            : 'Report Malware',
                         height: ResponsiveHelper.getResponsivePadding(
                           context,
                           56,
                         ),
+                        isLoading: isLoadingCategories,
                         onPressed: () async {
                           if (isLoadingCategories) return;
+
+                          if (reportCategories.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'No categories available. Please check your connection and try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
                           Map<String, dynamic>? malwareCategory;
                           try {
                             malwareCategory = reportCategories.firstWhere(
-                              (e) => e['name'] == 'Report Malware',
+                              (e) =>
+                                  e['name']?.toString().toLowerCase().contains(
+                                    'malware',
+                                  ) ==
+                                  true,
                             );
                           } catch (_) {
                             malwareCategory = null;
@@ -289,7 +388,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Malware category not found. Please try again.',
+                                  'Malware category not found in API response. Available categories: ${reportCategories.map((c) => c['name']).join(', ')}',
                                 ),
                                 backgroundColor: Colors.red,
                               ),
@@ -297,6 +396,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             return;
                           }
 
+                          print(
+                            '🎯 Navigating to Report Malware with category ID: ${malwareCategory!['_id']}',
+                          );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -323,18 +425,37 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ),
                       child: CustomButton(
-                        text: 'Report Fraud',
+                        text: isLoadingCategories
+                            ? 'Loading...'
+                            : 'Report Fraud',
                         height: ResponsiveHelper.getResponsivePadding(
                           context,
                           56,
                         ),
+                        isLoading: isLoadingCategories,
                         onPressed: () async {
                           if (isLoadingCategories) return;
+
+                          if (reportCategories.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'No categories available. Please check your connection and try again.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
                           Map<String, dynamic>? fraudCategory;
                           try {
                             fraudCategory = reportCategories.firstWhere(
-                              (e) => e['name'] == 'Report Fraud',
+                              (e) =>
+                                  e['name']?.toString().toLowerCase().contains(
+                                    'fraud',
+                                  ) ==
+                                  true,
                             );
                           } catch (_) {
                             fraudCategory = null;
@@ -345,7 +466,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Fraud category not found. Please try again.',
+                                  'Fraud category not found in API response. Available categories: ${reportCategories.map((c) => c['name']).join(', ')}',
                                 ),
                                 backgroundColor: Colors.red,
                               ),
@@ -353,6 +474,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             return;
                           }
 
+                          print(
+                            '🎯 Navigating to Report Fraud with category ID: ${fraudCategory!['_id']}',
+                          );
                           Navigator.push(
                             context,
                             MaterialPageRoute(

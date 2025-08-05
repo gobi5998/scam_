@@ -70,35 +70,27 @@ class _ReportScam2State extends State<ReportScam2> {
               alertLevelOptions = alertLevels;
             });
             print('🔍 Loaded ${alertLevels.length} alert levels from API');
+            print(
+              '🔍 Alert levels: ${alertLevels.map((level) => '${level['name']} (${level['_id']})').join(', ')}',
+            );
           }
         } else {
           throw Exception('No alert levels returned from API');
         }
       } catch (e) {
         print('❌ Error loading alert levels from API: $e');
-        print('🔍 Using fallback alert levels...');
-
-        // Use fallback alert levels if API fails
-        final fallbackLevels = [
-          {
-            '_id': '68873fe402621a53392dc7a2',
-            'name': 'critical',
-            'isActive': true,
-          },
-          {'_id': '6887488fdc01fe5e05839d88', 'name': 'low', 'isActive': true},
-          {
-            '_id': '6887488fdc01fe5e05839d89',
-            'name': 'medium',
-            'isActive': true,
-          },
-          {'_id': '6887488fdc01fe5e05839d90', 'name': 'high', 'isActive': true},
-        ];
+        print('🔍 Showing error message to user...');
 
         if (mounted) {
-          setState(() {
-            alertLevelOptions = fallbackLevels;
-          });
-          print('🔍 Loaded ${fallbackLevels.length} fallback alert levels');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to load alert levels from server. Please check your connection and try again.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
         }
       }
     } catch (e) {

@@ -14,6 +14,7 @@ import '../scam/scam_report_service.dart';
 import '../Fraud/fraud_report_service.dart';
 import '../malware/malware_report_service.dart';
 import '../../services/api_service.dart';
+import '../../config/api_config.dart';
 import 'report_detail_view.dart';
 
 class ThreadDatabaseListPage extends StatefulWidget {
@@ -81,8 +82,110 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   Future<void> _initializeData() async {
     // Load category and type names first
     await _loadCategoryAndTypeNames();
+
+    // Auto-cleanup duplicates
+    await _autoCleanupDuplicates();
+
+    // Test API connection
+    await _testApiConnection();
+
     // Then load reports
     await _loadFilteredReports();
+  }
+
+  Future<void> _testApiConnection() async {
+    try {
+      print('🧪 Testing API connection for reports...');
+      print(
+        '🧪 Using URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.reportSecurityIssueEndpoint}',
+      );
+
+      final response = await _apiService.fetchReportsWithFilter(
+        ReportsFilter(page: 1, limit: 10),
+      );
+
+      print('✅ API test successful - found ${response.length} reports');
+
+      if (response.isNotEmpty) {
+        print('📋 First report: ${response.first}');
+      }
+    } catch (e) {
+      print('❌ API test failed: $e');
+    }
+  }
+
+  List<Map<String, dynamic>> _removeDuplicatesAndSort(
+    List<Map<String, dynamic>> reports,
+  ) {
+    print('🔍 Starting duplicate removal and sorting...');
+    print('🔍 Original reports count: ${reports.length}');
+
+    // Create a map to track unique reports by ID
+    final Map<String, Map<String, dynamic>> uniqueReports = {};
+
+    for (var report in reports) {
+      final reportId =
+          report['id']?.toString() ?? report['_id']?.toString() ?? '';
+
+      if (reportId.isNotEmpty) {
+        // If we haven't seen this ID before, or if this report is newer
+        if (!uniqueReports.containsKey(reportId)) {
+          uniqueReports[reportId] = report;
+          print('✅ Added unique report: $reportId');
+        } else {
+          // Check if this report is newer than the existing one
+          final existingReport = uniqueReports[reportId]!;
+          final existingDate = _parseDateTime(existingReport['createdAt']);
+          final newDate = _parseDateTime(report['createdAt']);
+
+          if (newDate.isAfter(existingDate)) {
+            uniqueReports[reportId] = report;
+            print('🔄 Updated report with newer version: $reportId');
+          } else {
+            print('⏭️ Skipped older duplicate: $reportId');
+          }
+        }
+      } else {
+        // For reports without ID, use description and creation date as key
+        final key = '${report['description']}_${report['createdAt']}';
+        if (!uniqueReports.containsKey(key)) {
+          uniqueReports[key] = report;
+          print('✅ Added report without ID: $key');
+        }
+      }
+    }
+
+    // Convert back to list and sort by creation date (newest first)
+    final sortedReports = uniqueReports.values.toList();
+    sortedReports.sort((a, b) {
+      final dateA = _parseDateTime(a['createdAt']);
+      final dateB = _parseDateTime(b['createdAt']);
+      return dateB.compareTo(dateA); // Newest first
+    });
+
+    print('🔍 After duplicate removal: ${sortedReports.length} reports');
+    print(
+      '🔍 First report date: ${sortedReports.isNotEmpty ? _parseDateTime(sortedReports.first['createdAt']) : 'No reports'}',
+    );
+    print(
+      '🔍 Last report date: ${sortedReports.isNotEmpty ? _parseDateTime(sortedReports.last['createdAt']) : 'No reports'}',
+    );
+
+    return sortedReports;
+  }
+
+  DateTime _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) return DateTime.now();
+
+    if (dateValue is DateTime) {
+      return dateValue;
+    }
+
+    if (dateValue is String) {
+      return DateTime.tryParse(dateValue) ?? DateTime.now();
+    }
+
+    return DateTime.now();
   }
 
   Widget _buildReportCard(Map<String, dynamic> report, int index) {
@@ -364,21 +467,41 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       final normalizedJson = _normalizeReportData(json);
       return ReportModel.fromJson(normalizedJson);
     } catch (e) {
+      print('❌ Error converting report model: $e');
+      print('❌ Problematic JSON: $json');
+
+      // Create a safe fallback with proper type handling
+      String safeCreatedAt;
+      try {
+        if (json['createdAt'] is DateTime) {
+          safeCreatedAt = (json['createdAt'] as DateTime).toIso8601String();
+        } else if (json['createdAt'] is String) {
+          safeCreatedAt = json['createdAt'];
+        } else {
+          safeCreatedAt = DateTime.now().toIso8601String();
+        }
+      } catch (dateError) {
+        print('❌ Error handling createdAt: $dateError');
+        safeCreatedAt = DateTime.now().toIso8601String();
+      }
+
       return ReportModel.fromJson({
         'id':
-            json['_id'] ??
-            json['id'] ??
+            json['_id']?.toString() ??
+            json['id']?.toString() ??
             'unknown_${DateTime.now().millisecondsSinceEpoch}',
-        'description': json['description'] ?? json['name'] ?? 'Unknown Report',
+        'description':
+            json['description']?.toString() ??
+            json['name']?.toString() ??
+            'Unknown Report',
         'alertLevels':
-            json['alertLevels'] ?? json['alertSeverityLevel'] ?? 'medium',
-        'createdAt':
-            json['createdAt'] ??
-            json['date'] ??
-            DateTime.now().toIso8601String(),
-        'emailAddresses': json['emailAddresses'],
-        'phoneNumbers': json['phoneNumbers'],
-        'website': json['website'],
+            json['alertLevels']?.toString() ??
+            json['alertSeverityLevel']?.toString() ??
+            'medium',
+        'createdAt': safeCreatedAt,
+        'emailAddresses': json['emailAddresses']?.toString() ?? '',
+        'phoneNumbers': json['phoneNumbers']?.toString() ?? '',
+        'website': json['website']?.toString() ?? '',
       });
     }
   }
@@ -461,9 +584,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         );
       }
 
-      // Handle createdAt - could be String or DateTime
+      // Handle createdAt - could be String, DateTime, or null
       if (normalized['createdAt'] is String) {
         normalized['createdAt'] = normalized['createdAt'];
+      } else if (normalized['createdAt'] is DateTime) {
+        normalized['createdAt'] = (normalized['createdAt'] as DateTime)
+            .toIso8601String();
       } else if (normalized['createdAt'] != null) {
         normalized['createdAt'] = normalized['createdAt'].toString();
       } else {
@@ -505,7 +631,17 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       normalized['currency'] = normalized['currency']?.toString() ?? 'INR';
       normalized['moneyLost'] = normalized['moneyLost']?.toString() ?? '0.0';
       normalized['scammerName'] = normalized['scammerName']?.toString() ?? '';
-      normalized['incidentDate'] = normalized['incidentDate']?.toString() ?? '';
+      // Handle incidentDate - could be String, DateTime, or null
+      if (normalized['incidentDate'] is String) {
+        normalized['incidentDate'] = normalized['incidentDate'];
+      } else if (normalized['incidentDate'] is DateTime) {
+        normalized['incidentDate'] = (normalized['incidentDate'] as DateTime)
+            .toIso8601String();
+      } else if (normalized['incidentDate'] != null) {
+        normalized['incidentDate'] = normalized['incidentDate'].toString();
+      } else {
+        normalized['incidentDate'] = '';
+      }
       normalized['status'] = normalized['status']?.toString() ?? 'draft';
       normalized['reportOutcome'] = normalized['reportOutcome'] ?? true;
 
@@ -549,6 +685,18 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         normalized['methodOfContact'] = '';
       }
 
+      // Handle updatedAt - could be String, DateTime, or null
+      if (normalized['updatedAt'] is String) {
+        normalized['updatedAt'] = normalized['updatedAt'];
+      } else if (normalized['updatedAt'] is DateTime) {
+        normalized['updatedAt'] = (normalized['updatedAt'] as DateTime)
+            .toIso8601String();
+      } else if (normalized['updatedAt'] != null) {
+        normalized['updatedAt'] = normalized['updatedAt'].toString();
+      } else {
+        normalized['updatedAt'] = DateTime.now().toIso8601String();
+      }
+
       if (normalized['_id'] != null) {
         normalized['isSynced'] = true;
       }
@@ -582,6 +730,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       _typedReports.clear();
     });
     await _loadFilteredReports();
+  }
+
+  // Method to refresh data when returning from report creation
+  Future<void> refreshData() async {
+    print('🔄 Refreshing thread database data...');
+    await _resetAndReload();
   }
 
   Future<void> _cleanupDuplicates() async {
@@ -651,6 +805,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       }
     } finally {
       _isCleanupRunning = false;
+    }
+  }
+
+  // Auto-cleanup duplicates when loading data
+  Future<void> _autoCleanupDuplicates() async {
+    try {
+      print('🧹 Auto-cleanup duplicates...');
+
+      // Clean local duplicates for scam and fraud reports
+      await ScamReportService.removeDuplicateScamReports();
+      await FraudReportService.removeDuplicateFraudReports();
+
+      print('✅ Auto-cleanup completed');
+    } catch (e) {
+      print('❌ Error during auto-cleanup: $e');
     }
   }
 
@@ -754,6 +923,18 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           // Fallback to local data
           reports = await _getLocalReports();
         }
+
+        // If API returned empty results but we have local data, use local data
+        if (reports.isEmpty) {
+          print('⚠️ API returned empty results, checking local data...');
+          final localReports = await _getLocalReports();
+          if (localReports.isNotEmpty) {
+            print(
+              '✅ Found ${localReports.length} local reports, using them instead',
+            );
+            reports = localReports;
+          }
+        }
       }
 
       // Apply filters to the reports only if filters are actually set
@@ -776,9 +957,22 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         );
       }
 
-      _typedReports = _filteredReports
-          .map((json) => _safeConvertToReportModel(json))
-          .toList();
+      // Remove duplicates and sort by creation date (newest first)
+      _filteredReports = _removeDuplicatesAndSort(_filteredReports);
+      print(
+        '🔍 DEBUG: After removing duplicates and sorting: ${_filteredReports.length} reports',
+      );
+
+      _typedReports = [];
+      for (int i = 0; i < _filteredReports.length; i++) {
+        try {
+          final report = _safeConvertToReportModel(_filteredReports[i]);
+          _typedReports.add(report);
+        } catch (e) {
+          print('❌ Error converting report $i: $e');
+          print('❌ Report data: ${_filteredReports[i]}');
+        }
+      }
       print(
         '🔍 DEBUG: Converted to typed reports: ${_typedReports.length} reports',
       );
@@ -1519,6 +1713,47 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
+  // Test URL construction and backend connectivity
+  Future<void> _testUrlAndBackend() async {
+    try {
+      print('🧪 Testing URL construction and backend connectivity...');
+
+      final apiService = ApiService();
+
+      // Test URL construction
+      await apiService.testUrlConstruction();
+
+      // Test backend connectivity
+      final isConnected = await apiService.testBackendConnectivity();
+
+      if (isConnected) {
+        print('✅ Backend connectivity test passed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Backend connectivity test passed'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        print('❌ Backend connectivity test failed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Backend connectivity test failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ URL and backend test failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Test failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1745,62 +1980,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                                   foregroundColor: Colors.white,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 20),
-                        // Debug section to show all available reports
-                        Container(
-                          margin: EdgeInsets.all(16),
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            border: Border.all(color: Colors.blue.shade200),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Debug: Available Reports',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Total reports in database: ${_filteredReports.length}',
-                              ),
-                              SizedBox(height: 8),
-                              Text('Applied filters:'),
-                              Text('- Search: "${widget.searchQuery}"'),
-                              Text(
-                                '- Categories: "${widget.selectedCategories.join(", ")}"',
-                              ),
-                              Text(
-                                '- Types: "${widget.selectedTypes.join(", ")}"',
-                              ),
-                              Text(
-                                '- Severities: "${widget.selectedSeverities.join(", ")}"',
-                              ),
-                              SizedBox(height: 8),
-                              Text('Hive Box Status:'),
-                              Text(
-                                '- Scam reports: ${Hive.box<ScamReportModel>('scam_reports').length}',
-                              ),
-                              Text(
-                                '- Fraud reports: ${Hive.box<FraudReportModel>('fraud_reports').length}',
-                              ),
-                              Text(
-                                '- Malware reports: ${Hive.box<MalwareReportModel>('malware_reports').length}',
-                              ),
-                              SizedBox(height: 8),
-                              Text('Category & Type Cache:'),
-                              Text(
-                                '- Categories loaded: ${_categoryIdToName.length}',
-                              ),
-                              Text('- Types loaded: ${_typeIdToName.length}'),
                             ],
                           ),
                         ),

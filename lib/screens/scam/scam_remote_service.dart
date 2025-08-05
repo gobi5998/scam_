@@ -11,7 +11,9 @@ class ScamRemoteService {
     List<File>? documents,
   }) async {
     try {
-      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
+      final url = Uri.parse(
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+      );
       print('🔗 Attempting to send report to: $url');
 
       // Create multipart request for file uploads
@@ -89,7 +91,9 @@ class ScamRemoteService {
 
   Future<List<ScamReportModel>> fetchReports() async {
     try {
-      final url = Uri.parse('${ApiConfig.mainBaseUrl}/api/reports');
+      final url = Uri.parse(
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+      );
       final response = await http.get(url);
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);
@@ -120,13 +124,37 @@ class ScamRemoteService {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> fetchScamReports() async {
+    try {
+      final url = Uri.parse(
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+      );
+      print('🔍 Fetching scam reports from: $url');
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        print('❌ Failed to fetch scam reports. Status: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching scam reports: $e');
+      return [];
+    }
+  }
+
   static Future<void> submitScamReport(Map<String, dynamic> reportJson) async {
     try {
       print('📤 Submitting scam report to backend...');
       print('📤 Report data: ${jsonEncode(reportJson)}');
 
       final response = await http.post(
-        Uri.parse('${ApiConfig.mainBaseUrl}/api/reports'),
+        Uri.parse(
+          '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

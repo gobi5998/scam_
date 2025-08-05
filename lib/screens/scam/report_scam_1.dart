@@ -145,6 +145,8 @@ class _ReportScam1State extends State<ReportScam1> {
   List<Map<String, dynamic>> scamTypes = [];
   List<Map<String, dynamic>> methodOfContactOptions = [];
   bool isOnline = true;
+  bool isLoadingScamTypes = false;
+  bool isLoadingMethodOfContact = false;
 
   // Controllers for real-time validation
   final TextEditingController _phoneController = TextEditingController();
@@ -335,54 +337,73 @@ class _ReportScam1State extends State<ReportScam1> {
   }
 
   Future<void> _loadScamTypes() async {
-    final box = await Hive.openBox('scam_types');
-    // Try to load from Hive first
-    final raw = box.get(widget.categoryId);
-    List<Map<String, dynamic>>? cachedTypes;
-    if (raw != null) {
-      cachedTypes = (raw as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-    }
+    setState(() {
+      isLoadingScamTypes = true;
+    });
 
-    if (cachedTypes != null && cachedTypes.isNotEmpty) {
-      scamTypes = cachedTypes;
-      setState(() {});
-    }
-
-    // Always try to fetch latest from backend in background
     try {
-      final latestTypes = await ScamReportService.fetchReportTypesByCategory(
+      print('🔍 UI: Starting to load scam types from backend...');
+      print('🔍 UI: Using category ID: ${widget.categoryId}');
+
+      final apiService = ApiService();
+      final scamTypesData = await apiService.fetchReportTypesByCategory(
         widget.categoryId,
       );
-      if (latestTypes != null && latestTypes.isNotEmpty) {
-        scamTypes = latestTypes;
-        await box.put(widget.categoryId, latestTypes);
-        setState(() {});
+
+      if (scamTypesData.isNotEmpty) {
+        setState(() {
+          scamTypes = scamTypesData;
+          isLoadingScamTypes = false;
+        });
+        print('✅ UI: Scam types loaded: ${scamTypes.length} items');
+
+        // Print the options for debugging
+        for (int i = 0; i < scamTypes.length; i++) {
+          final type = scamTypes[i];
+          print('🔍 UI: Type $i: ${type['name']} (ID: ${type['_id']})');
+        }
+      } else {
+        print('❌ UI: No scam types available from API');
+        setState(() {
+          scamTypes = [];
+          isLoadingScamTypes = false;
+        });
       }
     } catch (e) {
-      // If offline or error, just use cached
-      print('Failed to fetch latest scam types: $e');
+      print('❌ UI: Error loading scam types: $e');
+      setState(() {
+        scamTypes = [];
+        isLoadingScamTypes = false;
+      });
     }
   }
 
   Future<void> _loadMethodOfContactOptions() async {
+    setState(() {
+      isLoadingMethodOfContact = true;
+    });
+
     try {
       print(
         '🔍 UI: Starting to load method of contact options from backend...',
       );
+      print('🔍 UI: Using category ID: ${widget.categoryId}');
 
-      // Try to load from backend first
+      // Use the scam category ID for method of contact
       final apiService = ApiService();
-      final methodOfContactData = await apiService.fetchMethodOfContact();
+      final methodOfContactData = await apiService.fetchDropdownByType(
+        'method of contact',
+        widget.categoryId,
+      );
 
-      if (methodOfContactData != null && methodOfContactData.isNotEmpty) {
+      if (methodOfContactData.isNotEmpty) {
         setState(() {
           methodOfContactOptions = methodOfContactData;
+          isLoadingMethodOfContact = false;
         });
 
         print(
-          '✅ UI: Method of contact options loaded from backend: ${methodOfContactOptions.length} items',
+          '✅ UI: Method of contact options loaded: ${methodOfContactOptions.length} items',
         );
 
         // Print the options for debugging
@@ -391,74 +412,34 @@ class _ReportScam1State extends State<ReportScam1> {
           print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
         }
       } else {
-        // Fallback to hardcoded options if backend fails
-        print('⚠️ UI: Backend returned empty data, using fallback options');
-        final fallbackOptions = [
-          {
-            '_id': '64e8b3d93c9f9c1e2aa1a444',
-            'name': 'Email',
-            'isActive': true,
-          },
-          {'_id': '64e8b3da3c9f9c1e2aa1a445', 'name': 'SMS', 'isActive': true},
-          {
-            '_id': '64e8b3db3c9f9c1e2aa1a446',
-            'name': 'Social Media',
-            'isActive': true,
-          },
-          {
-            '_id': '64e8b3dc3c9f9c1e2aa1a447',
-            'name': 'Phone Call',
-            'isActive': true,
-          },
-          {
-            '_id': '64e8b3dd3c9f9c1e2aa1a448',
-            'name': 'Website',
-            'isActive': true,
-          },
-          {
-            '_id': '64e8b3de3c9f9c1e2aa1a449',
-            'name': 'Other',
-            'isActive': true,
-          },
-        ];
-
+        print('❌ UI: No method of contact options available from API');
         setState(() {
-          methodOfContactOptions = fallbackOptions;
+          methodOfContactOptions = [];
+          isLoadingMethodOfContact = false;
         });
-
-        print(
-          '🔍 UI: Fallback method of contact options loaded: ${methodOfContactOptions.length} items',
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No method of contact options found. Please check your backend API.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
-      print('❌ UI: Failed to load method of contact options from backend: $e');
-      print('🔍 UI: Using fallback options due to error');
-
-      // Use fallback options on error
-      final fallbackOptions = [
-        {'_id': '64e8b3d93c9f9c1e2aa1a444', 'name': 'Email', 'isActive': true},
-        {'_id': '64e8b3da3c9f9c1e2aa1a445', 'name': 'SMS', 'isActive': true},
-        {
-          '_id': '64e8b3db3c9f9c1e2aa1a446',
-          'name': 'Social Media',
-          'isActive': true,
-        },
-        {
-          '_id': '64e8b3dc3c9f9c1e2aa1a447',
-          'name': 'Phone Call',
-          'isActive': true,
-        },
-        {
-          '_id': '64e8b3dd3c9f9c1e2aa1a448',
-          'name': 'Website',
-          'isActive': true,
-        },
-        {'_id': '64e8b3de3c9f9c1e2aa1a449', 'name': 'Other', 'isActive': true},
-      ];
-
+      print('❌ UI: Error loading method of contact options: $e');
       setState(() {
-        methodOfContactOptions = fallbackOptions;
+        methodOfContactOptions = [];
+        isLoadingMethodOfContact = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error loading method of contact options: ${e.toString()}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -546,6 +527,15 @@ class _ReportScam1State extends State<ReportScam1> {
           'Report Scam',
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _loadScamTypes();
+              _loadMethodOfContactOptions();
+            },
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -556,12 +546,18 @@ class _ReportScam1State extends State<ReportScam1> {
             children: [
               CustomDropdown(
                 label: 'Scam Type',
-                hint: 'Select a Scam Type',
-                items: scamTypes.map((e) => e['name'] as String).toList(),
-                value: scamTypes.firstWhere(
-                  (e) => e['_id'] == scamTypeId,
-                  orElse: () => {},
-                )['name'],
+                hint: isLoadingScamTypes
+                    ? 'Loading scam types...'
+                    : 'Select a Scam Type',
+                items: scamTypes.isNotEmpty
+                    ? scamTypes.map((e) => e['name'] as String).toList()
+                    : const [],
+                value: scamTypes.isNotEmpty
+                    ? scamTypes.firstWhere(
+                        (e) => e['_id'] == scamTypeId,
+                        orElse: () => {},
+                      )['name']
+                    : null,
                 onChanged: (val) {
                   setState(() {
                     if (val != null) {
@@ -848,7 +844,9 @@ class _ReportScam1State extends State<ReportScam1> {
 
                             return CustomDropdown(
                               label: 'Method of Contact *',
-                              hint: 'Select method of contact',
+                              hint: isLoadingMethodOfContact
+                                  ? 'Loading method of contact...'
+                                  : 'Select method of contact',
                               items: dropdownItems,
                               value: _getSelectedMethodOfContactName(),
                               onChanged: (val) {
@@ -1190,6 +1188,7 @@ class _ReportScam1State extends State<ReportScam1> {
                   ],
                 ),
               ),
+
               SizedBox(height: 24),
               CustomButton(
                 text: 'Next',

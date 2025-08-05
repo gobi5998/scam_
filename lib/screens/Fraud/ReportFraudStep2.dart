@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:security_alert/screens/Fraud/fraud_report_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../../services/jwt_service.dart';
 import '../../services/token_storage.dart';
@@ -15,6 +16,7 @@ import '../../custom/customButton.dart';
 import '../../custom/customDropdown.dart';
 import '../../custom/Success_page.dart';
 import '../../services/api_service.dart';
+import '../../config/api_config.dart';
 import '../../custom/fileUpload.dart';
 
 class ReportFraudStep2 extends StatefulWidget {
@@ -29,7 +31,6 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   final _formKey = GlobalKey<FormState>();
   String? alertLevel;
   String? alertLevelId; // Add alert level ID
-  final List<String> alertLevels = ['Low', 'Medium', 'High', 'Critical'];
   List<Map<String, dynamic>> alertLevelOptions =
       []; // Store alert level options from API
   bool isUploading = false;
@@ -70,35 +71,27 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
               alertLevelOptions = alertLevels;
             });
             print('🔍 Loaded ${alertLevels.length} alert levels from API');
+            print(
+              '🔍 Alert levels: ${alertLevels.map((level) => '${level['name']} (${level['_id']})').join(', ')}',
+            );
           }
         } else {
           throw Exception('No alert levels returned from API');
         }
       } catch (e) {
         print('❌ Error loading alert levels from API: $e');
-        print('🔍 Using fallback alert levels...');
-
-        // Use fallback alert levels if API fails
-        final fallbackLevels = [
-          {
-            '_id': '68873fe402621a53392dc7a2',
-            'name': 'critical',
-            'isActive': true,
-          },
-          {'_id': '6887488fdc01fe5e05839d88', 'name': 'low', 'isActive': true},
-          {
-            '_id': '6887488fdc01fe5e05839d89',
-            'name': 'medium',
-            'isActive': true,
-          },
-          {'_id': '6887488fdc01fe5e05839d90', 'name': 'high', 'isActive': true},
-        ];
+        print('🔍 Showing error message to user...');
 
         if (mounted) {
-          setState(() {
-            alertLevelOptions = fallbackLevels;
-          });
-          print('🔍 Loaded ${fallbackLevels.length} fallback alert levels');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to load alert levels from server. Please check your connection and try again.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
         }
       }
     } catch (e) {
@@ -320,7 +313,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         'status': 'draft',
         'location': await _getCurrentLocation(), // Dynamic coordinates
         'phoneNumbers': widget.report.phoneNumbers ?? [],
-        'emails': widget.report.emailAddresses ?? [],
+        'emailAddresses': widget.report.emailAddresses ?? [],
         'mediaHandles': widget.report.socialMediaHandles ?? [],
         'website': widget.report.website ?? '',
         'currency': widget.report.currency ?? 'INR',
@@ -332,7 +325,6 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
             DateTime.now().toIso8601String(),
         'fraudsterName': widget.report.fraudsterName ?? '',
         'companyName': widget.report.companyName ?? '',
-        'methodOfContact': widget.report.methodOfContactId ?? '',
         'screenshots': screenshotUrls,
         'voiceMessages': voiceMessageUrls,
         'documents': documentUrls,
@@ -450,6 +442,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           print('🌐 Starting backend submission...');
           print('🌐 Form data being sent: ${jsonEncode(formData)}');
 
+          // Use API service method like scam report
           await ApiService().submitFraudReport(formData);
           print('✅ Backend submission successful');
 
@@ -762,7 +755,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                     ? alertLevelOptions
                           .map((level) => level['name'] as String)
                           .toList()
-                    : alertLevels,
+                    : ['Loading...'],
                 value: alertLevel,
                 onChanged: (val) {
                   setState(() {

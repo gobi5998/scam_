@@ -215,8 +215,6 @@ class ScamReportService {
         'emailAddresses': report.emailAddresses?.join(',') ?? '',
         'website': report.website ?? '',
         'description': report.description ?? '',
-        'methodOfContact':
-            report.methodOfContactId ?? '', // Add method of contact ID
         'createdAt':
             report.createdAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
@@ -226,10 +224,31 @@ class ScamReportService {
         'keycloackUserId':
             report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
         'name': report.name ?? 'Scam Report',
+        'currency': report.currency ?? 'INR', // Add currency to payload
+        'moneyLost': report.amountLost?.toString() ?? '0.0', // Add amount lost
         'screenshotUrls': report.screenshotPaths ?? [],
         'documentUrls': report.documentPaths ?? [],
         'voiceMessageUrls': [], // Scam reports don't typically have voice files
       };
+
+      // Handle methodOfContact properly - only add if it's a valid ObjectId
+      if (report.methodOfContactId != null &&
+          report.methodOfContactId!.isNotEmpty) {
+        // Check if it's a valid ObjectId (24 character hex string)
+        if (report.methodOfContactId!.length == 24 &&
+            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(report.methodOfContactId!)) {
+          reportData['methodOfContact'] = report.methodOfContactId as Object;
+          print(
+            '✅ Added valid methodOfContact ObjectId: ${report.methodOfContactId}',
+          );
+        } else {
+          print(
+            '⚠️ Skipping invalid methodOfContact ID: ${report.methodOfContactId} (not a valid ObjectId)',
+          );
+        }
+      } else {
+        print('⚠️ No methodOfContact ID provided');
+      }
 
       print('📤 Sending scam report to backend...');
       print('📤 Report data: ${jsonEncode(reportData)}');
@@ -272,10 +291,14 @@ class ScamReportService {
       print('🔍 DEBUG - reportData before JSON encoding: $reportData');
       print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
       print('🔍 DEBUG - Content-Type header: application/json');
-      print('🔍 DEBUG - URL: ${ApiConfig.mainBaseUrl}/api/reports');
+      print(
+        '🔍 DEBUG - URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+      );
 
       final requestBody = jsonEncode(reportData);
-      print('🔍 DEBUG - Request URL: ${ApiConfig.mainBaseUrl}/api/reports');
+      print(
+        '🔍 DEBUG - Request URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+      );
       print(
         '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
       );
@@ -283,7 +306,9 @@ class ScamReportService {
       print('🔍 DEBUG - Request body: $requestBody');
 
       final response = await http.post(
-        Uri.parse('${ApiConfig.mainBaseUrl}/api/reports'),
+        Uri.parse(
+          '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

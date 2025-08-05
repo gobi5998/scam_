@@ -526,12 +526,18 @@ class ApiService {
       print('✅ Categories response: ${response.data}');
 
       if (response.data != null && response.data is List) {
-        return List<Map<String, dynamic>>.from(response.data);
+        final categories = List<Map<String, dynamic>>.from(response.data);
+        print('✅ Successfully parsed ${categories.length} categories from API');
+        return categories;
       } else if (response.data != null && response.data is Map) {
         // Handle case where response is wrapped in an object
         final data = response.data as Map<String, dynamic>;
         if (data.containsKey('data') && data['data'] is List) {
-          return List<Map<String, dynamic>>.from(data['data']);
+          final categories = List<Map<String, dynamic>>.from(data['data']);
+          print(
+            '✅ Successfully parsed ${categories.length} categories from wrapped response',
+          );
+          return categories;
         }
       }
 
@@ -968,8 +974,6 @@ class ApiService {
       reportData['fraudsterName'] =
           reportData['fraudsterName']?.toString() ?? '';
       reportData['companyName'] = reportData['companyName']?.toString() ?? '';
-      reportData['methodOfContact'] =
-          reportData['methodOfContact']?.toString() ?? '';
 
       // Ensure timestamps are properly formatted
       reportData['createdAt'] =
@@ -1149,33 +1153,41 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchAlertLevels() async {
     try {
+      print('🔄 Fetching alert levels from backend...');
+      print('🔄 Endpoint: ${ApiConfig.alertLevelsEndpoint}');
+
       final response = await _dioService.get(ApiConfig.alertLevelsEndpoint);
+
+      print('📥 Alert levels response status: ${response.statusCode}');
+      print('📥 Alert levels response data: ${response.data}');
+
       if (response.statusCode == 200 && response.data is List) {
         final levels = List<Map<String, dynamic>>.from(response.data);
-        return levels.where((level) => level['isActive'] == true).toList();
+        final activeLevels = levels
+            .where((level) => level['isActive'] == true)
+            .toList();
+
+        print(
+          '✅ Successfully fetched ${activeLevels.length} active alert levels from backend',
+        );
+        print(
+          '✅ Alert levels: ${activeLevels.map((level) => '${level['name']} (${level['_id']})').join(', ')}',
+        );
+
+        return activeLevels;
+      } else {
+        print('❌ Invalid response format from alert levels API');
+        print('❌ Expected List but got: ${response.data.runtimeType}');
+        throw Exception('Invalid response format from alert levels API');
       }
-      return [
-        {'_id': '64e8b2c83c9f9c1e2aa1a333', 'name': 'Low', 'isActive': true},
-        {'_id': '64e8b2c83c9f9c1e2aa1a334', 'name': 'Medium', 'isActive': true},
-        {'_id': '64e8b2c83c9f9c1e2aa1a335', 'name': 'High', 'isActive': true},
-        {
-          '_id': '64e8b2c83c9f9c1e2aa1a336',
-          'name': 'Critical',
-          'isActive': true,
-        },
-      ];
     } catch (e) {
-      print('Error fetching alert levels: $e');
-      return [
-        {'_id': '64e8b2c83c9f9c1e2aa1a333', 'name': 'Low', 'isActive': true},
-        {'_id': '64e8b2c83c9f9c1e2aa1a334', 'name': 'Medium', 'isActive': true},
-        {'_id': '64e8b2c83c9f9c1e2aa1a335', 'name': 'High', 'isActive': true},
-        {
-          '_id': '64e8b2c83c9f9c1e2aa1a336',
-          'name': 'Critical',
-          'isActive': true,
-        },
-      ];
+      print('❌ Error fetching alert levels from backend: $e');
+      print('❌ This might be due to:');
+      print('   - Backend server is offline');
+      print('   - Network connectivity issues');
+      print('   - Incorrect API endpoint');
+      print('   - Invalid response format');
+      throw Exception('Failed to fetch alert levels from backend: $e');
     }
   }
 
@@ -1462,14 +1474,14 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchMethodOfContact() async {
     try {
-      print('🔍 Fetching method of contact options...');
+      print('🔍 Fetching method of contact options from backend...');
       print(
-        '🔍 API URL: ${_dioService.mainApi.options.baseUrl}${ApiConfig.methodOfContactEndpoint}',
+        '🔍 API URL: ${_dioService.mainApi.options.baseUrl}${ApiConfig.dropdownEndpoint}&limit=200',
       );
 
-      // Try to fetch from the backend endpoint
+      // Try to fetch from the backend dropdowns endpoint with limit 200
       final response = await _dioService.mainApi.get(
-        ApiConfig.methodOfContactEndpoint,
+        '${ApiConfig.dropdownEndpoint}&limit=200',
       );
 
       print('🔍 Response status: ${response.statusCode}');
@@ -1483,12 +1495,48 @@ class ApiService {
         // Print all items to see what's available
         for (int i = 0; i < data.length; i++) {
           final item = data[i];
-          print('🔍 Item $i: ${item['name']} (ID: ${item['_id']})');
+          print('🔍 Item $i: ${item}');
         }
 
-        final List<Map<String, dynamic>> methodOfContactOptions = data
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
+        // Transform the data to ensure it has the expected structure
+        final List<Map<String, dynamic>> methodOfContactOptions = data.map((
+          item,
+        ) {
+          final Map<String, dynamic> transformedItem =
+              Map<String, dynamic>.from(item);
+
+          // Ensure the item has the required fields
+          if (!transformedItem.containsKey('name')) {
+            // Try to find a name field in different possible formats
+            if (transformedItem.containsKey('title')) {
+              transformedItem['name'] = transformedItem['title'];
+            } else if (transformedItem.containsKey('label')) {
+              transformedItem['name'] = transformedItem['label'];
+            } else if (transformedItem.containsKey('value')) {
+              transformedItem['name'] = transformedItem['value'];
+            } else if (transformedItem.containsKey('text')) {
+              transformedItem['name'] = transformedItem['text'];
+            } else {
+              // If no name field found, use the ID or a default
+              transformedItem['name'] =
+                  transformedItem['_id']?.toString() ??
+                  transformedItem['id']?.toString() ??
+                  'Unknown Method';
+            }
+          }
+
+          // Ensure the item has an ID field
+          if (!transformedItem.containsKey('_id')) {
+            if (transformedItem.containsKey('id')) {
+              transformedItem['_id'] = transformedItem['id'];
+            } else {
+              transformedItem['_id'] = transformedItem['name'] ?? 'unknown';
+            }
+          }
+
+          print('🔍 Transformed item: $transformedItem');
+          return transformedItem;
+        }).toList();
 
         print(
           '✅ Method of contact options loaded from API: ${methodOfContactOptions.length} items',
@@ -1504,10 +1552,12 @@ class ApiService {
 
         return methodOfContactOptions;
       } else {
-        print(
-          '❌ API endpoint returned invalid response, using fallback options',
+        print('❌ API endpoint returned invalid response');
+        print('❌ Status Code: ${response.statusCode}');
+        print('❌ Response Data: ${response.data}');
+        throw Exception(
+          'API returned invalid response: ${response.statusCode}',
         );
-        return _getFallbackMethodOfContactOptions();
       }
     } catch (e) {
       print('❌ Error fetching method of contact options from API: $e');
@@ -1515,34 +1565,11 @@ class ApiService {
       if (e is Exception) {
         print('❌ Exception details: $e');
       }
-      print('⚠️ Using fallback method of contact options');
-      return _getFallbackMethodOfContactOptions();
+
+      // If the primary endpoint fails, return empty list
+      print('🔄 Primary endpoint failed, returning empty list');
+      return [];
     }
-  }
-
-  List<Map<String, dynamic>> _getFallbackMethodOfContactOptions() {
-    print('🔍 Using fallback method of contact options');
-
-    final List<Map<String, dynamic>> fallbackOptions = [
-      {'_id': '1', 'name': 'Email', 'type': 'Method of Contact'},
-      {'_id': '2', 'name': 'SMS', 'type': 'Method of Contact'},
-      {'_id': '3', 'name': 'Phone Call', 'type': 'Method of Contact'},
-      {'_id': '4', 'name': 'Social Media', 'type': 'Method of Contact'},
-      {'_id': '5', 'name': 'Website', 'type': 'Method of Contact'},
-      {'_id': '6', 'name': 'Other', 'type': 'Method of Contact'},
-    ];
-
-    print(
-      '✅ Fallback method of contact options loaded: ${fallbackOptions.length} items',
-    );
-
-    // Print the fallback options
-    for (int i = 0; i < fallbackOptions.length; i++) {
-      final option = fallbackOptions[i];
-      print('✅ Fallback option $i: ${option['name']} (ID: ${option['_id']})');
-    }
-
-    return fallbackOptions;
   }
 
   // Cache method of contact options for offline use
@@ -1560,11 +1587,85 @@ class ApiService {
     // Try to fetch from API
     final options = await fetchMethodOfContact();
 
-    // Cache the options (whether from API or fallback)
-    _cachedMethodOfContactOptions = options;
-    print('✅ Cached method of contact options: ${options.length} items');
+    // Cache the options (only if we got data from backend)
+    if (options.isNotEmpty) {
+      _cachedMethodOfContactOptions = options;
+      print('✅ Cached method of contact options: ${options.length} items');
+    } else {
+      print('⚠️ No method of contact options to cache');
+    }
 
     return options;
+  }
+
+  // Test method of contact API connectivity
+  Future<Map<String, dynamic>> testMethodOfContactAPI() async {
+    try {
+      print('🧪 Testing method of contact API connectivity...');
+      print('🧪 Base URL: ${_dioService.mainApi.options.baseUrl}');
+      print('🧪 Endpoint: ${ApiConfig.dropdownEndpoint}');
+      print(
+        '🧪 Full URL: ${_dioService.mainApi.options.baseUrl}${ApiConfig.dropdownEndpoint}',
+      );
+
+      final response = await _dioService.mainApi.get(
+        ApiConfig.dropdownEndpoint,
+      );
+
+      print('🧪 Response Status: ${response.statusCode}');
+      print('🧪 Response Headers: ${response.headers}');
+      print('🧪 Response Data: ${response.data}');
+
+      return {
+        'success': true,
+        'statusCode': response.statusCode,
+        'data': response.data,
+        'message': 'API call successful',
+      };
+    } catch (e) {
+      print('🧪 API Test Failed: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+        'message': 'API call failed',
+      };
+    }
+  }
+
+  // Test different possible endpoints for method of contact
+  Future<Map<String, dynamic>> testMethodOfContactEndpoints() async {
+    final endpoints = ['${ApiConfig.dropdownEndpoint}&limit=200'];
+
+    final results = <String, Map<String, dynamic>>{};
+
+    for (final endpoint in endpoints) {
+      try {
+        print('🧪 Testing endpoint: $endpoint');
+
+        final response = await _dioService.mainApi.get(endpoint);
+
+        results[endpoint] = {
+          'success': true,
+          'statusCode': response.statusCode,
+          'data': response.data,
+          'message': 'Endpoint working',
+        };
+
+        print('✅ Endpoint $endpoint: Status ${response.statusCode}');
+      } catch (e) {
+        results[endpoint] = {
+          'success': false,
+          'error': e.toString(),
+          'message': 'Endpoint failed',
+        };
+        print('❌ Endpoint $endpoint: $e');
+      }
+    }
+
+    return {
+      'endpoints': results,
+      'summary': 'Tested ${endpoints.length} different endpoint variations',
+    };
   }
 
   // Clear cache (useful for testing or when you want fresh data)
@@ -1678,5 +1779,314 @@ class ApiService {
       }
       return false;
     }
+  }
+
+  // Test URL construction for debugging
+  Future<void> testUrlConstruction() async {
+    print('🔍 Testing URL construction...');
+    print('🔍 Reports Base URL: ${ApiConfig.reportsBaseUrl}');
+    print('🔍 Scam Reports Endpoint: ${ApiConfig.scamReportsEndpoint}');
+    print('🔍 Fraud Reports Endpoint: ${ApiConfig.fraudReportsEndpoint}');
+    print('🔍 Malware Reports Endpoint: ${ApiConfig.malwareReportsEndpoint}');
+
+    final scamUrl =
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}';
+    final fraudUrl =
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}';
+    final malwareUrl =
+        '${ApiConfig.reportsBaseUrl}${ApiConfig.malwareReportsEndpoint}';
+
+    print('🔍 Constructed Scam URL: $scamUrl');
+    print('🔍 Constructed Fraud URL: $fraudUrl');
+    print('🔍 Constructed Malware URL: $malwareUrl');
+
+    // Test if URLs are valid
+    try {
+      final response = await _dioService.reportsGet('/api/v1/reports');
+      print('✅ Base reports endpoint is accessible: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Base reports endpoint test failed: $e');
+    }
+  }
+
+  // Update malware report with new payload structure
+  Future<bool> updateMalwareReport(Map<String, dynamic> malwarePayload) async {
+    try {
+      print('🔄 Updating malware report with payload: $malwarePayload');
+
+      final response = await _dioService.reportsPost(
+        ApiConfig.malwareReportsEndpoint,
+        data: malwarePayload,
+      );
+
+      print('✅ Malware report updated successfully');
+      print('✅ Response status: ${response.statusCode}');
+      print('✅ Response data: ${response.data}');
+
+      return true;
+    } catch (e) {
+      print('❌ Error updating malware report: $e');
+      if (e is DioException) {
+        print('❌ DioException type: ${e.type}');
+        print('❌ DioException status: ${e.response?.statusCode}');
+        print('❌ DioException data: ${e.response?.data}');
+        print('❌ DioException URL: ${e.requestOptions.uri}');
+      }
+      return false;
+    }
+  }
+
+  // Create new malware report with the provided payload structure
+  Future<bool> createMalwareReport(Map<String, dynamic> malwarePayload) async {
+    try {
+      print('🔄 Creating new malware report with payload: $malwarePayload');
+
+      final response = await _dioService.reportsPost(
+        ApiConfig.malwareReportsEndpoint,
+        data: malwarePayload,
+      );
+
+      print('✅ Malware report created successfully');
+      print('✅ Response status: ${response.statusCode}');
+      print('✅ Response data: ${response.data}');
+
+      return true;
+    } catch (e) {
+      print('❌ Error creating malware report: $e');
+      if (e is DioException) {
+        print('❌ DioException type: ${e.type}');
+        print('❌ DioException status: ${e.response?.statusCode}');
+        print('❌ DioException data: ${e.response?.data}');
+        print('❌ DioException URL: ${e.requestOptions.uri}');
+      }
+      return false;
+    }
+  }
+
+  // Create new fraud report with the provided payload structure
+  Future<bool> createFraudReport(Map<String, dynamic> fraudPayload) async {
+    try {
+      print('🔄 Creating new fraud report with payload: $fraudPayload');
+
+      final response = await _dioService.reportsPost(
+        ApiConfig.fraudReportsEndpoint,
+        data: fraudPayload,
+      );
+
+      print('✅ Fraud report created successfully');
+      print('✅ Response status: ${response.statusCode}');
+      print('✅ Response data: ${response.data}');
+
+      return true;
+    } catch (e) {
+      print('❌ Error creating fraud report: $e');
+      if (e is DioException) {
+        print('❌ DioException type: ${e.type}');
+        print('❌ DioException status: ${e.response?.statusCode}');
+        print('❌ DioException data: ${e.response?.data}');
+        print('❌ DioException URL: ${e.requestOptions.uri}');
+      }
+      return false;
+    }
+  }
+
+  // Get malware reports from backend
+  Future<List<Map<String, dynamic>>> getMalwareReports({
+    int page = 1,
+    int limit = 50,
+    String? status,
+    String? reportCategoryId,
+    String? reportTypeId,
+  }) async {
+    try {
+      print('🔍 Fetching malware reports from backend...');
+
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (status != null) queryParams['status'] = status;
+      if (reportCategoryId != null)
+        queryParams['reportCategoryId'] = reportCategoryId;
+      if (reportTypeId != null) queryParams['reportTypeId'] = reportTypeId;
+
+      final response = await _dioService.reportsGet(
+        ApiConfig.malwareReportsEndpoint,
+        queryParameters: queryParams,
+      );
+
+      print('✅ Malware reports fetched successfully');
+      print('✅ Response status: ${response.statusCode}');
+
+      if (response.data is Map<String, dynamic> &&
+          response.data['data'] is List) {
+        final reports = List<Map<String, dynamic>>.from(response.data['data']);
+        print('✅ Retrieved ${reports.length} malware reports');
+        return reports;
+      } else if (response.data is List) {
+        final reports = List<Map<String, dynamic>>.from(response.data);
+        print('✅ Retrieved ${reports.length} malware reports');
+        return reports;
+      } else {
+        print('⚠️ Unexpected response format: ${response.data}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching malware reports: $e');
+      if (e is DioException) {
+        print('❌ DioException type: ${e.type}');
+        print('❌ DioException status: ${e.response?.statusCode}');
+        print('❌ DioException data: ${e.response?.data}');
+      }
+      return [];
+    }
+  }
+
+  // Method to get method of contact from API only
+  Future<List<Map<String, dynamic>>> fetchMethodOfContactFromAPI() async {
+    try {
+      print('🔄 Fetching method of contact from API with limit 200...');
+
+      // Try the correct endpoint with limit 200
+      final response = await _dioService.mainApi.get(
+        ApiConfig.dropdownEndpoint,
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final List<dynamic> data = response.data;
+        print('🔄 Got ${data.length} method of contact items from API');
+
+        // Transform the data to ensure it has the expected structure
+        final List<Map<String, dynamic>> methodOfContactOptions = data.map((
+          item,
+        ) {
+          final Map<String, dynamic> transformedItem =
+              Map<String, dynamic>.from(item);
+
+          // Ensure the item has the required fields
+          if (!transformedItem.containsKey('name')) {
+            transformedItem['name'] =
+                transformedItem['_id']?.toString() ?? 'Unknown Method';
+          }
+
+          // Ensure the item has an ID field
+          if (!transformedItem.containsKey('_id')) {
+            transformedItem['_id'] =
+                transformedItem['id'] ?? transformedItem['name'] ?? 'unknown';
+          }
+
+          print(
+            '🔍 API Item: ${transformedItem['name']} (ID: ${transformedItem['_id']})',
+          );
+          return transformedItem;
+        }).toList();
+
+        print(
+          '✅ Successfully loaded ${methodOfContactOptions.length} method of contact options from API',
+        );
+        return methodOfContactOptions;
+      } else {
+        print('❌ API returned invalid response: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Failed to fetch from API: $e');
+      return [];
+    }
+  }
+
+  // Method to fetch dropdown data by type using the new API
+  Future<List<Map<String, dynamic>>> fetchDropdownByType(
+    String type,
+    String categoryId,
+  ) async {
+    try {
+      print('🔄 Fetching dropdown data for type: $type, category: $categoryId');
+
+      final response = await _dioService.mainApi.get(
+        '${ApiConfig.dropdownEndpoint}&id=$categoryId',
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final Map<String, dynamic> responseData = response.data;
+        final List<dynamic> data = responseData['data'] ?? [];
+
+        print('🔄 Got ${data.length} dropdown items from API');
+
+        // Filter by type and transform the data
+        final List<Map<String, dynamic>> filteredOptions = data
+            .where(
+              (item) =>
+                  item['type']?.toString().toLowerCase() == type.toLowerCase(),
+            )
+            .map((item) {
+              final Map<String, dynamic> transformedItem =
+                  Map<String, dynamic>.from(item);
+
+              // Ensure the item has the required fields
+              if (!transformedItem.containsKey('name')) {
+                transformedItem['name'] =
+                    transformedItem['_id']?.toString() ?? 'Unknown Option';
+              }
+
+              // Ensure the item has an ID field
+              if (!transformedItem.containsKey('_id')) {
+                transformedItem['_id'] =
+                    transformedItem['id'] ??
+                    transformedItem['name'] ??
+                    'unknown';
+              }
+
+              print(
+                '🔍 API Item: ${transformedItem['name']} (ID: ${transformedItem['_id']}, Type: ${transformedItem['type']})',
+              );
+              return transformedItem;
+            })
+            .toList();
+
+        print(
+          '✅ Successfully loaded ${filteredOptions.length} $type options from API',
+        );
+        return filteredOptions;
+      } else {
+        print('❌ API returned invalid response: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Failed to fetch dropdown data for type $type: $e');
+      return [];
+    }
+  }
+
+  // Method to fetch method of contact using the new API
+  Future<List<Map<String, dynamic>>> fetchMethodOfContactNew() async {
+    return await fetchDropdownByType(
+      'method-of-contact',
+      '6874f8cb98e4e5a7dc75f42e',
+    );
+  }
+
+  // Method to fetch device types using the new API
+  Future<List<Map<String, dynamic>>> fetchDeviceTypes() async {
+    return await fetchDropdownByType('device', '6874f8cb98e4e5a7dc75f42e');
+  }
+
+  // Method to fetch operating systems using the new API
+  Future<List<Map<String, dynamic>>> fetchOperatingSystems() async {
+    return await fetchDropdownByType(
+      'operating System',
+      '6874f8cb98e4e5a7dc75f42e',
+    );
+  }
+
+  // Method to fetch detection methods using the new API
+  Future<List<Map<String, dynamic>>> fetchDetectionMethods() async {
+    return await fetchDropdownByType('detect', '6874f8cb98e4e5a7dc75f42e');
+  }
+
+  // Method to fetch severity levels using the new API
+  Future<List<Map<String, dynamic>>> fetchSeverityLevels() async {
+    return await fetchDropdownByType('severity', '6874f8cb98e4e5a7dc75f42e');
   }
 }

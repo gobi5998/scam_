@@ -154,8 +154,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       description,
       name,
       selectedSeverity;
-  String? fraudsterName, companyName, methodOfContact;
-  String? selectedMethodOfContactId;
+  String? fraudsterName, companyName;
   DateTime? incidentDateTime;
   double? amountInvolved;
   String selectedCurrency = 'INR'; // Default currency
@@ -163,7 +162,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   List<String> emailAddresses = [];
   List<String> socialMediaHandles = [];
   List<Map<String, dynamic>> fraudTypes = [];
-  List<Map<String, dynamic>> methodOfContactOptions = [];
   bool isOnline = true;
 
   // Location variables
@@ -203,7 +201,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   void initState() {
     super.initState();
     _loadFraudTypes();
-    _loadMethodOfContactOptions();
     _loadCategoryId();
     _setupNetworkListener();
     _setupValidationListeners();
@@ -375,7 +372,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
         _isDescriptionValid &&
         _isNameValid &&
         fraudTypeId != null &&
-        selectedMethodOfContactId != null &&
         selectedLocation != null;
   }
 
@@ -415,75 +411,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     } catch (e) {
       // If offline or error, just use cached
       print('Failed to fetch latest scam types: $e');
-    }
-  }
-
-  String? _getSelectedMethodOfContactName() {
-    if (selectedMethodOfContactId == null) return null;
-
-    try {
-      final selectedOption = methodOfContactOptions.firstWhere(
-        (e) => e['_id'] == selectedMethodOfContactId,
-        orElse: () => <String, dynamic>{},
-      );
-      return selectedOption['name'] as String?;
-    } catch (e) {
-      print('❌ Error getting selected method of contact name: $e');
-      return null;
-    }
-  }
-
-  Future<void> _loadMethodOfContactOptions() async {
-    try {
-      print(
-        '🔍 UI: Starting to load method of contact options from backend...',
-      );
-
-      // Try to load from backend first
-      final apiService = ApiService();
-      final methodOfContactData = await apiService.fetchMethodOfContact();
-
-      if (methodOfContactData != null && methodOfContactData.isNotEmpty) {
-        setState(() {
-          methodOfContactOptions = methodOfContactData;
-        });
-
-        print(
-          '✅ UI: Method of contact options loaded from backend: ${methodOfContactOptions.length} items',
-        );
-
-        // Print the options for debugging
-        for (int i = 0; i < methodOfContactOptions.length; i++) {
-          final option = methodOfContactOptions[i];
-          print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
-        }
-      } else {
-        // Fallback to hardcoded options if backend fails
-        print('⚠️ Using fallback method of contact options');
-        setState(() {
-          methodOfContactOptions = [
-            {'_id': '1', 'name': 'Email', 'type': 'Method of Contact'},
-            {'_id': '2', 'name': 'SMS', 'type': 'Method of Contact'},
-            {'_id': '3', 'name': 'Phone Call', 'type': 'Method of Contact'},
-            {'_id': '4', 'name': 'Social Media', 'type': 'Method of Contact'},
-            {'_id': '5', 'name': 'Website', 'type': 'Method of Contact'},
-            {'_id': '6', 'name': 'Other', 'type': 'Method of Contact'},
-          ];
-        });
-      }
-    } catch (e) {
-      print('❌ Error loading method of contact options: $e');
-      // Fallback to hardcoded options
-      setState(() {
-        methodOfContactOptions = [
-          {'_id': '1', 'name': 'Email', 'type': 'Method of Contact'},
-          {'_id': '2', 'name': 'SMS', 'type': 'Method of Contact'},
-          {'_id': '3', 'name': 'Phone Call', 'type': 'Method of Contact'},
-          {'_id': '4', 'name': 'Social Media', 'type': 'Method of Contact'},
-          {'_id': '5', 'name': 'Website', 'type': 'Method of Contact'},
-          {'_id': '6', 'name': 'Other', 'type': 'Method of Contact'},
-        ];
-      });
     }
   }
 
@@ -561,7 +488,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           incidentDateTime: incidentDateTime,
           amountInvolved: amountInvolved,
           currency: selectedCurrency,
-          methodOfContactId: selectedMethodOfContactId,
         );
         print('Saving report...');
         try {
@@ -770,123 +696,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 onChanged: (val) {
                   website = val;
                 },
-              ),
-
-              const SizedBox(height: 12),
-              // Method of Contact Dropdown
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Builder(
-                          builder: (context) {
-                            final dropdownItems = methodOfContactOptions
-                                .map((e) => e['name'] as String)
-                                .toList();
-
-                            print(
-                              '🔍 UI: Rendering dropdown with ${dropdownItems.length} items',
-                            );
-                            print('🔍 UI: Dropdown items: $dropdownItems');
-                            print(
-                              '🔍 UI: Selected ID: $selectedMethodOfContactId',
-                            );
-
-                            return CustomDropdown(
-                              label: 'Method of Contact *',
-                              hint: 'Select method of contact',
-                              items: dropdownItems,
-                              value: _getSelectedMethodOfContactName(),
-                              onChanged: (val) {
-                                print(
-                                  '🔍 UI: Dropdown onChanged called with: $val',
-                                );
-                                print(
-                                  '🔍 UI: Current methodOfContactOptions: $methodOfContactOptions',
-                                );
-                                setState(() {
-                                  if (val != null) {
-                                    print(
-                                      '🔍 UI: Looking for option with name: $val',
-                                    );
-                                    final selectedOption =
-                                        methodOfContactOptions.firstWhere(
-                                          (e) => e['name'] == val,
-                                          orElse: () => <String, dynamic>{},
-                                        );
-                                    print(
-                                      '🔍 UI: Found selectedOption: $selectedOption',
-                                    );
-                                    if (selectedOption.isNotEmpty) {
-                                      selectedMethodOfContactId =
-                                          selectedOption['_id'];
-                                      print(
-                                        '✅ UI: Selected method of contact ID: ${selectedOption['_id']}',
-                                      );
-                                      print(
-                                        '✅ UI: selectedMethodOfContactId set to: $selectedMethodOfContactId',
-                                      );
-                                    } else {
-                                      print(
-                                        '❌ UI: Could not find selected option for: $val',
-                                      );
-                                      print(
-                                        '❌ UI: Available options: ${methodOfContactOptions.map((e) => e['name']).toList()}',
-                                      );
-                                      selectedMethodOfContactId = null;
-                                    }
-                                  } else {
-                                    selectedMethodOfContactId = null;
-                                    print(
-                                      '🔍 UI: selectedMethodOfContactId cleared',
-                                    );
-                                  }
-                                });
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                  // Show selected method of contact
-                  if (selectedMethodOfContactId != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Selected: ${_getSelectedMethodOfContactName()}',
-                              style: TextStyle(
-                                color: Colors.green[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
               ),
 
               const SizedBox(height: 12),
