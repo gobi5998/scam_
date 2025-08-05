@@ -38,7 +38,9 @@ class _ReportScam2State extends State<ReportScam2> {
   bool filesUploaded = false;
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
+      GlobalKey<FileUploadWidgetState>(
+        debugLabel: 'scam_file_upload_${DateTime.now().millisecondsSinceEpoch}',
+      );
 
   @override
   void initState() {
@@ -846,19 +848,18 @@ class _ReportScam2State extends State<ReportScam2> {
               ],
 
               // Debug button to test connectivity
-              if (!isUploading) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: CustomButton(
-                    text: 'Test Backend Connection',
-                    onPressed: () async {
-                      await _testBackendConnectivity();
-                    },
-                    fontWeight: FontWeight.normal,
-                  ),
-                ),
-              ],
-
+              // if (!isUploading) ...[
+              //   Container(
+              //     margin: const EdgeInsets.only(bottom: 10),
+              //     child: CustomButton(
+              //       text: 'Test Backend Connection',
+              //       onPressed: () async {
+              //         await _testBackendConnectivity();
+              //       },
+              //       fontWeight: FontWeight.normal,
+              //     ),
+              //   ),
+              // ],
               CustomButton(
                 text: isUploading ? 'Uploading...' : 'Submit',
                 onPressed: isUploading

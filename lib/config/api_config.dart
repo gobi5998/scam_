@@ -5,11 +5,11 @@ class ApiConfig {
   static const String authBaseUrl =
       'https://da8417e34b3a.ngrok-free.app'; // Auth server
   static const String mainBaseUrl =
-      'https://c90afdb074b1.ngrok-free.app'; // Main server
+      'https://6adacc81de3d.ngrok-free.app'; // Main server
   static const String fileUploadBaseUrl =
       'https://3c7559afbf4a.ngrok-free.app'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://c90afdb074b1.ngrok-free.app'; // Reports server
+      'https://6adacc81de3d.ngrok-free.app'; // Reports server
 
   // API Endpoints
   // Authentication endpoints

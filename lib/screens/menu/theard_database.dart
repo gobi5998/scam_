@@ -55,17 +55,31 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   // Check connectivity and load data accordingly
   Future<void> _checkConnectivityAndLoadData() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    setState(() {
-      _isOffline = connectivityResult == ConnectivityResult.none;
-    });
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOffline = connectivityResult == ConnectivityResult.none;
 
-    if (_isOffline) {
-      print('📱 Offline mode detected - loading local data');
+      setState(() {
+        _isOffline = isOffline;
+      });
+
+      print('🔍 Connectivity check result: $connectivityResult');
+      print('📱 Is offline: $isOffline');
+
+      if (isOffline) {
+        print('📱 Offline mode detected - loading local data');
+        await _loadLocalData();
+      } else {
+        print('🌐 Online mode - loading from API');
+        await _loadOnlineData();
+      }
+    } catch (e) {
+      print('❌ Error checking connectivity: $e');
+      // Default to offline mode if connectivity check fails
+      setState(() {
+        _isOffline = true;
+      });
       await _loadLocalData();
-    } else {
-      print('🌐 Online mode - loading from API');
-      await _loadOnlineData();
     }
   }
 
@@ -77,6 +91,8 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _isLoadingTypes = true;
         _errorMessage = null;
       });
+
+      print('📱 Loading local data...');
 
       // Load local categories and types
       await _loadLocalCategories();
@@ -91,6 +107,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       });
 
       print('✅ Local data loaded successfully');
+      print('📊 Local reports count: ${_localReports.length}');
+      print('📊 Local categories count: ${_localCategories.length}');
+      print('📊 Local types count: ${_localTypes.length}');
     } catch (e) {
       print('❌ Error loading local data: $e');
       setState(() {
@@ -103,11 +122,31 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   // Load online data
   Future<void> _loadOnlineData() async {
-    await Future.wait([
-      _loadCategories(),
-      _loadAllReportTypes(),
-      _loadAlertLevels(),
-    ]);
+    try {
+      // Double-check connectivity before making API calls
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        print('⚠️ Lost connection, switching to offline mode');
+        setState(() {
+          _isOffline = true;
+        });
+        await _loadLocalData();
+        return;
+      }
+
+      await Future.wait([
+        _loadCategories(),
+        _loadAllReportTypes(),
+        _loadAlertLevels(),
+      ]);
+    } catch (e) {
+      print('❌ Error loading online data: $e');
+      // Fallback to local data if online loading fails
+      setState(() {
+        _isOffline = true;
+      });
+      await _loadLocalData();
+    }
   }
 
   // Load local categories
@@ -329,6 +368,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   Future<void> _loadCategories() async {
     try {
+      // Check if we're offline before making API calls
+      if (_isOffline) {
+        print('📱 Offline mode - skipping API call for categories');
+        return;
+      }
+
       setState(() {
         _isLoadingCategories = true;
         _errorMessage = null;
@@ -448,6 +493,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   // Add method to load all report types (not just by category)
   Future<void> _loadAllReportTypes() async {
     try {
+      // Check if we're offline before making API calls
+      if (_isOffline) {
+        print('📱 Offline mode - skipping API call for report types');
+        return;
+      }
+
       setState(() {
         _isLoadingTypes = true;
       });
@@ -483,6 +534,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   // Load alert levels from backend
   Future<void> _loadAlertLevels() async {
     try {
+      // Check if we're offline before making API calls
+      if (_isOffline) {
+        print('📱 Offline mode - skipping API call for alert levels');
+        return;
+      }
+
       print('Fetching alert levels from API...');
       final response = await _apiService.get('/alert-level');
       print('Alert levels response: ${response.data}');

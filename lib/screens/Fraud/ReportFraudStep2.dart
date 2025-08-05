@@ -39,7 +39,10 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   bool filesUploaded = false;
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(debugLabel: 'fraud_file_upload');
+      GlobalKey<FileUploadWidgetState>(
+        debugLabel:
+            'fraud_file_upload_${DateTime.now().millisecondsSinceEpoch}',
+      );
 
   @override
   void initState() {
@@ -847,20 +850,19 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                 ),
               ],
 
-              // Debug button to test connectivity
-              if (!isUploading) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: CustomButton(
-                    text: 'Test Backend Connection',
-                    onPressed: () async {
-                      await _testBackendConnectivity();
-                    },
-                    fontWeight: FontWeight.normal,
-                  ),
-                ),
-              ],
-
+              // // Debug button to test connectivity
+              // if (!isUploading) ...[
+              //   Container(
+              //     margin: const EdgeInsets.only(bottom: 10),
+              //     child: CustomButton(
+              //       text: 'Test Backend Connection',
+              //       onPressed: () async {
+              //         await _testBackendConnectivity();
+              //       },
+              //       fontWeight: FontWeight.normal,
+              //     ),
+              //   ),
+              // ],
               CustomButton(
                 text: isUploading ? 'Uploading...' : 'Submit',
                 onPressed: isUploading

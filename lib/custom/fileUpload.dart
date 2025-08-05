@@ -45,7 +45,7 @@ class FileUploadConfig {
 // File upload service with better error handling and configuration
 class FileUploadService {
   static final Dio _dio = Dio();
-  static const String baseUrl = 'https://08c880c98f53.ngrok-free.app/api/v1';
+  static const String baseUrl = 'https://e7921143f3d5.ngrok-free.app/api/v1';
 
   // Get MIME type for file
   static String _getMimeType(String fileName) {
