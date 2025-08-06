@@ -19,7 +19,6 @@ import 'view_pending_reports.dart';
 import 'scam_report_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 // Phone input formatter to limit to 10 digits only
 class PhoneInputFormatter extends TextInputFormatter {
@@ -343,16 +342,6 @@ class _ReportScam1State extends State<ReportScam1> {
     });
 
     try {
-      // Check connectivity first
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isOffline = connectivityResult == ConnectivityResult.none;
-
-      if (isOffline) {
-        print('📱 Offline mode - loading scam types from local storage');
-        await _loadScamTypesFromLocal();
-        return;
-      }
-
       print('🔍 UI: Starting to load scam types from backend...');
       print('🔍 UI: Using category ID: ${widget.categoryId}');
 
@@ -368,85 +357,25 @@ class _ReportScam1State extends State<ReportScam1> {
         });
         print('✅ UI: Scam types loaded: ${scamTypes.length} items');
 
-        // Save to local storage for offline use
-        await _saveScamTypesToLocal(scamTypesData);
-
         // Print the options for debugging
         for (int i = 0; i < scamTypes.length; i++) {
           final type = scamTypes[i];
           print('🔍 UI: Type $i: ${type['name']} (ID: ${type['_id']})');
         }
       } else {
-        print('❌ UI: No scam types available from API, trying local storage');
-        await _loadScamTypesFromLocal();
-      }
-    } catch (e) {
-      print('❌ UI: Error loading scam types from API: $e');
-      print('📱 Falling back to local storage');
-      await _loadScamTypesFromLocal();
-    }
-  }
-
-  Future<void> _loadScamTypesFromLocal() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final scamTypesJson = prefs.getString(
-        'local_scam_types_${widget.categoryId}',
-      );
-
-      if (scamTypesJson != null) {
-        final localScamTypes = List<Map<String, dynamic>>.from(
-          jsonDecode(scamTypesJson).map((x) => Map<String, dynamic>.from(x)),
-        );
-
+        print('❌ UI: No scam types available from API');
         setState(() {
-          scamTypes = localScamTypes;
+          scamTypes = [];
           isLoadingScamTypes = false;
         });
-        print(
-          '✅ UI: Scam types loaded from local storage: ${scamTypes.length} items',
-        );
-      } else {
-        // Use fallback data
-        setState(() {
-          scamTypes = _getFallbackScamTypes();
-          isLoadingScamTypes = false;
-        });
-        print('✅ UI: Using fallback scam types: ${scamTypes.length} items');
       }
     } catch (e) {
-      print('❌ UI: Error loading scam types from local storage: $e');
+      print('❌ UI: Error loading scam types: $e');
       setState(() {
-        scamTypes = _getFallbackScamTypes();
+        scamTypes = [];
         isLoadingScamTypes = false;
       });
     }
-  }
-
-  Future<void> _saveScamTypesToLocal(List<Map<String, dynamic>> types) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'local_scam_types_${widget.categoryId}',
-        jsonEncode(types),
-      );
-      print('✅ UI: Scam types saved to local storage');
-    } catch (e) {
-      print('❌ UI: Error saving scam types to local storage: $e');
-    }
-  }
-
-  List<Map<String, dynamic>> _getFallbackScamTypes() {
-    return [
-      {'_id': 'phishing', 'name': 'Phishing Scam'},
-      {'_id': 'investment', 'name': 'Investment Scam'},
-      {'_id': 'romance', 'name': 'Romance Scam'},
-      {'_id': 'tech_support', 'name': 'Tech Support Scam'},
-      {'_id': 'lottery', 'name': 'Lottery Scam'},
-      {'_id': 'inheritance', 'name': 'Inheritance Scam'},
-      {'_id': 'charity', 'name': 'Charity Scam'},
-      {'_id': 'other', 'name': 'Other Scam'},
-    ];
   }
 
   Future<void> _loadMethodOfContactOptions() async {
@@ -455,21 +384,12 @@ class _ReportScam1State extends State<ReportScam1> {
     });
 
     try {
-      // Check connectivity first
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isOffline = connectivityResult == ConnectivityResult.none;
-
-      if (isOffline) {
-        print('📱 Offline mode - loading method of contact from local storage');
-        await _loadMethodOfContactFromLocal();
-        return;
-      }
-
       print(
         '🔍 UI: Starting to load method of contact options from backend...',
       );
       print('🔍 UI: Using category ID: ${widget.categoryId}');
 
+      // Use the scam category ID for method of contact
       final apiService = ApiService();
       final methodOfContactData = await apiService.fetchDropdownByType(
         'method of contact',
@@ -481,96 +401,46 @@ class _ReportScam1State extends State<ReportScam1> {
           methodOfContactOptions = methodOfContactData;
           isLoadingMethodOfContact = false;
         });
+
         print(
           '✅ UI: Method of contact options loaded: ${methodOfContactOptions.length} items',
         );
 
-        // Save to local storage for offline use
-        await _saveMethodOfContactToLocal(methodOfContactData);
-
         // Print the options for debugging
         for (int i = 0; i < methodOfContactOptions.length; i++) {
           final option = methodOfContactOptions[i];
-          print('🔍 UI: Method $i: ${option['name']} (ID: ${option['_id']})');
+          print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
         }
       } else {
-        print(
-          '❌ UI: No method of contact options available from API, trying local storage',
-        );
-        await _loadMethodOfContactFromLocal();
-      }
-    } catch (e) {
-      print('❌ UI: Error loading method of contact options from API: $e');
-      print('📱 Falling back to local storage');
-      await _loadMethodOfContactFromLocal();
-    }
-  }
-
-  Future<void> _loadMethodOfContactFromLocal() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final methodOfContactJson = prefs.getString(
-        'local_method_of_contact_${widget.categoryId}',
-      );
-
-      if (methodOfContactJson != null) {
-        final localMethodOfContact = List<Map<String, dynamic>>.from(
-          jsonDecode(
-            methodOfContactJson,
-          ).map((x) => Map<String, dynamic>.from(x)),
-        );
-
+        print('❌ UI: No method of contact options available from API');
         setState(() {
-          methodOfContactOptions = localMethodOfContact;
+          methodOfContactOptions = [];
           isLoadingMethodOfContact = false;
         });
-        print(
-          '✅ UI: Method of contact loaded from local storage: ${methodOfContactOptions.length} items',
-        );
-      } else {
-        // Use fallback data
-        setState(() {
-          methodOfContactOptions = _getFallbackMethodOfContact();
-          isLoadingMethodOfContact = false;
-        });
-        print(
-          '✅ UI: Using fallback method of contact: ${methodOfContactOptions.length} items',
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No method of contact options found. Please check your backend API.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
-      print('❌ UI: Error loading method of contact from local storage: $e');
+      print('❌ UI: Error loading method of contact options: $e');
       setState(() {
-        methodOfContactOptions = _getFallbackMethodOfContact();
+        methodOfContactOptions = [];
         isLoadingMethodOfContact = false;
       });
-    }
-  }
-
-  Future<void> _saveMethodOfContactToLocal(
-    List<Map<String, dynamic>> options,
-  ) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'local_method_of_contact_${widget.categoryId}',
-        jsonEncode(options),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error loading method of contact options: ${e.toString()}',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
-      print('✅ UI: Method of contact saved to local storage');
-    } catch (e) {
-      print('❌ UI: Error saving method of contact to local storage: $e');
     }
-  }
-
-  List<Map<String, dynamic>> _getFallbackMethodOfContact() {
-    return [
-      {'_id': 'email', 'name': 'Email'},
-      {'_id': 'phone', 'name': 'Phone Call'},
-      {'_id': 'sms', 'name': 'SMS/Text Message'},
-      {'_id': 'social_media', 'name': 'Social Media'},
-      {'_id': 'website', 'name': 'Website'},
-      {'_id': 'in_person', 'name': 'In Person'},
-      {'_id': 'other', 'name': 'Other'},
-    ];
   }
 
   Future<void> _submitForm() async {

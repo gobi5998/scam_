@@ -659,7 +659,7 @@ class ApiService {
           '123e4567-e89b-12d3-a456-426614174000';
       reportData['createdBy'] = reportData['createdBy'] ?? '';
       reportData['isActive'] = reportData['isActive'] ?? true;
-      reportData['status'] = reportData['status'] ?? 'draft';
+      // Removed status field as requested
       reportData['reportOutcome'] = reportData['reportOutcome'] ?? true;
 
       // Ensure arrays are properly formatted as arrays
@@ -943,7 +943,7 @@ class ApiService {
           '123e4567-e89b-12d3-a456-426614174000';
       reportData['createdBy'] = reportData['createdBy'] ?? '';
       reportData['isActive'] = reportData['isActive'] ?? true;
-      reportData['status'] = reportData['status'] ?? 'draft';
+      // Removed status field as requested
       reportData['reportOutcome'] = reportData['reportOutcome'] ?? true;
 
       // Ensure arrays are properly formatted as arrays
@@ -1716,7 +1716,7 @@ class ApiService {
 
       // Test 1: Check if we can reach the backend
       final response = await _dioService.reportsGet(
-        ApiConfig.reportSecurityIssueEndpoint,
+        '/api/v1/reports',
         queryParameters: {'page': '1', 'limit': '1'},
       );
 
@@ -1781,6 +1781,78 @@ class ApiService {
     }
   }
 
+  // Enhanced test function that includes authentication testing
+  Future<Map<String, dynamic>> testBackendAndAuthComprehensive() async {
+    final results = <String, dynamic>{};
+
+    try {
+      print('🧪 Comprehensive backend and auth testing...');
+
+      // Test 1: Check if we have a token
+      final token = await _getAccessToken();
+      results['has_token'] = token != null && token.isNotEmpty;
+      results['token_length'] = token?.length ?? 0;
+      print('🔐 Has token: ${results['has_token']}');
+      print('🔐 Token length: ${results['token_length']}');
+
+      // Test 2: Check if backend is reachable without auth
+      try {
+        final response = await _dioService.mainApi.get(
+          '/api/v1/report-category',
+        );
+        results['backend_reachable'] = true;
+        results['backend_status'] = response.statusCode;
+        print('✅ Backend is reachable: ${response.statusCode}');
+      } catch (e) {
+        results['backend_reachable'] = false;
+        results['backend_error'] = e.toString();
+        print('❌ Backend not reachable: $e');
+      }
+
+      // Test 3: Check if we can fetch categories with auth
+      try {
+        final categories = await fetchReportCategories();
+        results['categories_fetchable'] = true;
+        results['categories_count'] = categories.length;
+        print('✅ Categories fetchable: ${categories.length} categories');
+      } catch (e) {
+        results['categories_fetchable'] = false;
+        results['categories_error'] = e.toString();
+        print('❌ Categories not fetchable: $e');
+      }
+
+      // Test 4: Check if we can fetch types with auth
+      try {
+        final types = await fetchReportTypes();
+        results['types_fetchable'] = true;
+        results['types_count'] = types.length;
+        print('✅ Types fetchable: ${types.length} types');
+      } catch (e) {
+        results['types_fetchable'] = false;
+        results['types_error'] = e.toString();
+        print('❌ Types not fetchable: $e');
+      }
+
+      // Test 5: Check if we can fetch alert levels
+      try {
+        final alertLevels = await fetchAlertLevels();
+        results['alert_levels_fetchable'] = true;
+        results['alert_levels_count'] = alertLevels.length;
+        print('✅ Alert levels fetchable: ${alertLevels.length} levels');
+      } catch (e) {
+        results['alert_levels_fetchable'] = false;
+        results['alert_levels_error'] = e.toString();
+        print('❌ Alert levels not fetchable: $e');
+      }
+    } catch (e) {
+      results['general_error'] = e.toString();
+      print('❌ General error in testing: $e');
+    }
+
+    print('🧪 Comprehensive test results: $results');
+    return results;
+  }
+
   // Test URL construction for debugging
   Future<void> testUrlConstruction() async {
     print('🔍 Testing URL construction...');
@@ -1807,6 +1879,66 @@ class ApiService {
     } catch (e) {
       print('❌ Base reports endpoint test failed: $e');
     }
+  }
+
+  // Test authentication and backend connectivity
+  Future<Map<String, dynamic>> testBackendAndAuth() async {
+    final results = <String, dynamic>{};
+
+    try {
+      print('🧪 Testing backend connectivity and authentication...');
+
+      // Test 1: Check if we have a token
+      final token = await _getAccessToken();
+      results['has_token'] = token != null && token.isNotEmpty;
+      results['token_length'] = token?.length ?? 0;
+      print('🔐 Has token: ${results['has_token']}');
+      print('🔐 Token length: ${results['token_length']}');
+
+      // Test 2: Check if backend is reachable without auth
+      try {
+        final response = await _dioService.mainApi.get(
+          '/api/v1/report-category',
+        );
+        results['backend_reachable'] = true;
+        results['backend_status'] = response.statusCode;
+        print('✅ Backend is reachable: ${response.statusCode}');
+      } catch (e) {
+        results['backend_reachable'] = false;
+        results['backend_error'] = e.toString();
+        print('❌ Backend not reachable: $e');
+      }
+
+      // Test 3: Check if we can fetch categories with auth
+      try {
+        final categories = await fetchReportCategories();
+        results['categories_fetchable'] = true;
+        results['categories_count'] = categories.length;
+        print('✅ Categories fetchable: ${categories.length} categories');
+      } catch (e) {
+        results['categories_fetchable'] = false;
+        results['categories_error'] = e.toString();
+        print('❌ Categories not fetchable: $e');
+      }
+
+      // Test 4: Check if we can fetch types with auth
+      try {
+        final types = await fetchReportTypes();
+        results['types_fetchable'] = true;
+        results['types_count'] = types.length;
+        print('✅ Types fetchable: ${types.length} types');
+      } catch (e) {
+        results['types_fetchable'] = false;
+        results['types_error'] = e.toString();
+        print('❌ Types not fetchable: $e');
+      }
+    } catch (e) {
+      results['general_error'] = e.toString();
+      print('❌ General error in testing: $e');
+    }
+
+    print('🧪 Test results: $results');
+    return results;
   }
 
   // Update malware report with new payload structure
@@ -1840,6 +1972,9 @@ class ApiService {
   Future<bool> createMalwareReport(Map<String, dynamic> malwarePayload) async {
     try {
       print('🔄 Creating new malware report with payload: $malwarePayload');
+      print(
+        '🔄 Using general reports endpoint: ${ApiConfig.malwareReportsEndpoint}',
+      );
 
       final response = await _dioService.reportsPost(
         ApiConfig.malwareReportsEndpoint,
@@ -2088,5 +2223,64 @@ class ApiService {
   // Method to fetch severity levels using the new API
   Future<List<Map<String, dynamic>>> fetchSeverityLevels() async {
     return await fetchDropdownByType('severity', '6874f8cb98e4e5a7dc75f42e');
+  }
+
+  // Test backend on correct port
+  Future<Map<String, dynamic>> testBackendPort() async {
+    final results = <String, dynamic>{};
+
+    try {
+      print('🔍 Testing backend on port 3996...');
+
+      // Test 1: Basic connectivity to the root endpoint
+      try {
+        final response = await _dioService.mainApi.get('/');
+        results['root_endpoint'] = true;
+        results['root_status'] = response.statusCode;
+        print('✅ Root endpoint: ${response.statusCode}');
+      } catch (e) {
+        results['root_endpoint'] = false;
+        results['root_error'] = e.toString();
+        print('❌ Root endpoint failed: $e');
+      }
+
+      // Test 2: Try the categories endpoint
+      try {
+        final response = await _dioService.mainApi.get(
+          '/api/v1/report-category',
+        );
+        results['categories_endpoint'] = true;
+        results['categories_status'] = response.statusCode;
+        print('✅ Categories endpoint: ${response.statusCode}');
+        if (response.data != null) {
+          print('✅ Categories data: ${response.data}');
+        }
+      } catch (e) {
+        results['categories_endpoint'] = false;
+        results['categories_error'] = e.toString();
+        print('❌ Categories endpoint failed: $e');
+      }
+
+      // Test 3: Try the types endpoint
+      try {
+        final response = await _dioService.mainApi.get('/api/v1/report-type');
+        results['types_endpoint'] = true;
+        results['types_status'] = response.statusCode;
+        print('✅ Types endpoint: ${response.statusCode}');
+        if (response.data != null) {
+          print('✅ Types data: ${response.data}');
+        }
+      } catch (e) {
+        results['types_endpoint'] = false;
+        results['types_error'] = e.toString();
+        print('❌ Types endpoint failed: $e');
+      }
+    } catch (e) {
+      results['general_error'] = e.toString();
+      print('❌ General error: $e');
+    }
+
+    print('🔍 Port test results: $results');
+    return results;
   }
 }

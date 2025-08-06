@@ -37,7 +37,7 @@ class ReportsFilter {
 
   String buildUrl() {
     final params = toQueryParameters();
-    if (params.isEmpty) return '/reports';
+    if (params.isEmpty) return '/api/v1/reports';
 
     final queryString = params.entries
         .map(
@@ -46,7 +46,7 @@ class ReportsFilter {
         )
         .join('&');
 
-    return '/reports?$queryString';
+    return '/api/v1/reports?$queryString';
   }
 
   @override

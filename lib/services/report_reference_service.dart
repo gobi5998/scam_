@@ -1,11 +1,13 @@
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'dart:convert';
 import '../config/api_config.dart';
+import 'dio_service.dart';
 
 class ReportReferenceService {
   static Map<String, String> _reportCategoryCache = {};
   static Map<String, String> _reportTypeCache = {};
   static bool _isInitialized = false;
+  static final DioService _dioService = DioService();
 
   // Initialize and fetch all reference data
   static Future<void> initialize() async {
@@ -30,15 +32,17 @@ class ReportReferenceService {
   // Fetch report categories from backend
   static Future<void> _fetchReportCategories() async {
     try {
-      final url = '${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}';
-      print('🔄 Fetching report categories from: $url');
-      final response = await http.get(Uri.parse(url));
+      print(
+        '🔄 Fetching report categories from: ${ApiConfig.reportCategoryEndpoint}',
+      );
+
+      final response = await _dioService.get(ApiConfig.reportCategoryEndpoint);
 
       print('📥 Report categories response status: ${response.statusCode}');
-      print('📥 Report categories response body: ${response.body}');
+      print('📥 Report categories response data: ${response.data}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = response.data;
         final List<dynamic> categories = data is List
             ? data
             : (data['data'] ?? []);
@@ -60,21 +64,27 @@ class ReportReferenceService {
       }
     } catch (e) {
       print('❌ Error fetching report categories: $e');
+      if (e is DioException) {
+        print('📡 DioException type: ${e.type}');
+        print('📡 DioException message: ${e.message}');
+        print('📡 Response status: ${e.response?.statusCode}');
+        print('📡 Response data: ${e.response?.data}');
+      }
     }
   }
 
   // Fetch report types from backend
   static Future<void> _fetchReportTypes() async {
     try {
-      final url = '${ApiConfig.mainBaseUrl}${ApiConfig.reportTypeEndpoint}';
-      print('🔄 Fetching report types from: $url');
-      final response = await http.get(Uri.parse(url));
+      print('🔄 Fetching report types from: ${ApiConfig.reportTypeEndpoint}');
+
+      final response = await _dioService.get(ApiConfig.reportTypeEndpoint);
 
       print('📥 Report types response status: ${response.statusCode}');
-      print('📥 Report types response body: ${response.body}');
+      print('📥 Report types response data: ${response.data}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = response.data;
         final List<dynamic> reportTypes = data is List
             ? data
             : (data['data'] ?? []);
@@ -95,6 +105,12 @@ class ReportReferenceService {
       }
     } catch (e) {
       print('❌ Error fetching report types: $e');
+      if (e is DioException) {
+        print('📡 DioException type: ${e.type}');
+        print('📡 DioException message: ${e.message}');
+        print('📡 Response status: ${e.response?.statusCode}');
+        print('📡 Response data: ${e.response?.data}');
+      }
     }
   }
 
@@ -222,22 +238,16 @@ class ReportReferenceService {
     print('🧪 Testing all report reference endpoints...');
 
     final endpoints = [
-      {
-        'name': 'Report Categories',
-        'url': '${ApiConfig.mainBaseUrl}/api/report-category',
-      },
-      {
-        'name': 'Report Types',
-        'url': '${ApiConfig.mainBaseUrl}/api/report-type',
-      },
+      {'name': 'Report Categories', 'url': ApiConfig.reportCategoryEndpoint},
+      {'name': 'Report Types', 'url': ApiConfig.reportTypeEndpoint},
     ];
 
     for (var endpoint in endpoints) {
       try {
         print('🧪 Testing ${endpoint['name']}: ${endpoint['url']}');
-        final response = await http.get(Uri.parse(endpoint['url']!));
+        final response = await _dioService.get(endpoint['url']!);
         print('📥 ${endpoint['name']} Status: ${response.statusCode}');
-        print('📥 ${endpoint['name']} Body: ${response.body}');
+        print('📥 ${endpoint['name']} Body: ${response.data}');
         print('---');
       } catch (e) {
         print('❌ Error testing ${endpoint['name']}: $e');

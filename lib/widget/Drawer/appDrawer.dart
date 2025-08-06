@@ -5,10 +5,10 @@ import 'package:security_alert/screens/subscriptionPage/subscription_plans_page.
 import 'package:security_alert/screens/menu/theard_database.dart';
 import 'package:security_alert/provider/auth_provider.dart';
 import 'package:security_alert/screens/login.dart';
+import 'package:security_alert/services/api_service.dart';
 
 import '../../custom/Image/image.dart';
 import 'drawer_menu_item.dart';
-
 
 class DashboardDrawer extends StatelessWidget {
   const DashboardDrawer();
@@ -71,7 +71,7 @@ class DashboardDrawer extends StatelessWidget {
             DrawerMenuItem(
               ImagePath: ImagePath.subscription,
               label: 'Subscription',
-             routeName: '/subscription',
+              routeName: '/subscription',
             ),
             DrawerMenuItem(
               ImagePath: ImagePath.rate,
@@ -84,7 +84,7 @@ class DashboardDrawer extends StatelessWidget {
               routeName: '/share',
             ),
             DrawerMenuItem(
-              ImagePath:  ImagePath.feedback,
+              ImagePath: ImagePath.feedback,
               label: 'Feedback',
               routeName: '/feedback',
             ),
@@ -92,9 +92,18 @@ class DashboardDrawer extends StatelessWidget {
             const Divider(color: Colors.white54),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              title: const Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               onTap: () async {
-                await Provider.of<AuthProvider>(context, listen: false).logout();
+                await Provider.of<AuthProvider>(
+                  context,
+                  listen: false,
+                ).logout();
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -109,6 +118,3 @@ class DashboardDrawer extends StatelessWidget {
     );
   }
 }
-
-
-

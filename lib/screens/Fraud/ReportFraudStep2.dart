@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../services/jwt_service.dart';
 import '../../services/token_storage.dart';
 import '../../models/fraud_report_model.dart';
@@ -37,12 +38,10 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   String uploadStatus = '';
   Map<String, dynamic>? uploadedFilesData;
   bool filesUploaded = false;
+  String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(
-        debugLabel:
-            'fraud_file_upload_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      GlobalKey<FileUploadWidgetState>(debugLabel: 'fraud_file_upload');
 
   @override
   void initState() {
@@ -313,15 +312,14 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
             widget.report.keycloakUserId ??
             '',
         'isActive': true,
-        'status': 'draft',
         'location': await _getCurrentLocation(), // Dynamic coordinates
         'phoneNumbers': widget.report.phoneNumbers ?? [],
-        'emailAddresses': widget.report.emailAddresses ?? [],
+        'emails': widget.report.emailAddresses ?? [],
         'mediaHandles': widget.report.socialMediaHandles ?? [],
         'website': widget.report.website ?? '',
         'currency': widget.report.currency ?? 'INR',
         'moneyLost': widget.report.amountInvolved?.toString() ?? '0',
-        'reportOutcome': true,
+        'reportOutcome': false,
         'description': widget.report.description ?? '',
         'incidentDate':
             widget.report.incidentDateTime?.toIso8601String() ??
@@ -641,6 +639,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         return {
           'type': 'Point',
           'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Location services disabled',
         };
       }
 
@@ -653,6 +652,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           return {
             'type': 'Point',
             'coordinates': [0.0, 0.0], // Fallback coordinates
+            'address': 'Location permission denied',
           };
         }
       }
@@ -662,6 +662,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         return {
           'type': 'Point',
           'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Location permission denied',
         };
       }
 
@@ -673,18 +674,48 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
 
       print('✅ Location obtained: ${position.latitude}, ${position.longitude}');
 
+      // Get real address using geocoding
+      String address =
+          selectedAddress ?? '${position.latitude}, ${position.longitude}';
+
+      // If no selected address, try to get real address from coordinates
+      if (selectedAddress == null) {
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+
+          if (placemarks.isNotEmpty) {
+            Placemark placemark = placemarks[0];
+            address = [
+              placemark.street,
+              placemark.subLocality,
+              placemark.locality,
+              placemark.administrativeArea,
+              placemark.country,
+            ].where((e) => e != null && e.isNotEmpty).join(', ');
+          }
+        } catch (e) {
+          print('❌ Error getting address from coordinates: $e');
+          // Keep the coordinates as fallback
+        }
+      }
+
       return {
         'type': 'Point',
         'coordinates': [
           position.longitude,
           position.latitude,
         ], // [lng, lat] format
+        'address': address,
       };
     } catch (e) {
       print('❌ Error getting location: $e');
       return {
         'type': 'Point',
         'coordinates': [0.0, 0.0], // Fallback coordinates
+        'address': 'Location error',
       };
     }
   }

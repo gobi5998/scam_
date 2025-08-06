@@ -100,7 +100,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   Map<String, dynamic> toSyncJson() => toJson();
 
   @override
-  String get endpoint => '/api/reports';
+  String get endpoint => '/api/v1/reports';
 
   bool get isInBox =>
       Hive.box<FraudReportModel>('fraud_reports').containsKey(id);

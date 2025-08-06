@@ -5,7 +5,6 @@ import 'package:security_alert/custom/Image/image.dart';
 import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
 import 'package:security_alert/screens/scam/report_scam_1.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
-import '../custom/PeriodDropdown.dart';
 import '../custom/bottomnavigation.dart';
 import '../custom/customButton.dart';
 import '../provider/dashboard_provider.dart';
@@ -59,9 +58,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _testApiConnection() async {
     try {
       print('🧪 Testing API connection for report categories...');
-      print(
-        '🧪 Using URL: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-category',
-      );
 
       final categories = await ScamReportService.fetchReportCategories();
       print('✅ API test successful - found ${categories.length} categories');
@@ -107,9 +103,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _loadReportCategories() async {
     try {
       print('🔍 Attempting to load report categories from API...');
-      print(
-        '🔍 Using URL: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-category',
-      );
       print(
         '🔍 Full endpoint: ${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}',
       );
@@ -318,9 +311,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
                           print(
                             '🎯 Navigating to Report Scam with category ID: ${scamCategory!['_id']}',
-                          );
-                          print(
-                            '🎯 Will fetch types from: https://fe0aa7920f9c.ngrok-free.app/api/v1/report-type?id=${scamCategory!['_id']}',
                           );
                           Navigator.push(
                             context,

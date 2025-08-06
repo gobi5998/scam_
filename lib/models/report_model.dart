@@ -190,7 +190,7 @@ class ReportModel extends HiveObject implements SyncableReport {
   };
 
   @override
-  String get endpoint => '/api/reports';
+  String get endpoint => '/api/v1/reports';
 
   Map<String, dynamic> toJson() => {
     '_id': id,

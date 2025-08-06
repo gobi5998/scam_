@@ -3,13 +3,13 @@ class ApiConfig {
   // static const String baseUrl =
   //     'https://6694dcc2db28.ngrok-free.app'; // Main server (working)
   static const String authBaseUrl =
-      'https://da8417e34b3a.ngrok-free.app'; // Auth server
+      'https://b223e2115cd5.ngrok-free.app'; // Auth server
   static const String mainBaseUrl =
-      'https://6adacc81de3d.ngrok-free.app'; // Main server
+      'https://010ab7308a15.ngrok-free.app'; // Main server - UPDATE THIS URL
   static const String fileUploadBaseUrl =
-      'https://3c7559afbf4a.ngrok-free.app'; // File upload server (using same as main server)
+      'https://1fa3899fe962.ngrok-free.app'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://6adacc81de3d.ngrok-free.app'; // Reports server
+      'https://010ab7308a15.ngrok-free.app'; // Reports server - UPDATE THIS URL
 
   // API Endpoints
   // Authentication endpoints
@@ -43,7 +43,7 @@ class ApiConfig {
   // Report endpoints
   static const String scamReportsEndpoint = '/api/v1/reports/scam';
   static const String fraudReportsEndpoint = '/api/v1/reports/fraud';
-  static const String malwareReportsEndpoint = '/api/v1/reports/malware';
+  static const String malwareReportsEndpoint = '/api/v1/reports';
 
   // User management endpoints
   static const String usersEndpoint = '/api/v1/users';

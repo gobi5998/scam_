@@ -8,6 +8,7 @@ import 'package:security_alert/screens/scam/scam_report_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../services/jwt_service.dart';
 import '../../services/token_storage.dart';
 import '../../models/scam_report_model.dart';
@@ -36,11 +37,10 @@ class _ReportScam2State extends State<ReportScam2> {
   String uploadStatus = '';
   Map<String, dynamic>? uploadedFilesData;
   bool filesUploaded = false;
+  String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(
-        debugLabel: 'scam_file_upload_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
 
   @override
   void initState() {
@@ -311,7 +311,6 @@ class _ReportScam2State extends State<ReportScam2> {
             widget.report.keycloakUserId ??
             '',
         'isActive': true,
-        'status': 'draft',
         'location': await _getCurrentLocation(), // Dynamic coordinates
         'phoneNumbers': widget.report.phoneNumbers ?? [],
         'emails': widget.report.emailAddresses ?? [],
@@ -320,7 +319,7 @@ class _ReportScam2State extends State<ReportScam2> {
         'website': widget.report.website ?? '',
         'currency': widget.report.currency ?? 'INR',
         'moneyLost': widget.report.amountLost?.toString() ?? '0',
-        'reportOutcome': true,
+        'reportOutcome': false,
         'description': widget.report.description ?? '',
         'incidentDate':
             widget.report.incidentDateTime?.toIso8601String() ??
@@ -638,6 +637,7 @@ class _ReportScam2State extends State<ReportScam2> {
         return {
           'type': 'Point',
           'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Location services disabled',
         };
       }
 
@@ -650,6 +650,7 @@ class _ReportScam2State extends State<ReportScam2> {
           return {
             'type': 'Point',
             'coordinates': [0.0, 0.0], // Fallback coordinates
+            'address': 'Location permission denied',
           };
         }
       }
@@ -659,6 +660,7 @@ class _ReportScam2State extends State<ReportScam2> {
         return {
           'type': 'Point',
           'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Location permission denied',
         };
       }
 
@@ -670,18 +672,48 @@ class _ReportScam2State extends State<ReportScam2> {
 
       print('✅ Location obtained: ${position.latitude}, ${position.longitude}');
 
+      // Get real address using geocoding
+      String address =
+          selectedAddress ?? '${position.latitude}, ${position.longitude}';
+
+      // If no selected address, try to get real address from coordinates
+      if (selectedAddress == null) {
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+
+          if (placemarks.isNotEmpty) {
+            Placemark placemark = placemarks[0];
+            address = [
+              placemark.street,
+              placemark.subLocality,
+              placemark.locality,
+              placemark.administrativeArea,
+              placemark.country,
+            ].where((e) => e != null && e.isNotEmpty).join(', ');
+          }
+        } catch (e) {
+          print('❌ Error getting address from coordinates: $e');
+          // Keep the coordinates as fallback
+        }
+      }
+
       return {
         'type': 'Point',
         'coordinates': [
           position.longitude,
           position.latitude,
         ], // [lng, lat] format
+        'address': address,
       };
     } catch (e) {
       print('❌ Error getting location: $e');
       return {
         'type': 'Point',
         'coordinates': [0.0, 0.0], // Fallback coordinates
+        'address': 'Location error',
       };
     }
   }

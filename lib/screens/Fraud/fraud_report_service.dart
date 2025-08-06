@@ -225,7 +225,6 @@ class FraudReportService {
             report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
         'createdBy': report.keycloakUserId ?? 'anonymous_user',
         'isActive': true,
-        'status': 'draft',
         'reportOutcome': true,
         'location': {
           'type': 'Point',
