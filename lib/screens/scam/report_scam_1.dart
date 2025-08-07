@@ -142,6 +142,10 @@ class _ReportScam1State extends State<ReportScam1> {
   List<String> phoneNumbers = <String>[];
   List<String> emailAddresses = <String>[];
   List<String> socialMediaHandles = <String>[];
+  // Age range variables
+  RangeValues _ageRange = const RangeValues(1, 100);
+  int? minAge;
+  int? maxAge;
   List<Map<String, dynamic>> scamTypes = [];
   List<Map<String, dynamic>> methodOfContactOptions = [];
   bool isOnline = true;
@@ -156,6 +160,8 @@ class _ReportScam1State extends State<ReportScam1> {
   final TextEditingController _scammerNameController = TextEditingController();
   final TextEditingController _socialMediaController = TextEditingController();
   final TextEditingController _amountLostController = TextEditingController();
+  final TextEditingController _currencyAmountController =
+      TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
@@ -177,6 +183,10 @@ class _ReportScam1State extends State<ReportScam1> {
     _loadMethodOfContactOptions();
     _setupNetworkListener();
     _setupValidationListeners();
+
+    // Initialize age range with dynamic values
+    minAge = _ageRange.start.round();
+    maxAge = _ageRange.end.round();
   }
 
   void _setupValidationListeners() {
@@ -200,6 +210,7 @@ class _ReportScam1State extends State<ReportScam1> {
     _scammerNameController.dispose();
     _socialMediaController.dispose();
     _amountLostController.dispose();
+    _currencyAmountController.dispose();
     super.dispose();
   }
 
@@ -457,25 +468,47 @@ class _ReportScam1State extends State<ReportScam1> {
     print('🔍 Current user ID: $keycloakUserId');
     print('🔍 Current user email: $userEmail');
 
+    // Prepare phone numbers list - include both added numbers and current input
+    List<String> finalPhoneNumbers = List<String>.from(phoneNumbers);
+    if (_phoneController.text.isNotEmpty &&
+        validatePhone(_phoneController.text) == null) {
+      finalPhoneNumbers.add(_phoneController.text.trim());
+    }
+
+    // Prepare email addresses list - include both added emails and current input
+    List<String> finalEmailAddresses = List<String>.from(emailAddresses);
+    if (_emailController.text.isNotEmpty &&
+        validateEmail(_emailController.text.trim()) == null) {
+      finalEmailAddresses.add(_emailController.text.trim());
+    }
+
+    // Prepare social media handles list - include both added handles and current input
+    List<String> finalSocialMediaHandles = List<String>.from(
+      socialMediaHandles,
+    );
+    if (_socialMediaController.text.isNotEmpty) {
+      finalSocialMediaHandles.add(_socialMediaController.text.trim());
+    }
+
     final report = ScamReportModel(
       id: id,
       reportCategoryId: widget.categoryId,
       reportTypeId: scamTypeId!,
       alertLevels: null, // Remove hardcoded value - will be set in Step 2
-      phoneNumbers: List<String>.from(phoneNumbers),
-      emailAddresses: List<String>.from(emailAddresses),
+      phoneNumbers: finalPhoneNumbers,
+      emailAddresses: finalEmailAddresses,
       website: website ?? '',
       description: description!,
       createdAt: now,
       updatedAt: now,
       scammerName: scammerName,
-      socialMediaHandles: List<String>.from(
-        socialMediaHandles,
-      ), // Ensure proper list copy
+      socialMediaHandles: finalSocialMediaHandles,
       incidentDateTime: incidentDateTime,
       amountLost: amountLost,
       currency: selectedCurrency,
       methodOfContactId: selectedMethodOfContactId,
+      minAge: minAge,
+      maxAge: maxAge,
       keycloakUserId: keycloakUserId,
       name: userEmail, // Use user's email as the name/createdBy
     );
@@ -483,12 +516,18 @@ class _ReportScam1State extends State<ReportScam1> {
     print(
       '🔍 Report created with methodOfContactId: ${report.methodOfContactId}',
     );
-    print('🔍 Phone Numbers: ${report.phoneNumbers}');
-    print('🔍 Email Addresses: ${report.emailAddresses}');
-    print('🔍 Social Media Handles: ${report.socialMediaHandles}');
-    print('🔍 Local phoneNumbers array: $phoneNumbers');
-    print('🔍 Local emailAddresses array: $emailAddresses');
-    print('🔍 Local socialMediaHandles array: $socialMediaHandles');
+    print('🔍 Final Phone Numbers: ${report.phoneNumbers}');
+    print('🔍 Final Email Addresses: ${report.emailAddresses}');
+    print('🔍 Final Social Media Handles: ${report.socialMediaHandles}');
+    print('🔍 Current Phone Input: ${_phoneController.text}');
+    print('🔍 Current Email Input: ${_emailController.text}');
+    print('🔍 Current Social Media Input: ${_socialMediaController.text}');
+    print('🔍 Age Range: $minAge - $maxAge');
+    print('🔍 Age Range Type: ${minAge.runtimeType} - ${maxAge.runtimeType}');
+    print('🔍 Age Range Null Check: ${minAge == null} - ${maxAge == null}');
+    print(
+      '🔍 Age Range Values: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+    );
     print('🔍 Report JSON: ${report.toJson()}');
 
     await ScamReportService.saveReport(report);
@@ -523,13 +562,19 @@ class _ReportScam1State extends State<ReportScam1> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         title: Text(
           'Report Scam',
-          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
               _loadScamTypes();
               _loadMethodOfContactOptions();
@@ -545,7 +590,7 @@ class _ReportScam1State extends State<ReportScam1> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CustomDropdown(
-                label: 'Scam Type',
+                label: 'Scam Type*',
                 hint: isLoadingScamTypes
                     ? 'Loading scam types...'
                     : 'Select a Scam Type',
@@ -574,7 +619,7 @@ class _ReportScam1State extends State<ReportScam1> {
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Scammer Name',
+                label: 'Scammer Name (if known)',
                 hintText: 'Enter scammer name',
                 controller: _scammerNameController,
                 onChanged: (val) {
@@ -615,7 +660,7 @@ class _ReportScam1State extends State<ReportScam1> {
                                   onPressed: _addPhoneNumber,
                                   icon: Icon(
                                     Icons.add,
-                                    color: Colors.blue,
+                                    color: const Color(0xFF064FAD),
                                     size: 18,
                                   ),
                                   padding: EdgeInsets.zero,
@@ -627,7 +672,7 @@ class _ReportScam1State extends State<ReportScam1> {
                               onPressed: _addPhoneNumber,
                               icon: Icon(
                                 Icons.add,
-                                color: Colors.blue,
+                                color: const Color(0xFF064FAD),
                                 size: 18,
                               ),
                               padding: EdgeInsets.zero,
@@ -669,7 +714,7 @@ class _ReportScam1State extends State<ReportScam1> {
                 children: [
                   Expanded(
                     child: CustomTextField(
-                      label: 'Email Address',
+                      label: 'Email Address*',
                       hintText: 'Enter email address',
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -697,7 +742,7 @@ class _ReportScam1State extends State<ReportScam1> {
                                   onPressed: _addEmailAddress,
                                   icon: Icon(
                                     Icons.add,
-                                    color: Colors.blue,
+                                    color: const Color(0xFF064FAD),
                                     size: 18,
                                   ),
                                   padding: EdgeInsets.zero,
@@ -709,7 +754,7 @@ class _ReportScam1State extends State<ReportScam1> {
                               onPressed: _addEmailAddress,
                               icon: Icon(
                                 Icons.add,
-                                color: Colors.blue,
+                                color: const Color(0xFF064FAD),
                                 size: 18,
                               ),
                               padding: EdgeInsets.zero,
@@ -720,6 +765,7 @@ class _ReportScam1State extends State<ReportScam1> {
                   // Plus icon moved inside the field
                 ],
               ),
+
               if (emailAddresses.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 ...emailAddresses.asMap().entries.map((entry) {
@@ -769,21 +815,26 @@ class _ReportScam1State extends State<ReportScam1> {
                         // Handle social media input
                       },
                       suffixIcon: _socialMediaController.text.isNotEmpty
-                          ? IconButton(
-                              onPressed: _addSocialMediaHandle,
-                              icon: Icon(
-                                Icons.add,
-                                color: Colors.blue,
-                                size: 18,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: _addSocialMediaHandle,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: const Color(0xFF064FAD),
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
                             )
                           : IconButton(
                               onPressed: _addSocialMediaHandle,
                               icon: Icon(
                                 Icons.add,
-                                color: Colors.blue,
+                                color: const Color(0xFF064FAD),
                                 size: 18,
                               ),
                               padding: EdgeInsets.zero,
@@ -794,6 +845,7 @@ class _ReportScam1State extends State<ReportScam1> {
                   // Plus icon moved inside the field
                 ],
               ),
+
               if (socialMediaHandles.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 ...socialMediaHandles.asMap().entries.map((entry) {
@@ -937,7 +989,7 @@ class _ReportScam1State extends State<ReportScam1> {
               const SizedBox(height: 12),
               // Incident Date & Time
               Text(
-                'Date & Time of Incident',
+                'Date & Time of Incident *',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
@@ -993,12 +1045,12 @@ class _ReportScam1State extends State<ReportScam1> {
               ),
 
               const SizedBox(height: 12),
-              // Currency Selection
+              // Combined Currency and Amount Field
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Currency *',
+                    'Currency and Amount Lost',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1006,60 +1058,180 @@ class _ReportScam1State extends State<ReportScam1> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      showCurrencyPicker(
-                        context: context,
-                        showFlag: true,
-                        showSearchField: true,
-                        showCurrencyName: true,
-                        showCurrencyCode: true,
-                        onSelect: (Currency currency) {
-                          setState(() {
-                            selectedCurrency = currency.code;
-                          });
-                        },
-                      );
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            selectedCurrency,
-                            style: TextStyle(fontSize: 16, color: Colors.black),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        // Currency Picker Button
+                        InkWell(
+                          onTap: () async {
+                            showCurrencyPicker(
+                              context: context,
+                              showFlag: true,
+                              showSearchField: true,
+                              showCurrencyName: true,
+                              showCurrencyCode: true,
+                              onSelect: (Currency currency) {
+                                setState(() {
+                                  selectedCurrency = currency.code;
+                                  // Update the combined field if amount is already entered
+                                  if (amountLost != null) {
+                                    _currencyAmountController.text =
+                                        '$selectedCurrency $amountLost';
+                                  }
+                                });
+                              },
+                            );
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.attach_money,
+                                  color: const Color(0xFF064FAD),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  selectedCurrency,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.arrow_drop_down, color: Colors.grey),
+                              ],
+                            ),
                           ),
-                          Icon(Icons.arrow_drop_down, color: Colors.grey),
-                        ],
-                      ),
+                        ),
+                        // Amount Input Field
+                        Expanded(
+                          child: TextField(
+                            controller: _amountLostController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Enter amount',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                            ),
+                            onChanged: (val) {
+                              amountLost = double.tryParse(val);
+                              // Update the combined field
+                              if (amountLost != null) {
+                                _currencyAmountController.text =
+                                    '$selectedCurrency $amountLost';
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-              // Amount Lost
-              CustomTextField(
-                label: 'Amount of Money Lost',
-                hintText: 'Enter amount lost',
-                controller: _amountLostController,
-                keyboardType: TextInputType.number,
-                onChanged: (val) {
-                  amountLost = double.tryParse(val);
-                },
+              // Age Range Field
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Age Range (if known)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Age: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Icon(Icons.person, color: const Color(0xFF064FAD), size: 20),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        RangeSlider(
+                          values: _ageRange,
+                          min: 1,
+                          max: 100,
+                          divisions: 99,
+                          activeColor: const Color(0xFF064FAD),
+                          inactiveColor: Colors.grey.shade300,
+                          labels: RangeLabels(
+                            _ageRange.start.round().toString(),
+                            _ageRange.end.round().toString(),
+                          ),
+                          onChanged: (RangeValues values) {
+                            setState(() {
+                              _ageRange = values;
+                              minAge = values.start.round();
+                              maxAge = values.end.round();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '1',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            Text(
+                              '100',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Description',
+                label: 'Description *',
                 hintText: 'Describe the scam in detail',
                 controller: _descriptionController,
                 maxLines: 5,
@@ -1098,7 +1270,7 @@ class _ReportScam1State extends State<ReportScam1> {
                         // Icon(Icons.location_on, color: Colors.black),
                         // const SizedBox(width: 8),
                         Text(
-                          'Location*',
+                          'Location',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: Colors.black,
@@ -1159,13 +1331,13 @@ class _ReportScam1State extends State<ReportScam1> {
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue[200]!),
+                          border: Border.all(color: Colors.black),
                         ),
                         child: Row(
                           children: [
                             Icon(
                               Icons.location_on,
-                              color: Colors.blue[600],
+                              color: const Color(0xFF064FAD),
                               size: 16,
                             ),
                             const SizedBox(width: 8),
@@ -1173,7 +1345,7 @@ class _ReportScam1State extends State<ReportScam1> {
                               child: Text(
                                 selectedAddress!,
                                 style: TextStyle(
-                                  color: Colors.blue[700],
+                                  color: const Color(0xFF064FAD),
                                   fontSize: 14,
                                 ),
                               ),
@@ -1217,8 +1389,17 @@ class _ReportScam1State extends State<ReportScam1> {
                     return;
                   }
 
-                  // Check other required fields
-                  if (phoneNumbers.isEmpty) {
+                  // Check other required fields - include current input values
+                  bool hasPhoneNumber =
+                      phoneNumbers.isNotEmpty ||
+                      (_phoneController.text.isNotEmpty &&
+                          validatePhone(_phoneController.text) == null);
+                  bool hasEmailAddress =
+                      emailAddresses.isNotEmpty ||
+                      (_emailController.text.isNotEmpty &&
+                          validateEmail(_emailController.text.trim()) == null);
+
+                  if (!hasPhoneNumber) {
                     print('❌ SUBMIT: No phone numbers added');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -1229,7 +1410,7 @@ class _ReportScam1State extends State<ReportScam1> {
                     return;
                   }
 
-                  if (emailAddresses.isEmpty) {
+                  if (!hasEmailAddress) {
                     print('❌ SUBMIT: No email addresses added');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

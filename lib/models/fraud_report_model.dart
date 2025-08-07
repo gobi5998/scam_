@@ -71,6 +71,12 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   @HiveField(21)
   String? currency; // maps to currency
 
+  @HiveField(22)
+  int? minAge; // maps to age.min
+
+  @HiveField(23)
+  int? maxAge; // maps to age.max
+
   FraudReportModel({
     this.id,
     this.reportCategoryId,
@@ -94,6 +100,8 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     this.amountInvolved,
     this.voiceRecordings = const [],
     this.currency,
+    this.minAge,
+    this.maxAge,
   });
 
   @override
@@ -134,6 +142,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     'screenshots': screenshotPaths,
     'voiceMessages': voiceRecordings,
     'documents': documentPaths,
+    'age': {'min': minAge, 'max': maxAge},
   };
 
   factory FraudReportModel.fromJson(
@@ -177,6 +186,9 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     voiceRecordings:
         (json['voiceMessages'] as List?)?.map((e) => e.toString()).toList() ??
         [],
+    currency: json['currency'],
+    minAge: json['age'] != null ? json['age']['min'] : null,
+    maxAge: json['age'] != null ? json['age']['max'] : null,
   );
 
   FraudReportModel copyWith({
@@ -202,6 +214,8 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     double? amountInvolved,
     List<String>? voiceRecordings,
     String? currency,
+    int? minAge,
+    int? maxAge,
   }) {
     return FraudReportModel(
       id: id ?? this.id,
@@ -226,6 +240,8 @@ class FraudReportModel extends HiveObject implements SyncableReport {
       amountInvolved: amountInvolved ?? this.amountInvolved,
       voiceRecordings: voiceRecordings ?? this.voiceRecordings,
       currency: currency ?? this.currency,
+      minAge: minAge ?? this.minAge,
+      maxAge: maxAge ?? this.maxAge,
     );
   }
 }

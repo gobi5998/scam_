@@ -39,13 +39,15 @@ class ScamReportModelAdapter extends TypeAdapter<ScamReportModel> {
       currency: fields[19] as String?,
       voiceRecordings: (fields[20] as List).cast<String>(),
       methodOfContactId: fields[21] as String?,
+      minAge: fields[22] as int?,
+      maxAge: fields[23] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ScamReportModel obj) {
     writer
-      ..writeByte(22)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -89,7 +91,11 @@ class ScamReportModelAdapter extends TypeAdapter<ScamReportModel> {
       ..writeByte(20)
       ..write(obj.voiceRecordings)
       ..writeByte(21)
-      ..write(obj.methodOfContactId);
+      ..write(obj.methodOfContactId)
+      ..writeByte(22)
+      ..write(obj.minAge)
+      ..writeByte(23)
+      ..write(obj.maxAge);
   }
 
   @override

@@ -164,6 +164,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   List<Map<String, dynamic>> fraudTypes = [];
   bool isOnline = true;
 
+  // Age range variables
+  RangeValues _ageRange = const RangeValues(1, 100);
+  int? minAge;
+  int? maxAge;
+
   // Location variables
   String? selectedLocation;
   String? selectedAddress;
@@ -204,6 +209,10 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     _loadCategoryId();
     _setupNetworkListener();
     _setupValidationListeners();
+
+    // Initialize age range with dynamic values
+    minAge = _ageRange.start.round();
+    maxAge = _ageRange.end.round();
   }
 
   void _setupValidationListeners() {
@@ -470,24 +479,56 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       try {
         final id = DateTime.now().millisecondsSinceEpoch.toString();
         final now = DateTime.now();
+        // Prepare phone numbers list - include both added numbers and current input
+        List<String> finalPhoneNumbers = List<String>.from(phoneNumbers);
+        if (_phoneController.text.isNotEmpty &&
+            validatePhone(_phoneController.text) == null) {
+          finalPhoneNumbers.add(_phoneController.text.trim());
+        }
+
+        // Prepare email addresses list - include both added emails and current input
+        List<String> finalEmailAddresses = List<String>.from(emailAddresses);
+        if (_emailController.text.isNotEmpty &&
+            validateEmail(_emailController.text.trim()) == null) {
+          finalEmailAddresses.add(_emailController.text.trim());
+        }
+
+        // Prepare social media handles list - include both added handles and current input
+        List<String> finalSocialMediaHandles = List<String>.from(
+          socialMediaHandles,
+        );
+        if (_socialMediaController.text.isNotEmpty) {
+          finalSocialMediaHandles.add(_socialMediaController.text.trim());
+        }
+
         final fraudReport = FraudReportModel(
           id: id,
           reportCategoryId: widget.categoryId,
           reportTypeId: fraudTypeId!,
           alertLevels: null,
           name: name ?? '',
-          phoneNumbers: phoneNumbers,
-          emailAddresses: emailAddresses,
+          phoneNumbers: finalPhoneNumbers,
+          emailAddresses: finalEmailAddresses,
           website: website ?? '',
           description: description!,
           createdAt: now,
           updatedAt: now,
           fraudsterName: fraudsterName,
           companyName: companyName,
-          socialMediaHandles: socialMediaHandles,
+          socialMediaHandles: finalSocialMediaHandles,
           incidentDateTime: incidentDateTime,
           amountInvolved: amountInvolved,
           currency: selectedCurrency,
+          minAge: minAge,
+          maxAge: maxAge,
+        );
+        print('🔍 Age Range: $minAge - $maxAge');
+        print(
+          '🔍 Age Range Type: ${minAge.runtimeType} - ${maxAge.runtimeType}',
+        );
+        print('🔍 Age Range Null Check: ${minAge == null} - ${maxAge == null}');
+        print(
+          '🔍 Age Range Values: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
         );
         print('Saving report...');
         try {
@@ -517,9 +558,15 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         title: Text(
           'Report Fraud',
-          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Form(
@@ -585,7 +632,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                           const SizedBox(width: 4),
                           IconButton(
                             onPressed: _addPhoneNumber,
-                            icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                            icon: Icon(
+                              Icons.add,
+                              color: const Color(0xFF064FAD),
+                              size: 18,
+                            ),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -593,7 +644,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                       )
                     : IconButton(
                         onPressed: _addPhoneNumber,
-                        icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                        icon: Icon(
+                          Icons.add,
+                          color: const Color(0xFF064FAD),
+                          size: 18,
+                        ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -626,7 +681,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Email Address',
+                label: 'Email Address *',
                 hintText: 'Enter email address',
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -648,7 +703,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                           const SizedBox(width: 4),
                           IconButton(
                             onPressed: _addEmailAddress,
-                            icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                            icon: Icon(
+                              Icons.add,
+                              color: const Color(0xFF064FAD),
+                              size: 18,
+                            ),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -656,7 +715,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                       )
                     : IconButton(
                         onPressed: _addEmailAddress,
-                        icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                        icon: Icon(
+                          Icons.add,
+                          color: const Color(0xFF064FAD),
+                          size: 18,
+                        ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -718,7 +781,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 },
                 suffixIcon: IconButton(
                   onPressed: _addSocialMediaHandle,
-                  icon: Icon(Icons.add, color: Colors.blue, size: 18),
+                  icon: Icon(
+                    Icons.add,
+                    color: const Color(0xFF064FAD),
+                    size: 18,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -802,54 +869,114 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
               ),
 
               const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Amount Involved',
-                hintText: 'Enter amount involved',
-                controller: _amountInvolvedController,
-                keyboardType: TextInputType.number,
-                onChanged: (val) {
-                  amountInvolved = double.tryParse(val);
-                },
-              ),
-
-              const SizedBox(height: 12),
-              // Currency Picker
-              InkWell(
-                onTap: () {
-                  showCurrencyPicker(
-                    context: context,
-                    showFlag: true,
-                    showSearchField: true,
-                    showCurrencyName: true,
-                    showCurrencyCode: true,
-                    onSelect: (Currency currency) {
-                      setState(() {
-                        selectedCurrency = currency.code;
-                      });
-                      print('Selected currency: ${currency.code}');
-                    },
-                    favorite: ['INR', 'USD', 'EUR'],
-                  );
-                },
-                child: Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
+              // Combined Currency and Amount Field
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Currency and Amount Involved',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.attach_money, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Currency: $selectedCurrency',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Spacer(),
-                      Icon(Icons.arrow_drop_down, color: Colors.grey),
-                    ],
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        // Currency Picker Button (Left Side)
+                        InkWell(
+                          onTap: () async {
+                            print('🪙 Currency picker tapped');
+                            try {
+                              showCurrencyPicker(
+                                context: context,
+                                showFlag: true,
+                                showSearchField: true,
+                                showCurrencyName: true,
+                                showCurrencyCode: true,
+                                favorite: ['INR', 'USD', 'EUR'],
+                                onSelect: (Currency currency) {
+                                  print(
+                                    '🪙 Currency selected: ${currency.code}',
+                                  );
+                                  setState(() {
+                                    selectedCurrency = currency.code;
+                                  });
+                                },
+                              );
+                            } catch (e) {
+                              print('❌ Error showing currency picker: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Error opening currency picker: $e',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.attach_money,
+                                  color: const Color(0xFF064FAD),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  selectedCurrency,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.arrow_drop_down, color: Colors.grey),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Amount Input Field (Right Side)
+                        Expanded(
+                          child: TextField(
+                            controller: _amountInvolvedController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Enter amount involved',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                            ),
+                            onChanged: (val) {
+                              amountInvolved = double.tryParse(val);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 12),
@@ -874,7 +1001,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
 
               const SizedBox(height: 12),
               CustomTextField(
-                label: 'Description',
+                label: 'Description *',
                 hintText: 'Describe the fraud in detail',
                 controller: _descriptionController,
                 maxLines: 5,
@@ -897,13 +1024,96 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
               ),
 
               const SizedBox(height: 12),
+              // Age Range Field
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Age Range (if known)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Age: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Icon(Icons.person, color: const Color(0xFF064FAD), size: 20),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        RangeSlider(
+                          values: _ageRange,
+                          min: 1,
+                          max: 100,
+                          divisions: 99,
+                          activeColor:const Color(0xFF064FAD),
+                          inactiveColor: Colors.grey.shade300,
+                          labels: RangeLabels(
+                            _ageRange.start.round().toString(),
+                            _ageRange.end.round().toString(),
+                          ),
+                          onChanged: (RangeValues values) {
+                            setState(() {
+                              _ageRange = values;
+                              minAge = values.start.round();
+                              maxAge = values.end.round();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '1',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            Text(
+                              '100',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
               // Location
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  // color: Colors.grey[50],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
+                  border: Border.all(color: Colors.black),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +1123,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                         Icon(Icons.location_on, color: Colors.grey[600]),
                         const SizedBox(width: 8),
                         Text(
-                          'Location*',
+                          'Location',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: Colors.grey[700],
@@ -937,9 +1147,9 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          // color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[300]!),
+                          border: Border.all(color: Colors.black),
                         ),
                         child: Row(
                           children: [
@@ -976,15 +1186,15 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.blue[50],
+                          // color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue[200]!),
+                          border: Border.all(color: Colors.black),
                         ),
                         child: Row(
                           children: [
                             Icon(
                               Icons.location_on,
-                              color: Colors.blue[600],
+                              color: const Color(0xFF064FAD),
                               size: 16,
                             ),
                             const SizedBox(width: 8),
@@ -992,7 +1202,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                               child: Text(
                                 selectedAddress!,
                                 style: TextStyle(
-                                  color: Colors.blue[800],
+                                  color: const Color(0xFF064FAD),
                                   fontSize: 14,
                                 ),
                               ),

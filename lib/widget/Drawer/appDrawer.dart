@@ -16,7 +16,7 @@ class DashboardDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,7 +29,7 @@ class DashboardDrawer extends StatelessWidget {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
                         onPressed: () => Navigator.pop(context),
                       ),
                       const SizedBox(width: 8),
@@ -43,17 +43,17 @@ class DashboardDrawer extends StatelessWidget {
                       const Text(
                         'Security Alert',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
                         ),
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.settings, color: Colors.white),
-                    onPressed: () {},
-                  ),
+                  // IconButton(
+                  //   icon: const Icon(Icons.settings, color: Colors.white),
+                  //   onPressed: () {},
+                  // ),
                 ],
               ),
             ),
@@ -68,26 +68,26 @@ class DashboardDrawer extends StatelessWidget {
               label: 'Thread Database',
               routeName: '/thread',
             ),
-            DrawerMenuItem(
-              ImagePath: ImagePath.subscription,
-              label: 'Subscription',
-              routeName: '/subscription',
-            ),
-            DrawerMenuItem(
-              ImagePath: ImagePath.rate,
-              label: 'Rate App',
-              routeName: '/rate',
-            ),
-            DrawerMenuItem(
-              ImagePath: ImagePath.share,
-              label: 'Share App',
-              routeName: '/share',
-            ),
-            DrawerMenuItem(
-              ImagePath: ImagePath.feedback,
-              label: 'Feedback',
-              routeName: '/feedback',
-            ),
+            // DrawerMenuItem(
+            //   ImagePath: ImagePath.subscription,
+            //   label: 'Subscription',
+            //   routeName: '/subscription',
+            // ),
+            // DrawerMenuItem(
+            //   ImagePath: ImagePath.rate,
+            //   label: 'Rate App',
+            //   routeName: '/rate',
+            // ),
+            // DrawerMenuItem(
+            //   ImagePath: ImagePath.share,
+            //   label: 'Share App',
+            //   routeName: '/share',
+            // ),
+            // DrawerMenuItem(
+            //   ImagePath: ImagePath.feedback,
+            //   label: 'Feedback',
+            //   routeName: '/feedback',
+            // ),
             const SizedBox(height: 16),
             const Divider(color: Colors.white54),
             ListTile(

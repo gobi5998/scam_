@@ -224,12 +224,27 @@ class ScamReportService {
         'keycloackUserId':
             report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
         'name': report.name ?? 'Scam Report',
-        'currency': report.currency ?? 'INR', // Add currency to payload
-        'moneyLost': report.amountLost?.toString() ?? '0.0', // Add amount lost
+        'currency': report.currency ?? 'INR',
+        'moneyLost': report.amountLost?.toString() ?? '0.0',
+        'age': report.minAge != null && report.maxAge != null
+            ? {'min': report.minAge, 'max': report.maxAge}
+            : null,
         'screenshotUrls': report.screenshotPaths ?? [],
         'documentUrls': report.documentPaths ?? [],
         'voiceMessageUrls': [], // Scam reports don't typically have voice files
       };
+
+      // Debug age values
+      print('🔍 DEBUG - Age in reportData: ${reportData['age']}');
+      final ageData = reportData['age'] as Map<String, dynamic>?;
+      print('🔍 DEBUG - Age min: ${ageData?['min']}');
+      print('🔍 DEBUG - Age max: ${ageData?['max']}');
+
+      // Remove age field if it's null to avoid sending null values to backend
+      if (reportData['age'] == null) {
+        reportData.remove('age');
+        print('🔍 DEBUG - Removed null age field from reportData');
+      }
 
       // Handle methodOfContact properly - only add if it's a valid ObjectId
       if (report.methodOfContactId != null &&
@@ -288,6 +303,9 @@ class ScamReportService {
 
       // ADDITIONAL DEBUGGING
       print('🔍 DEBUG - Raw report object: ${report.toJson()}');
+      print(
+        '🔍 DEBUG - Age values: min=${report.minAge}, max=${report.maxAge}',
+      );
       print('🔍 DEBUG - reportData before JSON encoding: $reportData');
       print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
       print('🔍 DEBUG - Content-Type header: application/json');

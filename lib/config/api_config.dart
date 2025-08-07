@@ -3,13 +3,13 @@ class ApiConfig {
   // static const String baseUrl =
   //     'https://6694dcc2db28.ngrok-free.app'; // Main server (working)
   static const String authBaseUrl =
-      'https://b223e2115cd5.ngrok-free.app'; // Auth server
+      'https://9b3a83780b9f.ngrok-free.app'; // Auth server
   static const String mainBaseUrl =
-      'https://010ab7308a15.ngrok-free.app'; // Main server - UPDATE THIS URL
+      'https://5915029b87ef.ngrok-free.app'; // Main server - UPDATE THIS URL
   static const String fileUploadBaseUrl =
-      'https://1fa3899fe962.ngrok-free.app'; // File upload server (using same as main server)
+      'https://9ced2fcae6fc.ngrok-free.app'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://010ab7308a15.ngrok-free.app'; // Reports server - UPDATE THIS URL
+      'https://5915029b87ef.ngrok-free.app'; // Reports server - UPDATE THIS URL
 
   // API Endpoints
   // Authentication endpoints

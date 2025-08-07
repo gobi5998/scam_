@@ -234,11 +234,26 @@ class FraudReportService {
         'currency': report.currency ?? 'INR', // Add currency to payload
         'moneyLost':
             report.amountInvolved?.toString() ?? '0.0', // Add amount involved
+        'age': report.minAge != null && report.maxAge != null
+            ? {'min': report.minAge, 'max': report.maxAge}
+            : null,
         'screenshotUrls': report.screenshotPaths ?? [],
         'documentUrls': report.documentPaths ?? [],
         'voiceMessageUrls':
             [], // Fraud reports don't typically have voice files
       };
+
+      // Debug age values
+      print('🔍 DEBUG - Age in reportData: ${reportData['age']}');
+      final ageData = reportData['age'] as Map<String, dynamic>?;
+      print('🔍 DEBUG - Age min: ${ageData?['min']}');
+      print('🔍 DEBUG - Age max: ${ageData?['max']}');
+
+      // Remove age field if it's null to avoid sending null values to backend
+      if (reportData['age'] == null) {
+        reportData.remove('age');
+        print('🔍 DEBUG - Removed null age field from reportData');
+      }
 
       print('📤 Sending fraud report to backend...');
       print('📤 Report data: ${jsonEncode(reportData)}');

@@ -69,6 +69,12 @@ class ScamReportModel extends HiveObject {
   @HiveField(21)
   String? methodOfContactId; // maps to methodOfContact
 
+  @HiveField(22)
+  int? minAge; // maps to age.min
+
+  @HiveField(23)
+  int? maxAge; // maps to age.max
+
   // Add other fields as needed
 
   ScamReportModel({
@@ -94,6 +100,8 @@ class ScamReportModel extends HiveObject {
     this.currency,
     this.voiceRecordings = const [],
     this.methodOfContactId,
+    this.minAge,
+    this.maxAge,
   }) {
     // Initialize arrays if they are null
     phoneNumbers ??= [];
@@ -129,6 +137,7 @@ class ScamReportModel extends HiveObject {
     'voiceMessages': voiceRecordings,
     'documents': documentPaths,
     'methodOfContact': methodOfContactId,
+    'age': {'min': minAge, 'max': maxAge},
   };
 
   factory ScamReportModel.fromJson(
@@ -174,6 +183,8 @@ class ScamReportModel extends HiveObject {
         (json['voiceMessages'] as List?)?.map((e) => e.toString()).toList() ??
         [],
     methodOfContactId: json['methodOfContact'],
+    minAge: json['age'] != null ? json['age']['min'] : null,
+    maxAge: json['age'] != null ? json['age']['max'] : null,
   );
 
   ScamReportModel copyWith({
