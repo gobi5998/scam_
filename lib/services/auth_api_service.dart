@@ -50,7 +50,7 @@ class AuthApiService {
 
   static Future<Response> forgotPassword(String email) async {
     return await _dioService.authPost(
-      '/auth/forgot-password',
+      '/api/v1/auth/forget-password',
       data: {'email': email},
     );
   }

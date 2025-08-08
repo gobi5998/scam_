@@ -116,7 +116,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> register(
+ Future<bool> register(
     String firstname,
     String lastname,
     String username,

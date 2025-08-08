@@ -169,7 +169,7 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> register(
+ Future<Map<String, dynamic>> register(
     String firstname,
     String lastname,
     String username,
@@ -273,20 +273,6 @@ class ApiService {
       // Fallback to mock data
       return _getMockRegisterResponse(firstname, lastname, username, role);
     }
-  }
-
-  Map<String, dynamic> _getMockLoginResponse(String username) {
-    return {
-      'user': {
-        'id': '1',
-        'username': username,
-        'email': '$username@example.com',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      'token': 'mock_token_${DateTime.now().millisecondsSinceEpoch}',
-      'message': 'Login successful (mock data)',
-    };
   }
 
   Map<String, dynamic> _getMockRegisterResponse(

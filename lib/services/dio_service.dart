@@ -100,6 +100,7 @@ class DioService {
             if (ApiConfig.enableLogging) {
               print('🌐 API Request: ${options.method} ${options.path}');
               print('🌐 Full URL: ${options.uri}');
+              print('🌐 Base URL: ${ApiConfig.authBaseUrl}');
               print('📋 Headers: ${options.headers}');
               if (options.data != null) {
                 print('📦 Data: ${options.data}');

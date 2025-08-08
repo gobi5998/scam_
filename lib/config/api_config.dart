@@ -3,13 +3,13 @@ class ApiConfig {
   // static const String baseUrl =
   //     'https://6694dcc2db28.ngrok-free.app'; // Main server (working)
   static const String authBaseUrl =
-      'https://9b3a83780b9f.ngrok-free.app'; // Auth server
+      'https://mvp.edetectives.co.bw/auth/'; // Auth server
   static const String mainBaseUrl =
-      'https://5915029b87ef.ngrok-free.app'; // Main server - UPDATE THIS URL
+      'https://mvp.edetectives.co.bw/reports/'; // Main server - UPDATE THIS URL
   static const String fileUploadBaseUrl =
-      'https://9ced2fcae6fc.ngrok-free.app'; // File upload server (using same as main server)
+      'https://mvp.edetectives.co.bw/external/'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://5915029b87ef.ngrok-free.app'; // Reports server - UPDATE THIS URL
+      'https://mvp.edetectives.co.bw/reports/'; // Reports server - UPDATE THIS URL
 
   // API Endpoints
   // Authentication endpoints
@@ -18,7 +18,7 @@ class ApiConfig {
   static const String logoutEndpoint = '/api/v1/auth/logout';
   static const String userProfileEndpoint = '/api/v1/auth/profile';
   static const String updateProfileEndpoint = '/api/v1/auth/profile';
-  static const String forgotPasswordEndpoint = '/api/v1/auth/forgot-password';
+  static const String forgotPasswordEndpoint = '/api/v1/auth/forget-password';
   static const String resetPasswordEndpoint = '/api/v1/auth/reset-password';
 
   // Security endpoints

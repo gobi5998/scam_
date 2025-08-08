@@ -45,7 +45,7 @@ class FileUploadConfig {
 // File upload service with better error handling and configuration
 class FileUploadService {
   static final Dio _dio = Dio();
-  static const String baseUrl = 'https://1fa3899fe962.ngrok-free.app/api/v1';
+  static const String baseUrl = 'https://mvp.edetectives.co.bw/external/api/v1';
 
   // Get MIME type for file
   static String _getMimeType(String fileName) {
@@ -117,19 +117,30 @@ class FileUploadService {
     return null; // No error
   }
 
-  // File upload response model
+  // File upload response model - MongoDB style payload
   static Map<String, dynamic> _createFileData(Map<String, dynamic> response) {
     return {
-      'uploadPath': response['url'] ?? '',
-      's3Url': response['url'] ?? '',
-      's3Key': response['fileId'] ?? '',
-      'originalName': response['fileName'] ?? '',
-      'fileId': response['fileId'] ?? '',
-      'url': response['url'] ?? '',
-      'key': response['key'] ?? response['fileId'] ?? '',
+      '_id': {
+        '\$oid':
+            response['_id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+      'originalName': response['originalName'] ?? response['fileName'] ?? '',
       'fileName': response['fileName'] ?? '',
+      'mimeType': response['mimeType'] ?? response['contentType'] ?? '',
       'size': response['size'] ?? 0,
-      'contentType': response['contentType'] ?? '',
+      'key': response['key'] ?? '',
+      'url': response['url'] ?? '',
+      'uploadPath': response['uploadPath'] ?? response['path'] ?? '',
+      'path': response['path'] ?? response['uploadPath'] ?? '',
+      'createdAt': {
+        '\$date':
+            response['createdAt'] ?? DateTime.now().toUtc().toIso8601String(),
+      },
+      'updatedAt': {
+        '\$date':
+            response['updatedAt'] ?? DateTime.now().toUtc().toIso8601String(),
+      },
+      '__v': response['__v'] ?? 0,
     };
   }
 
@@ -188,14 +199,14 @@ class FileUploadService {
       // Add additional fields
       formData.fields.add(MapEntry('reportId', config.reportId));
       formData.fields.add(MapEntry('fileType', config.reportType));
+      formData.fields.add(MapEntry('originalName', fileName));
 
       // Determine upload URL
       final uploadUrl =
-          config.customUploadUrl ??
           '$baseUrl/file-upload/threads-${config.reportType}?reportId=${config.reportId}';
 
-      print('🟡 Base URL: $baseUrl');
       print('🟡 Report Type: ${config.reportType}');
+      print('🟡 Base URL: $baseUrl');
       print('🟡 Report ID: ${config.reportId}');
       print('🟡 Upload URL: $uploadUrl');
 
@@ -239,6 +250,15 @@ class FileUploadService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final result = _createFileData(response.data);
         print('✅ File uploaded successfully: ${result['fileName']}');
+        print('🟡 MongoDB-style payload created:');
+        print('🟡 - _id: ${result['_id']}');
+        print('🟡 - originalName: ${result['originalName']}');
+        print('🟡 - fileName: ${result['fileName']}');
+        print('🟡 - mimeType: ${result['mimeType']}');
+        print('🟡 - size: ${result['size']}');
+        print('🟡 - key: ${result['key']}');
+        print('🟡 - url: ${result['url']}');
+        print('🟡 - uploadPath: ${result['uploadPath']}');
         return result;
       } else {
         print('❌ Upload failed with status: ${response.statusCode}');
@@ -296,7 +316,7 @@ class FileUploadService {
     return uploadedFiles;
   }
 
-  // Categorize files by type
+  // Categorize files by type - MongoDB style payload
   static Map<String, dynamic> categorizeFiles(
     List<Map<String, dynamic>> uploadedFiles,
   ) {
@@ -305,33 +325,85 @@ class FileUploadService {
     List<Map<String, dynamic>> voiceMessages = [];
 
     for (var file in uploadedFiles) {
-      String fileName = file['fileName']?.toString().toLowerCase() ?? '';
-      String contentType = file['contentType']?.toString().toLowerCase() ?? '';
+      // Handle different possible field names from server
+      String fileName =
+          file['fileName']?.toString().toLowerCase() ??
+          file['name']?.toString().toLowerCase() ??
+          '';
+      String originalName =
+          file['originalName']?.toString().toLowerCase() ??
+          file['originalname']?.toString().toLowerCase() ??
+          file['original_name']?.toString().toLowerCase() ??
+          '';
+      String mimeType =
+          file['mimeType']?.toString().toLowerCase() ??
+          file['contentType']?.toString().toLowerCase() ??
+          file['mime_type']?.toString().toLowerCase() ??
+          '';
 
-      if (fileName.endsWith('.png') ||
+      // Debug logging for file categorization
+      print('🟡 Categorizing file:');
+      print('🟡 - fileName: $fileName');
+      print('🟡 - originalName: $originalName');
+      print('🟡 - mimeType: $mimeType');
+
+      // Check both fileName and originalName for file extensions
+      // Prioritize MIME type over file extensions for more accurate categorization
+      bool isImage =
+          mimeType.startsWith('image/') ||
+          fileName.endsWith('.png') ||
           fileName.endsWith('.jpg') ||
           fileName.endsWith('.jpeg') ||
           fileName.endsWith('.gif') ||
           fileName.endsWith('.bmp') ||
           fileName.endsWith('.webp') ||
-          contentType.startsWith('image/')) {
-        screenshots.add(file);
-      } else if (fileName.endsWith('.mp3') ||
+          originalName.endsWith('.png') ||
+          originalName.endsWith('.jpg') ||
+          originalName.endsWith('.jpeg') ||
+          originalName.endsWith('.gif') ||
+          originalName.endsWith('.bmp') ||
+          originalName.endsWith('.webp');
+
+      bool isAudio =
+          mimeType.startsWith('audio/') ||
+          fileName.endsWith('.mp3') ||
           fileName.endsWith('.wav') ||
           fileName.endsWith('.m4a') ||
-          contentType.startsWith('audio/')) {
-        voiceMessages.add(file);
-      } else if (fileName.endsWith('.pdf') ||
+          originalName.endsWith('.mp3') ||
+          originalName.endsWith('.wav') ||
+          originalName.endsWith('.m4a');
+
+      bool isDocument =
+          mimeType == 'application/pdf' ||
+          mimeType.startsWith('application/vnd.openxmlformats') ||
+          mimeType == 'application/msword' ||
+          mimeType == 'text/plain' ||
+          fileName.endsWith('.pdf') ||
           fileName.endsWith('.doc') ||
           fileName.endsWith('.docx') ||
           fileName.endsWith('.txt') ||
-          contentType == 'application/pdf' ||
-          contentType.startsWith('application/vnd.openxmlformats') ||
-          contentType == 'application/msword' ||
-          contentType == 'text/plain') {
+          originalName.endsWith('.pdf') ||
+          originalName.endsWith('.doc') ||
+          originalName.endsWith('.docx') ||
+          originalName.endsWith('.txt');
+
+      print('🟡 Categorization results:');
+      print('🟡 - isImage: $isImage');
+      print('🟡 - isAudio: $isAudio');
+      print('🟡 - isDocument: $isDocument');
+
+      if (isImage) {
+        screenshots.add(file);
+        print('🟡 ✅ Added to screenshots');
+      } else if (isAudio) {
+        voiceMessages.add(file);
+        print('🟡 ✅ Added to voice messages');
+      } else if (isDocument) {
         documents.add(file);
+        print('🟡 ✅ Added to documents');
       } else {
         documents.add(file); // Default to documents
+        print('🟡 ⚠️ Defaulted to documents (unknown type)');
       }
     }
 

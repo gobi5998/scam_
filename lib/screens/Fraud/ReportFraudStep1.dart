@@ -1057,7 +1057,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                                 color: Colors.black,
                               ),
                             ),
-                            Icon(Icons.person, color: const Color(0xFF064FAD), size: 20),
+                            Icon(
+                              Icons.person,
+                              color: const Color(0xFF064FAD),
+                              size: 20,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -1066,7 +1070,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                           min: 1,
                           max: 100,
                           divisions: 99,
-                          activeColor:const Color(0xFF064FAD),
+                          activeColor: const Color(0xFF064FAD),
                           inactiveColor: Colors.grey.shade300,
                           labels: RangeLabels(
                             _ageRange.start.round().toString(),

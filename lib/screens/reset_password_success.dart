@@ -111,7 +111,7 @@ class ResetPasswordSuccessScreen extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Back to Login', style: TextStyle(fontSize: 16)),
+                  child: Text('Back to Login', style: TextStyle(fontSize: 16, color: Colors.white)),
                 ),
               ),
               SizedBox(height: 16),

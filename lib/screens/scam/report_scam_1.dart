@@ -408,8 +408,20 @@ class _ReportScam1State extends State<ReportScam1> {
       );
 
       if (methodOfContactData.isNotEmpty) {
+        // Capitalize the first letter of each option name
+        final capitalizedOptions = methodOfContactData.map((option) {
+          final name = option['name'] as String? ?? '';
+          if (name.isNotEmpty) {
+            return {
+              ...option,
+              'name': name[0].toUpperCase() + name.substring(1).toLowerCase(),
+            };
+          }
+          return option;
+        }).toList();
+
         setState(() {
-          methodOfContactOptions = methodOfContactData;
+          methodOfContactOptions = capitalizedOptions;
           isLoadingMethodOfContact = false;
         });
 
@@ -1181,7 +1193,11 @@ class _ReportScam1State extends State<ReportScam1> {
                                 color: Colors.black,
                               ),
                             ),
-                            Icon(Icons.person, color: const Color(0xFF064FAD), size: 20),
+                            Icon(
+                              Icons.person,
+                              color: const Color(0xFF064FAD),
+                              size: 20,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),

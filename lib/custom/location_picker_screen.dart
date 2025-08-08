@@ -36,14 +36,17 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   void _loadSavedAddresses() {
-    _savedAddresses = widget.savedAddresses ?? [
-      SavedAddress(
-        id: '1',
-        label: 'Home',
-        address: 'No:25, Pon Nagar, Kavery Nagar, Reddiarpalayam, Puducherry, India',
-        isSelected: true,
-      ),
-    ];
+    _savedAddresses =
+        widget.savedAddresses ??
+        [
+          SavedAddress(
+            id: '1',
+            label: 'Home',
+            address:
+                'No:25, Pon Nagar, Kavery Nagar, Reddiarpalayam, Puducherry, India',
+            isSelected: true,
+          ),
+        ];
   }
 
   Future<void> _getCurrentLocation() async {
@@ -137,7 +140,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       addressParts.add(placemark.locality!);
     }
 
-    if (placemark.administrativeArea != null && placemark.administrativeArea!.isNotEmpty) {
+    if (placemark.administrativeArea != null &&
+        placemark.administrativeArea!.isNotEmpty) {
       addressParts.add(placemark.administrativeArea!);
     }
 
@@ -154,7 +158,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   void _onPlaceSelected(Placemark placemark) {
     String address = _formatAddress(placemark);
-    String locationName = placemark.name ?? placemark.locality ?? 'Selected Location';
+    String locationName =
+        placemark.name ?? placemark.locality ?? 'Selected Location';
 
     if (widget.onLocationSelected != null) {
       widget.onLocationSelected!(locationName, address);
@@ -166,7 +171,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   void _onCurrentLocationSelected() {
     if (_currentLocationAddress != null) {
       if (widget.onLocationSelected != null) {
-        widget.onLocationSelected!('Current Location', _currentLocationAddress!);
+        widget.onLocationSelected!(
+          'Current Location',
+          _currentLocationAddress!,
+        );
       }
       Navigator.of(context).pop();
     }
@@ -182,7 +190,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
@@ -202,7 +210,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           // Header
           Padding(
             padding: const EdgeInsets.all(16),
@@ -214,11 +222,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 ),
                 const Expanded(
                   child: Text(
-                    'Enter your area or apartment name',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    'Enter your location',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -247,9 +252,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       decoration: InputDecoration(
                         hintText: 'Try JP Nagar, Siri Gardenia, etc.',
                         hintStyle: TextStyle(color: Colors.grey[600]),
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.grey,
+                        ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                       onChanged: (value) {
                         if (value.isNotEmpty) {
@@ -287,10 +298,17 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                           String address = _formatAddress(placemark);
 
                           return ListTile(
-                            leading: const Icon(Icons.location_on, color: Colors.red),
+                            leading: const Icon(
+                              Icons.location_on,
+                              color: Colors.red,
+                            ),
                             title: Text(
-                              placemark.name ?? placemark.locality ?? 'Unknown Location',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              placemark.name ??
+                                  placemark.locality ??
+                                  'Unknown Location',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               address,
@@ -307,16 +325,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
                   // Current Location Option
                   InkWell(
-                    onTap: _isLoadingCurrentLocation ? null : _onCurrentLocationSelected,
+                    onTap: _isLoadingCurrentLocation
+                        ? null
+                        : _onCurrentLocationSelected,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.send,
-                            color: Colors.orange[600],
-                            size: 20,
-                          ),
+                          Icon(Icons.send, color: Colors.orange[600], size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -344,55 +360,55 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   const SizedBox(height: 16),
 
                   // Add New Address Option
-                  InkWell(
-                    onTap: () {
-                      // TODO: Implement add new address functionality
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.add,
-                            color: Colors.orange[600],
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Add new address',
-                            style: TextStyle(
-                              color: Colors.orange[600],
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // InkWell(
+                  //   onTap: () {
+                  //     // TODO: Implement add new address functionality
+                  //   },
+                  //   child: Container(
+                  //     padding: const EdgeInsets.symmetric(vertical: 12),
+                  //     child: Row(
+                  //       children: [
+                  //         Icon(
+                  //           Icons.add,
+                  //           color: Colors.orange[600],
+                  //           size: 20,
+                  //         ),
+                  //         const SizedBox(width: 12),
+                  //         Text(
+                  //           'Add new address',
+                  //           style: TextStyle(
+                  //             color: Colors.orange[600],
+                  //             fontSize: 16,
+                  //             fontWeight: FontWeight.w500,
+                  //           ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
 
-                  const SizedBox(height: 24),
+                  // const SizedBox(height: 24),
 
                   // Saved Addresses Section
-                  if (_savedAddresses.isNotEmpty) ...[
-                    Text(
-                      'SAVED ADDRESSES',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _savedAddresses.length,
-                        itemBuilder: (context, index) {
-                          return _buildSavedAddressCard(_savedAddresses[index]);
-                        },
-                      ),
-                    ),
-                  ],
+                  // if (_savedAddresses.isNotEmpty) ...[
+                  //   Text(
+                  //     'SAVED ADDRESSES',
+                  //     style: TextStyle(
+                  //       color: Colors.grey[600],
+                  //       fontSize: 14,
+                  //       fontWeight: FontWeight.w600,
+                  //     ),
+                  //   ),
+                  //   const SizedBox(height: 12),
+                  //   Expanded(
+                  //     child: ListView.builder(
+                  //       itemCount: _savedAddresses.length,
+                  //       itemBuilder: (context, index) {
+                  //         return _buildSavedAddressCard(_savedAddresses[index]);
+                  //       },
+                  //     ),
+                  //   ),
+                  // ],
                 ],
               ),
             ),
@@ -413,11 +429,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.home,
-            color: Colors.grey[600],
-            size: 20,
-          ),
+          Icon(Icons.home, color: Colors.grey[600], size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -435,7 +447,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     if (address.isSelected) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.green[400],
                           borderRadius: BorderRadius.circular(12),
@@ -455,10 +470,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 const SizedBox(height: 4),
                 Text(
                   address.address,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
             ),
@@ -519,10 +531,8 @@ class SavedAddress {
 class AddNewAddressScreen extends StatefulWidget {
   final Function(String, String) onAddressAdded;
 
-  const AddNewAddressScreen({
-    Key? key,
-    required this.onAddressAdded,
-  }) : super(key: key);
+  const AddNewAddressScreen({Key? key, required this.onAddressAdded})
+    : super(key: key);
 
   @override
   State<AddNewAddressScreen> createState() => _AddNewAddressScreenState();
@@ -565,8 +575,12 @@ class _AddNewAddressScreenState extends State<AddNewAddressScreen> {
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                if (_labelController.text.isNotEmpty && _addressController.text.isNotEmpty) {
-                  widget.onAddressAdded(_labelController.text, _addressController.text);
+                if (_labelController.text.isNotEmpty &&
+                    _addressController.text.isNotEmpty) {
+                  widget.onAddressAdded(
+                    _labelController.text,
+                    _addressController.text,
+                  );
                   Navigator.of(context).pop();
                 }
               },

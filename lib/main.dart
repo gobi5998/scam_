@@ -288,7 +288,7 @@ class MyApp extends StatelessWidget {
       // home: const SplashScreen(),
       initialRoute: '/',
       routes: {
-        '/': (context) => const DashboardPage(),
+        '/': (context) => const SplashScreen(),
         '/profile': (context) => ProfilePage(),
         '/thread': (context) => ThreadDatabaseFilterPage(),
         '/subscription': (context) => SubscriptionPlansPage(),
