@@ -52,7 +52,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
     // Debug: Print received data
     print('🔍 Received fraud report data in Step 2:');
     print('🔍 - Phone Numbers: ${widget.report.phoneNumbers}');
-    print('🔍 - Email Addresses: ${widget.report.emailAddresses}');
+
     print('🔍 - Social Media Handles: ${widget.report.socialMediaHandles}');
     print('🔍 - Report ID: ${widget.report.id}');
     print('🔍 - Report JSON: ${widget.report.toJson()}');
@@ -252,26 +252,36 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         print('🚀 File upload state not found');
       }
 
-      // Extract file URLs for backend submission
-      final screenshotUrls = (uploadedFiles['screenshots'] as List)
+      // Extract file data for backend submission and URLs for local storage
+      final screenshots = (uploadedFiles['screenshots'] as List)
+          .cast<Map<String, dynamic>>();
+
+      final documents = (uploadedFiles['documents'] as List)
+          .cast<Map<String, dynamic>>();
+
+      final voiceMessages = (uploadedFiles['voiceMessages'] as List)
+          .cast<Map<String, dynamic>>();
+
+      // Extract URLs for local model storage
+      final screenshotUrls = screenshots
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
-      final documentUrls = (uploadedFiles['documents'] as List)
+      final documentUrls = documents
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
-      final voiceMessageUrls = (uploadedFiles['voiceMessages'] as List)
+      final voiceMessageUrls = voiceMessages
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
-      print('🚀 Extracted file URLs:');
-      print('🚀 - Screenshots: ${screenshotUrls.length}');
-      print('🚀 - Documents: ${documentUrls.length}');
-      print('🚀 - Voice messages: ${voiceMessageUrls.length}');
+      print('🚀 Extracted file objects:');
+      print('🚀 - Screenshots: ${screenshots.length}');
+      print('🚀 - Documents: ${documents.length}');
+      print('🚀 - Voice messages: ${voiceMessages.length}');
 
       // Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
@@ -314,7 +324,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         'isActive': true,
         'location': await _getCurrentLocation(), // Dynamic coordinates
         'phoneNumbers': widget.report.phoneNumbers ?? [],
-        'emails': widget.report.emailAddresses ?? [],
+        'emails': widget.report.emails ?? [],
         'mediaHandles': widget.report.socialMediaHandles ?? [],
         'website': widget.report.website ?? '',
         'currency': widget.report.currency ?? 'INR',
@@ -326,9 +336,9 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
             DateTime.now().toIso8601String(),
         'fraudsterName': widget.report.fraudsterName ?? '',
         'companyName': widget.report.companyName ?? '',
-        'screenshots': screenshotUrls,
-        'voiceMessages': voiceMessageUrls,
-        'documents': documentUrls,
+        'screenshots': screenshots,
+        'voiceMessages': voiceMessages,
+        'documents': documents,
         'createdAt':
             widget.report.createdAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
@@ -352,7 +362,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         '🚀 Media Handles: ${formData['mediaHandles']} (type: ${formData['mediaHandles'].runtimeType})',
       );
       print('🚀 Phone Numbers from widget: ${widget.report.phoneNumbers}');
-      print('🚀 Emails from widget: ${widget.report.emailAddresses}');
+      print('🚀 Emails from widget: ${widget.report.emails}');
       print(
         '🚀 Media Handles from widget: ${widget.report.socialMediaHandles}',
       );
@@ -361,7 +371,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       if (widget.report.phoneNumbers?.isEmpty ?? true) {
         print('⚠️ Warning: Phone numbers array is empty');
       }
-      if (widget.report.emailAddresses?.isEmpty ?? true) {
+      if (widget.report.emails?.isEmpty ?? true) {
         print('⚠️ Warning: Email addresses array is empty');
       }
       if (widget.report.socialMediaHandles?.isEmpty ?? true) {
@@ -374,9 +384,9 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       // Create updated report model with all data including uploaded files
       final updatedReport = widget.report.copyWith(
         alertLevels: alertLevel,
-        screenshotPaths: screenshotUrls,
-        documentPaths: documentUrls,
-        voiceRecordings: voiceMessageUrls,
+        screenshots: screenshotUrls,
+        documents: documentUrls,
+        voiceMessages: voiceMessageUrls,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
@@ -425,8 +435,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         print('🔍 - Alert Level: ${latestReport.alertLevels}');
         print('🔍 - Created At: ${latestReport.createdAt}');
         print('🔍 - Is Synced: ${latestReport.isSynced}');
-        print('🔍 - Screenshot Paths: ${latestReport.screenshotPaths}');
-        print('🔍 - Document Paths: ${latestReport.documentPaths}');
+
       }
 
       // Test thread database visibility
@@ -734,8 +743,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       print('🧪   - Alert Level: ${latestReport.alertLevels}');
       print('🧪   - Created At: ${latestReport.createdAt}');
       print('🧪   - Is Synced: ${latestReport.isSynced}');
-      print('🧪   - Screenshot Paths: ${latestReport.screenshotPaths}');
-      print('🧪   - Document Paths: ${latestReport.documentPaths}');
+
     } else {
       print('🧪 - No reports found in thread box.');
     }
@@ -751,12 +759,13 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           key: _formKey,
           child: ListView(
             children: [
+
               FileUploadWidget(
                 key: _fileUploadKey,
                 config: FileUploadConfig(
                   reportType: 'fraud',
-                  reportId: widget.report.id ?? '123',
-                  autoUpload: false, // Disable auto-upload
+                  reportId: widget.report.id ?? FileUploadService.generateObjectId(),
+                  autoUpload: false,
                   showProgress: true,
                   allowMultipleFiles: true,
                 ),
@@ -781,6 +790,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                   );
                 },
               ),
+
               const SizedBox(height: 20),
               CustomDropdown(
                 label: 'Alert Severity *',
@@ -900,9 +910,12 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                     ? null
                     : () async {
                         if (_validateForm()) {
+                          await _ensureFilesSelected();
                           await _submitFinalReport();
-                        }
+                                                 }
+
                       },
+
                 fontWeight: FontWeight.normal,
               ),
             ],

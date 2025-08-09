@@ -263,7 +263,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'id': report.id,
           'description': report.description ?? report.name ?? 'Fraud Report',
           'alertLevels': report.alertLevels,
-          'emailAddresses': report.emailAddresses,
+          'emailAddresses': report.emails,
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,

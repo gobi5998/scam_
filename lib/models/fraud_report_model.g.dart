@@ -26,26 +26,28 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       createdAt: fields[6] as DateTime?,
       updatedAt: fields[7] as DateTime?,
       isSynced: fields[8] as bool,
-      screenshotPaths: (fields[9] as List).cast<String>(),
-      documentPaths: (fields[10] as List).cast<String>(),
+      screenshots: (fields[9] as List).cast<String>(),
+      documents: (fields[10] as List).cast<String>(),
       name: fields[11] as String?,
       keycloakUserId: fields[12] as String?,
       fraudsterName: fields[13] as String?,
       phoneNumbers: (fields[14] as List).cast<String>(),
-      emailAddresses: (fields[15] as List).cast<String>(),
+      emails: (fields[15] as List).cast<String>(),
       companyName: fields[16] as String?,
       socialMediaHandles: (fields[17] as List).cast<String>(),
       incidentDateTime: fields[18] as DateTime?,
       amountInvolved: fields[19] as double?,
-      voiceRecordings: (fields[20] as List).cast<String>(),
+      voiceMessages: (fields[20] as List).cast<String>(),
       currency: fields[21] as String?,
+      minAge: fields[22] as int?,
+      maxAge: fields[23] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, FraudReportModel obj) {
     writer
-      ..writeByte(22)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -65,9 +67,9 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(8)
       ..write(obj.isSynced)
       ..writeByte(9)
-      ..write(obj.screenshotPaths)
+      ..write(obj.screenshots)
       ..writeByte(10)
-      ..write(obj.documentPaths)
+      ..write(obj.documents)
       ..writeByte(11)
       ..write(obj.name)
       ..writeByte(12)
@@ -77,7 +79,7 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(14)
       ..write(obj.phoneNumbers)
       ..writeByte(15)
-      ..write(obj.emailAddresses)
+      ..write(obj.emails)
       ..writeByte(16)
       ..write(obj.companyName)
       ..writeByte(17)
@@ -87,9 +89,13 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(19)
       ..write(obj.amountInvolved)
       ..writeByte(20)
-      ..write(obj.voiceRecordings)
+      ..write(obj.voiceMessages)
       ..writeByte(21)
-      ..write(obj.currency);
+      ..write(obj.currency)
+      ..writeByte(22)
+      ..write(obj.minAge)
+      ..writeByte(23)
+      ..write(obj.maxAge);
   }
 
   @override

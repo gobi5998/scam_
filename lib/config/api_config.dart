@@ -41,8 +41,8 @@ class ApiConfig {
       '/api/v1/file-upload/threads-scam';
 
   // Report endpoints
-  static const String scamReportsEndpoint = '/api/v1/reports/scam';
-  static const String fraudReportsEndpoint = '/api/v1/reports/fraud';
+  static const String scamReportsEndpoint = '/api/v1/reports';
+  static const String fraudReportsEndpoint = '/api/v1/reports';
   static const String malwareReportsEndpoint = '/api/v1/reports';
 
   // User management endpoints

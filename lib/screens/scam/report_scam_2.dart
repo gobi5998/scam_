@@ -40,7 +40,7 @@ class _ReportScam2State extends State<ReportScam2> {
   String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
+  GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
 
   @override
   void initState() {
@@ -62,16 +62,16 @@ class _ReportScam2State extends State<ReportScam2> {
       print('🔍 Loading alert levels from API...');
 
       // Try to fetch alert levels from backend
-      try {
-        final apiService = ApiService();
-        final alertLevels = await apiService.fetchAlertLevels();
-
-        if (alertLevels.isNotEmpty) {
+    try {
+      final apiService = ApiService();
+      final alertLevels = await apiService.fetchAlertLevels();
+      
+      if (alertLevels.isNotEmpty) {
           if (mounted) {
-            setState(() {
-              alertLevelOptions = alertLevels;
-            });
-            print('🔍 Loaded ${alertLevels.length} alert levels from API');
+        setState(() {
+          alertLevelOptions = alertLevels;
+        });
+        print('🔍 Loaded ${alertLevels.length} alert levels from API');
             print(
               '🔍 Alert levels: ${alertLevels.map((level) => '${level['name']} (${level['_id']})').join(', ')}',
             );
@@ -221,13 +221,13 @@ class _ReportScam2State extends State<ReportScam2> {
           print('🚀 Starting file upload during submit...');
           try {
             // Upload files only during submit, not automatically
-            uploadedFiles = await state.triggerUpload();
+          uploadedFiles = await state.triggerUpload();
             print('🚀 File upload completed during submit');
             print('🚀 Uploaded files: $uploadedFiles');
-
-            setState(() {
-              uploadedFilesData = uploadedFiles;
-              filesUploaded = true;
+          
+          setState(() {
+            uploadedFilesData = uploadedFiles;
+            filesUploaded = true;
               uploadStatus = 'Files uploaded successfully!';
             });
           } catch (e) {
@@ -251,26 +251,39 @@ class _ReportScam2State extends State<ReportScam2> {
         print('🚀 File upload state not found');
       }
 
-      // Extract file URLs for backend submission
-      final screenshotUrls = (uploadedFiles['screenshots'] as List)
+      // Use categorized file objects for backend and URLs for local storage
+      final screenshotsForBackend = (uploadedFiles['screenshots'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .toList();
+
+      final documentsForBackend = (uploadedFiles['documents'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .toList();
+
+      final voiceMessagesForBackend = (uploadedFiles['voiceMessages'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .toList();
+
+      // Extract URLs for local model storage
+      final screenshots = screenshotsForBackend
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
-      final documentUrls = (uploadedFiles['documents'] as List)
+      final documents = documentsForBackend
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
-      final voiceMessageUrls = (uploadedFiles['voiceMessages'] as List)
+      final voiceMessages = voiceMessagesForBackend
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
 
       print('🚀 Extracted file URLs:');
-      print('🚀 - Screenshots: ${screenshotUrls.length}');
-      print('🚀 - Documents: ${documentUrls.length}');
-      print('🚀 - Voice messages: ${voiceMessageUrls.length}');
+      print('🚀 - Screenshots: ${screenshots.length}');
+      print('🚀 - Documents: ${documents.length}');
+      print('🚀 - Voice messages: ${voiceMessages.length}');
 
       // Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
@@ -325,9 +338,9 @@ class _ReportScam2State extends State<ReportScam2> {
             widget.report.incidentDateTime?.toIso8601String() ??
             DateTime.now().toIso8601String(),
         'scammerName': widget.report.scammerName ?? '',
-        'screenshots': screenshotUrls,
-        'voiceMessages': voiceMessageUrls,
-        'documents': documentUrls,
+        'screenshots': screenshotsForBackend,
+        'voiceMessages': voiceMessagesForBackend,
+        'documents': documentsForBackend,
         'createdAt':
             widget.report.createdAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
@@ -373,9 +386,9 @@ class _ReportScam2State extends State<ReportScam2> {
       // Create updated report model with all data including uploaded files
       final updatedReport = widget.report.copyWith(
         alertLevels: alertLevel,
-        screenshotPaths: screenshotUrls,
-        documentPaths: documentUrls,
-        voiceRecordings: voiceMessageUrls,
+        screenshotPaths: screenshots,
+        documentPaths: documents,
+        voiceRecordings: voiceMessages,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
@@ -449,7 +462,7 @@ class _ReportScam2State extends State<ReportScam2> {
           final syncedReport = updatedReport.copyWith(isSynced: true);
           if (syncedReport.isInBox) {
             await ScamReportService.updateReport(syncedReport);
-            print('✅ Updated local report as synced');
+          print('✅ Updated local report as synced');
           } else {
             await ScamReportService.saveReportOffline(syncedReport);
             print('✅ Saved synced report to local database');
@@ -484,7 +497,7 @@ class _ReportScam2State extends State<ReportScam2> {
           MaterialPageRoute(
             builder: (_) => const ReportSuccess(label: 'Scam Report'),
           ),
-          (route) => false,
+              (route) => false,
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -734,7 +747,7 @@ class _ReportScam2State extends State<ReportScam2> {
       print('🧪   - Is Synced: ${latestReport.isSynced}');
       print('🧪   - Screenshot Paths: ${latestReport.screenshotPaths}');
       print('🧪   - Document Paths: ${latestReport.documentPaths}');
-    } else {
+      } else {
       print('🧪 - No reports found in thread box.');
     }
   }
@@ -753,7 +766,7 @@ class _ReportScam2State extends State<ReportScam2> {
                 key: _fileUploadKey,
                 config: FileUploadConfig(
                   reportType: 'scam',
-                  reportId: widget.report.id ?? '123',
+                  reportId: widget.report.id ?? FileUploadService.generateObjectId(),
                   autoUpload: false, // Disable auto-upload
                   showProgress: true,
                   allowMultipleFiles: true,
@@ -835,10 +848,10 @@ class _ReportScam2State extends State<ReportScam2> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
-                    children: [
+                children: [
                       Icon(Icons.file_upload, color: Colors.green.shade600),
                       const SizedBox(width: 8),
-                      Expanded(
+                  Expanded(
                         child: Text(
                           _getFileCountText(),
                           style: TextStyle(
@@ -865,17 +878,17 @@ class _ReportScam2State extends State<ReportScam2> {
                     children: [
                       Icon(Icons.info_outline, color: Colors.blue.shade600),
                       const SizedBox(width: 8),
-                      Expanded(
+                  Expanded(
                         child: Text(
                           uploadStatus,
                           style: TextStyle(
                             color: Colors.blue.shade700,
                             fontWeight: FontWeight.w500,
-                          ),
-                        ),
                       ),
-                    ],
+                    ),
                   ),
+                ],
+              ),
                 ),
               ],
 

@@ -39,7 +39,7 @@ class FraudSyncService {
         List<File> screenshots = [];
         List<File> documents = [];
 
-        for (String path in report.screenshotPaths) {
+        for (String path in report.screenshots) {
           try {
             screenshots.add(File(path));
           } catch (e) {
@@ -47,7 +47,7 @@ class FraudSyncService {
           }
         }
 
-        for (String path in report.documentPaths) {
+        for (String path in report.documents) {
           try {
             documents.add(File(path));
           } catch (e) {

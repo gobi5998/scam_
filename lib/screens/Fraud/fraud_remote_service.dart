@@ -29,15 +29,15 @@ class FraudRemoteService {
       request.fields['alertLevels'] = report.alertLevels ?? '';
       request.fields['date'] = report.createdAt?.toIso8601String() ?? '';
       request.fields['phoneNumbers'] = report.phoneNumbers.join(',');
-      request.fields['emails'] = report.emailAddresses.join(',');
+      request.fields['emails'] = report.emails.join(',');
       request.fields['website'] = report.website ?? '';
 
       // Add file paths as JSON
-      if (report.screenshotPaths.isNotEmpty) {
-        request.fields['screenshotPaths'] = jsonEncode(report.screenshotPaths);
+      if (report.screenshots.isNotEmpty) {
+        request.fields['screenshotPaths'] = jsonEncode(report.screenshots);
       }
-      if (report.documentPaths.isNotEmpty) {
-        request.fields['documentPaths'] = jsonEncode(report.documentPaths);
+      if (report.documents.isNotEmpty) {
+        request.fields['documentPaths'] = jsonEncode(report.documents);
       }
 
       // Add screenshots

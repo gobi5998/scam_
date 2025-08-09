@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/jwt_service.dart';
 
 // Configuration class for file upload options
 class FileUploadConfig {
@@ -42,10 +42,25 @@ class FileUploadConfig {
   });
 }
 
-// File upload service with better error handling and configuration
 class FileUploadService {
   static final Dio _dio = Dio();
   static const String baseUrl = 'https://mvp.edetectives.co.bw/external/api/v1';
+
+  // Generate a valid MongoDB ObjectId (24-character hex string)
+  static String generateObjectId() {
+    final random = Random();
+    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final machineId = random.nextInt(0xFFFFFF);
+    final processId = random.nextInt(0xFFFF);
+    final counter = random.nextInt(0xFFFFFF);
+    
+    final timestampHex = timestamp.toRadixString(16).padLeft(8, '0');
+    final machineIdHex = machineId.toRadixString(16).padLeft(6, '0');
+    final processIdHex = processId.toRadixString(16).padLeft(4, '0');
+    final counterHex = counter.toRadixString(16).padLeft(6, '0');
+    
+    return timestampHex + machineIdHex + processIdHex + counterHex;
+  }
 
   // Get MIME type for file
   static String _getMimeType(String fileName) {
@@ -117,39 +132,70 @@ class FileUploadService {
     return null; // No error
   }
 
-  // File upload response model - MongoDB style payload
-  static Map<String, dynamic> _createFileData(Map<String, dynamic> response) {
-    return {
-      '_id': {
-        '\$oid':
-            response['_id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      },
-      'originalName': response['originalName'] ?? response['fileName'] ?? '',
-      'fileName': response['fileName'] ?? '',
-      'mimeType': response['mimeType'] ?? response['contentType'] ?? '',
-      'size': response['size'] ?? 0,
-      'key': response['key'] ?? '',
-      'url': response['url'] ?? '',
-      'uploadPath': response['uploadPath'] ?? response['path'] ?? '',
-      'path': response['path'] ?? response['uploadPath'] ?? '',
-      'createdAt': {
-        '\$date':
-            response['createdAt'] ?? DateTime.now().toUtc().toIso8601String(),
-      },
-      'updatedAt': {
-        '\$date':
-            response['updatedAt'] ?? DateTime.now().toUtc().toIso8601String(),
-      },
-      '__v': response['__v'] ?? 0,
+  // Create MongoDB-style payload from server response (normalized for backend)
+  static Map<String, dynamic> createMongoDBPayload(Map<String, dynamic> response) {
+    print('🔍 Creating MongoDB-style payload from response: $response');
+
+    // Extract _id as plain string (no $oid wrapper)
+    String objectId;
+    final rawId = response['_id']?.toString();
+    if (rawId != null && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(rawId)) {
+      objectId = rawId;
+      print('🔍 Using server _id: $objectId');
+    } else {
+      objectId = generateObjectId();
+      print('🔍 Generated fallback _id: $objectId');
+    }
+
+    // Normalize timestamps as ISO strings (no $date wrapper)
+    final createdAtStr = (response['createdAt']?.toString() ?? DateTime.now().toUtc().toIso8601String());
+    final updatedAtStr = (response['updatedAt']?.toString() ?? DateTime.now().toUtc().toIso8601String());
+
+    // Normalize required fields
+    final mimeType = response['mimeType']?.toString() ?? response['contentType']?.toString() ?? '';
+    final key = response['key']?.toString() ?? response['s3Key']?.toString() ?? '';
+    final url = response['url']?.toString() ?? response['s3Url']?.toString() ?? '';
+
+    // Build payload matching backend schema (no extended JSON wrappers)
+    final mongoDBPayload = {
+      '_id': objectId,
+      'originalName': response['originalName']?.toString() ?? '',
+      'fileName': response['fileName']?.toString() ?? '',
+      'mimeType': mimeType,
+      'contentType': mimeType, // required by backend
+      'size': int.tryParse(response['size']?.toString() ?? '0') ?? 0,
+      'key': key,
+      's3Key': key,           // required by backend
+      'url': url,
+      's3Url': url,           // required by backend
+      'uploadPath': response['uploadPath']?.toString() ?? response['path']?.toString() ?? '',
+      'path': response['path']?.toString() ?? response['uploadPath']?.toString() ?? '',
+      'createdAt': createdAtStr,
+      'updatedAt': updatedAtStr,
+      '__v': int.tryParse(response['__v']?.toString() ?? '0') ?? 0,
     };
+
+    print('🔍 Normalized file object for backend:');
+    print('  _id: ${mongoDBPayload['_id']}');
+    print('  contentType: ${mongoDBPayload['contentType']}');
+    print('  s3Key: ${mongoDBPayload['s3Key']}');
+    print('  s3Url: ${mongoDBPayload['s3Url']}');
+    print('  createdAt: ${mongoDBPayload['createdAt']}');
+    print('  updatedAt: ${mongoDBPayload['updatedAt']}');
+
+    return mongoDBPayload;
+  }
+
+  static bool _isValidObjectId(String value) {
+    return RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(value);
   }
 
   // Upload single file with configuration
   static Future<Map<String, dynamic>?> uploadFile(
-    File file,
+      File file,
     FileUploadConfig config, {
-    Function(int, int)? onProgress,
-  }) async {
+        Function(int, int)? onProgress,
+      }) async {
     try {
       print('🟡 Starting upload for file: ${file.path}');
 
@@ -160,21 +206,12 @@ class FileUploadService {
         throw Exception(validationError);
       }
 
-      // Get auth token with fallback
+      // Get auth token
       String? token;
       try {
-        final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
         token = prefs.getString('access_token');
-
-        // Fallback to JWT service if SharedPreferences is empty
-        if (token == null || token.isEmpty) {
-          print('🟡 SharedPreferences token empty, trying JWT service...');
-          token = await JwtService.getTokenWithFallback();
-        }
-
-        print(
-          '🟡 Auth token for upload: ${token != null ? 'Present' : 'Not present'}',
-        );
+      print('🔑 Token present: ${token != null}');
       } catch (e) {
         print('🟡 Error getting auth token: $e');
       }
@@ -196,18 +233,26 @@ class FileUploadService {
         ),
       });
 
+      // Validate/normalize reportId
+      String effectiveReportId = config.reportId;
+      if (!_isValidObjectId(effectiveReportId)) {
+        final generated = generateObjectId();
+        print('🟡 Provided reportId "${config.reportId}" is not a valid ObjectId. Using generated: $generated');
+        effectiveReportId = generated;
+      }
+
       // Add additional fields
-      formData.fields.add(MapEntry('reportId', config.reportId));
+      formData.fields.add(MapEntry('reportId', effectiveReportId));
       formData.fields.add(MapEntry('fileType', config.reportType));
       formData.fields.add(MapEntry('originalName', fileName));
 
       // Determine upload URL
-      final uploadUrl =
-          '$baseUrl/file-upload/threads-${config.reportType}?reportId=${config.reportId}';
+      final uploadUrl = config.customUploadUrl ?? 
+          '$baseUrl/file-upload/threads-${config.reportType}?reportId=$effectiveReportId';
 
       print('🟡 Report Type: ${config.reportType}');
       print('🟡 Base URL: $baseUrl');
-      print('🟡 Report ID: ${config.reportId}');
+      print('🟡 Report ID: $effectiveReportId');
       print('🟡 Upload URL: $uploadUrl');
 
       // Prepare headers
@@ -218,18 +263,6 @@ class FileUploadService {
       };
 
       print('🟡 Upload headers: $headers');
-
-      // Test endpoint connectivity first
-      try {
-        print('🟡 Testing file upload endpoint connectivity...');
-        final testResponse = await _dio.get('$baseUrl/file-upload/test');
-        print(
-          '🟡 File upload endpoint test successful: ${testResponse.statusCode}',
-        );
-      } catch (e) {
-        print('🟡 File upload endpoint test failed: $e');
-        print('🟡 Continuing with upload anyway...');
-      }
 
       // Upload with progress tracking
       var response = await _dio.post(
@@ -248,18 +281,34 @@ class FileUploadService {
       print('🟡 Upload response data: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final result = _createFileData(response.data);
-        print('✅ File uploaded successfully: ${result['fileName']}');
-        print('🟡 MongoDB-style payload created:');
-        print('🟡 - _id: ${result['_id']}');
-        print('🟡 - originalName: ${result['originalName']}');
-        print('🟡 - fileName: ${result['fileName']}');
-        print('🟡 - mimeType: ${result['mimeType']}');
-        print('🟡 - size: ${result['size']}');
-        print('🟡 - key: ${result['key']}');
-        print('🟡 - url: ${result['url']}');
-        print('🟡 - uploadPath: ${result['uploadPath']}');
-        return result;
+        // Treat success:false as an error
+        if (response.data is Map<String, dynamic> && response.data['success'] == false) {
+          final details = response.data['details'] ?? response.data['message'] ?? 'Upload failed';
+          throw Exception(details);
+        }
+
+        print('✅ Upload successful with status: ${response.statusCode}');
+        print('🟡 Raw response data: ${response.data}');
+        
+        // Check if response has data field
+        Map<String, dynamic> responseData;
+        if (response.data is Map<String, dynamic>) {
+          if (response.data['data'] != null) {
+            responseData = response.data['data'];
+            print('🟡 Using data field from response: $responseData');
+            } else {
+              responseData = response.data;
+            print('🟡 Using direct response data: $responseData');
+            }
+          } else {
+          print('❌ Invalid response format: ${response.data}');
+          throw Exception('Invalid response format from server');
+        }
+        
+        // Create MongoDB-style payload
+        final mongoDBPayload = createMongoDBPayload(responseData);
+        print('✅ File uploaded successfully with MongoDB payload');
+        return mongoDBPayload;
       } else {
         print('❌ Upload failed with status: ${response.statusCode}');
         print('❌ Response data: ${response.data}');
@@ -280,10 +329,10 @@ class FileUploadService {
 
   // Upload multiple files with configuration
   static Future<List<Map<String, dynamic>>> uploadFiles(
-    List<File> files,
+      List<File> files,
     FileUploadConfig config, {
-    Function(int, int)? onProgress,
-  }) async {
+        Function(int, int)? onProgress,
+      }) async {
     List<Map<String, dynamic>> uploadedFiles = [];
 
     for (int i = 0; i < files.length; i++) {
@@ -316,10 +365,10 @@ class FileUploadService {
     return uploadedFiles;
   }
 
-  // Categorize files by type - MongoDB style payload
+  // Categorize files by type and create MongoDB-style payloads
   static Map<String, dynamic> categorizeFiles(
-    List<Map<String, dynamic>> uploadedFiles,
-  ) {
+      List<Map<String, dynamic>> uploadedFiles,
+      ) {
     List<Map<String, dynamic>> screenshots = [];
     List<Map<String, dynamic>> documents = [];
     List<Map<String, dynamic>> voiceMessages = [];
@@ -348,10 +397,7 @@ class FileUploadService {
       print('🟡 - mimeType: $mimeType');
 
       // Check both fileName and originalName for file extensions
-      // Prioritize MIME type over file extensions for more accurate categorization
-      bool isImage =
-          mimeType.startsWith('image/') ||
-          fileName.endsWith('.png') ||
+      bool isImage = fileName.endsWith('.png') ||
           fileName.endsWith('.jpg') ||
           fileName.endsWith('.jpeg') ||
           fileName.endsWith('.gif') ||
@@ -362,30 +408,29 @@ class FileUploadService {
           originalName.endsWith('.jpeg') ||
           originalName.endsWith('.gif') ||
           originalName.endsWith('.bmp') ||
-          originalName.endsWith('.webp');
+          originalName.endsWith('.webp') ||
+          mimeType.startsWith('image/');
 
-      bool isAudio =
-          mimeType.startsWith('audio/') ||
-          fileName.endsWith('.mp3') ||
+      bool isAudio = fileName.endsWith('.mp3') ||
           fileName.endsWith('.wav') ||
           fileName.endsWith('.m4a') ||
           originalName.endsWith('.mp3') ||
           originalName.endsWith('.wav') ||
-          originalName.endsWith('.m4a');
+          originalName.endsWith('.m4a') ||
+          mimeType.startsWith('audio/');
 
-      bool isDocument =
-          mimeType == 'application/pdf' ||
-          mimeType.startsWith('application/vnd.openxmlformats') ||
-          mimeType == 'application/msword' ||
-          mimeType == 'text/plain' ||
-          fileName.endsWith('.pdf') ||
+      bool isDocument = fileName.endsWith('.pdf') ||
           fileName.endsWith('.doc') ||
           fileName.endsWith('.docx') ||
           fileName.endsWith('.txt') ||
           originalName.endsWith('.pdf') ||
           originalName.endsWith('.doc') ||
           originalName.endsWith('.docx') ||
-          originalName.endsWith('.txt');
+          originalName.endsWith('.txt') ||
+          mimeType == 'application/pdf' ||
+          mimeType.startsWith('application/vnd.openxmlformats') ||
+          mimeType == 'application/msword' ||
+          mimeType == 'text/plain';
 
       print('🟡 Categorization results:');
       print('🟡 - isImage: $isImage');
@@ -394,83 +439,62 @@ class FileUploadService {
 
       if (isImage) {
         screenshots.add(file);
-        print('🟡 ✅ Added to screenshots');
+        print('🖼️  Categorized as screenshot');
       } else if (isAudio) {
         voiceMessages.add(file);
-        print('🟡 ✅ Added to voice messages');
+        print('🎵 Categorized as voice message');
       } else if (isDocument) {
         documents.add(file);
-        print('🟡 ✅ Added to documents');
+        print('📄 Categorized as document');
       } else {
-        documents.add(file); // Default to documents
-        print('🟡 ⚠️ Defaulted to documents (unknown type)');
+        print('❓ Unknown file type, adding to documents');
+        documents.add(file);
       }
     }
 
-    return {
+    // Return categorized files in MongoDB-style format
+    final result = {
       'screenshots': screenshots,
       'voiceMessages': voiceMessages,
       'documents': documents,
     };
+
+    print('🟡 Categorization complete:');
+    print('🟡 - Screenshots: ${screenshots.length}');
+    print('🟡 - Documents: ${documents.length}');
+    print('🟡 - Voice messages: ${voiceMessages.length}');
+
+    return result;
   }
 
-  // Upload files and categorize
+  // Upload files and categorize them
   static Future<Map<String, dynamic>> uploadFilesAndCategorize(
-    List<File> files,
+      List<File> files,
     FileUploadConfig config, {
-    Function(int, int)? onProgress,
-  }) async {
-    print('🟡 Starting upload of ${files.length} files...');
-
+        Function(int, int)? onProgress,
+      }) async {
     List<Map<String, dynamic>> uploadedFiles = await uploadFiles(
       files,
       config,
       onProgress: onProgress,
     );
 
-    print('🟡 Successfully uploaded ${uploadedFiles.length} files');
-    print('🟡 Categorizing files...');
-
     final categorizedFiles = categorizeFiles(uploadedFiles);
-
-    print('🟡 Categorization complete:');
-    print('🟡 - Screenshots: ${categorizedFiles['screenshots'].length}');
-    print('🟡 - Documents: ${categorizedFiles['documents'].length}');
-    print('🟡 - Voice messages: ${categorizedFiles['voiceMessages'].length}');
-
+    print('✅ Upload and categorize process complete');
     return categorizedFiles;
   }
 }
 
-// Reusable FileUpload Widget
 class FileUploadWidget extends StatefulWidget {
   final FileUploadConfig config;
   final Function(Map<String, dynamic>) onFilesUploaded;
   final Function(String)? onError;
-  final Widget? customImageIcon;
-  final Widget? customDocumentIcon;
-  final Widget? customAudioIcon;
-  final String? imageButtonText;
-  final String? documentButtonText;
-  final String? audioButtonText;
-  final bool showFileCount;
-  final bool showUploadButton;
-  final Widget? customUploadButton;
 
   const FileUploadWidget({
     Key? key,
     required this.config,
     required this.onFilesUploaded,
     this.onError,
-    this.customImageIcon,
-    this.customDocumentIcon,
-    this.customAudioIcon,
-    this.imageButtonText,
-    this.documentButtonText,
-    this.audioButtonText,
-    this.showFileCount = true,
-    this.showUploadButton = true,
-    this.customUploadButton,
   }) : super(key: key);
 
   @override
@@ -487,128 +511,179 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   int uploadProgress = 0;
   String uploadStatus = '';
 
+  // Store uploaded files with MongoDB-style payloads
   Map<String, dynamic> _uploadedFiles = {
     'screenshots': [],
     'voiceMessages': [],
     'documents': [],
   };
 
-  // Get current uploaded files
+  // Method to get current uploaded files without triggering upload
   Map<String, dynamic> getCurrentUploadedFiles() {
     return _uploadedFiles;
   }
 
-  // Get selected files count
-  int get totalSelectedFiles =>
-      selectedImages.length +
-      selectedDocuments.length +
-      selectedVoiceFiles.length;
-
-  // Clear all selected files
-  void clearSelectedFiles() {
-    setState(() {
-      selectedImages.clear();
-      selectedDocuments.clear();
-      selectedVoiceFiles.clear();
-    });
-  }
-
-  // Trigger upload from outside
+  // Method to trigger upload from outside
   Future<Map<String, dynamic>> triggerUpload() async {
-    if (totalSelectedFiles == 0) {
-      return {'screenshots': [], 'voiceMessages': [], 'documents': []};
+    print('🎯 Trigger upload called');
+    print('📁 Selected images: ${selectedImages.length}');
+    print('📁 Selected documents: ${selectedDocuments.length}');
+    print('📁 Selected voice files: ${selectedVoiceFiles.length}');
+
+    if (selectedImages.isEmpty &&
+        selectedDocuments.isEmpty &&
+        selectedVoiceFiles.isEmpty) {
+      print('⚠️  No files selected for upload');
+      return {
+        'screenshots': [],
+        'voiceMessages': [],
+        'documents': [],
+      };
     }
 
     setState(() {
       isUploading = true;
       uploadProgress = 0;
-      uploadStatus = 'Preparing files for upload...';
+      uploadStatus = 'Preparing files...';
     });
 
     try {
-      List<File> allFiles = [];
-      allFiles.addAll(selectedImages);
-      allFiles.addAll(selectedDocuments);
-      allFiles.addAll(selectedVoiceFiles);
+      // Upload all files
+      if (selectedImages.isNotEmpty ||
+          selectedDocuments.isNotEmpty ||
+          selectedVoiceFiles.isNotEmpty) {
+        setState(() => uploadStatus = 'Uploading files...');
 
-      setState(() {
-        uploadStatus = 'Uploading ${allFiles.length} files...';
-      });
+        List<File> allFiles = [];
+        allFiles.addAll(selectedImages);
+        allFiles.addAll(selectedDocuments);
+        allFiles.addAll(selectedVoiceFiles);
 
-      var categorizedFiles = await FileUploadService.uploadFilesAndCategorize(
-        allFiles,
-        widget.config,
-        onProgress: (sent, total) {
-          setState(() {
-            uploadProgress = sent;
-            uploadStatus = 'Uploading files... ${sent}%';
-          });
-        },
-      );
+        print('📤 Starting upload of ${allFiles.length} files');
+        print('📋 Report ID: ${widget.config.reportId}');
+        print('📋 File Type: ${widget.config.reportType}');
 
-      setState(() {
-        isUploading = false;
-        uploadStatus = 'Upload completed!';
+        var categorizedFiles = await FileUploadService.uploadFilesAndCategorize(
+          allFiles,
+          widget.config,
+          onProgress: (sent, total) {
+            setState(() => uploadProgress = sent);
+            print('📤 Upload progress: $sent/$total');
+          },
+        );
+
+        setState(() {
+          isUploading = false;
+          uploadStatus = 'Upload completed!';
+        });
+
+        print('✅ Upload completed successfully');
+        print('📊 Categorized files: $categorizedFiles');
+
+        // Store uploaded files with MongoDB-style payloads
         _uploadedFiles = categorizedFiles;
-      });
 
-      widget.onFilesUploaded(categorizedFiles);
-      return categorizedFiles;
-    } catch (e) {
+        // Notify parent widget with categorized files
+        widget.onFilesUploaded(categorizedFiles);
+
+        return categorizedFiles;
+      }
+
       setState(() {
         isUploading = false;
-        uploadStatus = 'Upload failed: $e';
+        uploadStatus = 'No files to upload';
       });
 
-      widget.onError?.call(e.toString());
-      return {'screenshots': [], 'voiceMessages': [], 'documents': []};
+      print('⚠️  No files to upload');
+      return {
+        'screenshots': [],
+        'voiceMessages': [],
+        'documents': [],
+      };
+    } catch (e) {
+      print('❌ Error in triggerUpload: $e');
+      setState(() {
+        isUploading = false;
+        uploadStatus = 'Upload failed';
+      });
+
+      String errorMessage = 'Upload failed';
+      if (e.toString().contains('400')) {
+        errorMessage = 'Bad request - check file format and size';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Authentication required';
+      } else if (e.toString().contains('403')) {
+        errorMessage = 'Access denied';
+      } else if (e.toString().contains('404')) {
+        errorMessage = 'Upload endpoint not found';
+      } else if (e.toString().contains('413')) {
+        errorMessage = 'File too large';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'Server error - try again later';
+      }
+
+      widget.onError?.call(errorMessage);
+
+      return {
+        'screenshots': [],
+        'voiceMessages': [],
+        'documents': [],
+      };
     }
   }
 
   // Pick images
   Future<void> _pickImages() async {
+    print('📸 Picking images...');
     final images = await _picker.pickMultiImage();
     if (images != null) {
+      print('📸 Selected ${images.length} images');
       setState(() {
         selectedImages.addAll(images.map((e) => File(e.path)));
       });
-      print('🟡 Images selected: ${selectedImages.length} (not uploaded yet)');
+      print('📸 Total images selected: ${selectedImages.length}');
+    } else {
+      print('📸 No images selected');
     }
   }
 
   // Pick documents
   Future<void> _pickDocuments() async {
+    print('📄 Picking documents...');
     final result = await FilePicker.platform.pickFiles(
-      allowMultiple: widget.config.allowMultipleFiles,
+      allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: widget.config.allowedDocumentExtensions,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
     );
 
     if (result != null) {
+      print('📄 Selected ${result.files.length} documents');
       setState(() {
         selectedDocuments.addAll(result.paths.map((e) => File(e!)));
       });
-      print(
-        '🟡 Documents selected: ${selectedDocuments.length} (not uploaded yet)',
-      );
+      print('📄 Total documents selected: ${selectedDocuments.length}');
+    } else {
+      print('📄 No documents selected');
     }
   }
 
   // Pick voice files
   Future<void> _pickVoiceFiles() async {
+    print('🎵 Picking voice files...');
     final result = await FilePicker.platform.pickFiles(
-      allowMultiple: widget.config.allowMultipleFiles,
+      allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: widget.config.allowedAudioExtensions,
+      allowedExtensions: ['mp3', 'wav', 'm4a'],
     );
 
     if (result != null) {
+      print('🎵 Selected ${result.files.length} voice files');
       setState(() {
         selectedVoiceFiles.addAll(result.paths.map((e) => File(e!)));
       });
-      print(
-        '🟡 Voice files selected: ${selectedVoiceFiles.length} (not uploaded yet)',
-      );
+      print('🎵 Total voice files selected: ${selectedVoiceFiles.length}');
+    } else {
+      print('🎵 No voice files selected');
     }
   }
 
@@ -621,7 +696,9 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
   // Upload all files
   Future<void> _uploadAllFiles() async {
-    if (totalSelectedFiles == 0) {
+    if (selectedImages.isEmpty &&
+        selectedDocuments.isEmpty &&
+        selectedVoiceFiles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select at least one file to upload'),
@@ -630,240 +707,249 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       return;
     }
 
-    await triggerUpload();
-  }
+    setState(() {
+      isUploading = true;
+      uploadProgress = 0;
+      uploadStatus = 'Preparing files...';
+    });
 
-  // Build file list widget
-  Widget _buildFileList(List<File> files, String title, VoidCallback onRemove) {
-    if (files.isEmpty) return const SizedBox.shrink();
+    try {
+      // Upload all files
+      if (selectedImages.isNotEmpty ||
+          selectedDocuments.isNotEmpty ||
+          selectedVoiceFiles.isNotEmpty) {
+        setState(() => uploadStatus = 'Uploading files...');
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$title (${files.length})',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ...files.asMap().entries.map((entry) {
-          final index = entry.key;
-          final file = entry.value;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(4),
+        List<File> allFiles = [];
+        allFiles.addAll(selectedImages);
+        allFiles.addAll(selectedDocuments);
+        allFiles.addAll(selectedVoiceFiles);
+
+        var categorizedFiles = await FileUploadService.uploadFilesAndCategorize(
+          allFiles,
+          widget.config,
+          onProgress: (sent, total) {
+            setState(() => uploadProgress = sent);
+          },
+        );
+
+        setState(() {
+          isUploading = false;
+          uploadStatus = 'Upload completed!';
+        });
+
+        // Store uploaded files with MongoDB-style payloads
+        _uploadedFiles = categorizedFiles;
+
+        // Notify parent widget with categorized files
+        widget.onFilesUploaded(categorizedFiles);
+
+        // Show success message with file counts
+        int totalFiles = (categorizedFiles['screenshots'] as List).length +
+            (categorizedFiles['voiceMessages'] as List).length +
+            (categorizedFiles['documents'] as List).length;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Successfully uploaded $totalFiles files',
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    file.path.split('/').last,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => onRemove(),
-                  icon: const Icon(
-                    Icons.remove_circle,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-        const SizedBox(height: 8),
-      ],
-    );
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isUploading = false;
+        uploadStatus = 'Upload failed';
+      });
+
+      String errorMessage = 'Upload failed';
+      if (e.toString().contains('400')) {
+        errorMessage = 'Bad request - check file format and size';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Authentication required';
+      } else if (e.toString().contains('403')) {
+        errorMessage = 'Access denied';
+      } else if (e.toString().contains('404')) {
+        errorMessage = 'Upload endpoint not found';
+      } else if (e.toString().contains('413')) {
+        errorMessage = 'File too large';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'Server error - try again later';
+      }
+
+      widget.onError?.call(errorMessage);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // File selection buttons in a grid layout
-        Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title
-              const Text(
-                'Upload Evidence',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-
-              // Three column layout for file types
-              Row(
-                children: [
-                  // Images Column
-                  Expanded(
-                    child: _buildFileTypeColumn(
-                      icon:
-                          widget.customImageIcon ??
-                          const Icon(Icons.image, color: Colors.blue),
-                      title: widget.imageButtonText ?? 'Images',
-                      selectedCount: selectedImages.length,
-                      onTap: _pickImages,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Documents Column
-                  Expanded(
-                    child: _buildFileTypeColumn(
-                      icon:
-                          widget.customDocumentIcon ??
-                          const Icon(Icons.description, color: Colors.green),
-                      title: widget.documentButtonText ?? 'Documents',
-                      selectedCount: selectedDocuments.length,
-                      onTap: _pickDocuments,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Voice Files Column
-                  Expanded(
-                    child: _buildFileTypeColumn(
-                      icon:
-                          widget.customAudioIcon ??
-                          const Icon(Icons.audiotrack, color: Colors.orange),
-                      title: widget.audioButtonText ?? 'Voice Files',
-                      selectedCount: selectedVoiceFiles.length,
-                      onTap: _pickVoiceFiles,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Upload Files Button
-              if (widget.showUploadButton && !widget.config.autoUpload) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isUploading ? null : _uploadAllFiles,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple[100],
-                      foregroundColor: Colors.purple[900],
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      isUploading ? 'Uploading...' : 'Upload Files',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-
-              // Show status for selected files when autoUpload is false
-              if (!widget.config.autoUpload && totalSelectedFiles > 0) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Text(
-                    '$totalSelectedFiles file(s) selected - will be uploaded when you submit the report',
-                    style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ],
+        // Images
+        ListTile(
+          leading: Image.asset(
+            'assets/image/Img.png',
+            width: 40,
+            height: 40,
           ),
+          title: const Text('Add Images'),
+          subtitle: Text('Selected: ${selectedImages.length}'),
+          onTap: _pickImages,
         ),
 
-        // File lists
-        if (totalSelectedFiles > 0) ...[
-          const SizedBox(height: 16),
-          _buildFileList(
-            selectedImages,
-            'Images',
-            () => _removeFile(selectedImages, 0),
+        // Documents
+        ListTile(
+          leading: Image.asset(
+            'assets/image/d.png',
+            width: 40,
+            height: 40,
           ),
-          _buildFileList(
-            selectedDocuments,
-            'Documents',
-            () => _removeFile(selectedDocuments, 0),
-          ),
-          _buildFileList(
-            selectedVoiceFiles,
-            'Voice Files',
-            () => _removeFile(selectedVoiceFiles, 0),
-          ),
-        ],
+          title: const Text('Add Documents'),
+          subtitle: Text('Selected: ${selectedDocuments.length}'),
+          onTap: _pickDocuments,
+        ),
 
-        // Upload progress
-        if (isUploading && widget.config.showProgress) ...[
-          const SizedBox(height: 16),
-          LinearProgressIndicator(value: uploadProgress / 100),
-          const SizedBox(height: 8),
-          Text(uploadStatus, style: const TextStyle(fontSize: 12)),
+        // Voice Files
+        ListTile(
+          leading: Image.asset(
+            'assets/image/m.png',
+            width: 40,
+            height: 40,
+          ),
+          title: const Text('Add Voice Files'),
+          subtitle: Text('Selected: ${selectedVoiceFiles.length}'),
+          onTap: _pickVoiceFiles,
+        ),
+
+        // Show upload button only if not in auto upload mode
+        if (!widget.config.autoUpload) ...[
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: isUploading ? null : _uploadAllFiles,
+            child: Text(isUploading ? 'Uploading...' : 'Upload Files'),
+          ),
         ],
       ],
     );
   }
+}
 
-  Widget _buildFileTypeColumn({
-    required Widget icon,
-    required String title,
-    required int selectedCount,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
+// =============================================================================
+// USAGE EXAMPLE - How to use the reusable FileUploadService
+// =============================================================================
+
+/*
+// Example 1: Simple file upload with MongoDB-style payload
+Future<void> uploadSingleFile() async {
+  final config = FileUploadConfig(
+    reportId: '507f1f77bcf86cd799439011', // Valid ObjectId
+    reportType: 'scam',
+    autoUpload: false,
+    maxFileSize: 10, // 10MB
+  );
+
+  final file = File('/path/to/document.png');
+  
+  final result = await FileUploadService.uploadFile(file, config);
+  
+  if (result != null) {
+    print('✅ Upload successful with MongoDB payload:');
+    print('  - ObjectId: ${result['_id']}');
+    print('  - File name: ${result['fileName']}');
+    print('  - URL: ${result['url']}');
+  }
+}
+
+// Example 2: Multiple file upload with categorization
+Future<void> uploadMultipleFiles() async {
+  final config = FileUploadConfig(
+    reportId: '507f1f77bcf86cd799439011',
+    reportType: 'scam',
+    autoUpload: false,
+    allowMultipleFiles: true,
+  );
+
+  final files = [
+    File('/path/to/screenshot.png'),
+    File('/path/to/document.pdf'),
+    File('/path/to/voice.mp3'),
+  ];
+
+  final categorizedFiles = await FileUploadService.uploadFilesAndCategorize(
+    files,
+    config,
+    onProgress: (sent, total) {
+      print('Upload progress: $sent/$total');
+    },
+  );
+
+  print('📸 Screenshots: ${categorizedFiles['screenshots'].length}');
+  print('📄 Documents: ${categorizedFiles['documents'].length}');
+  print('🎵 Voice messages: ${categorizedFiles['voiceMessages'].length}');
+}
+
+// Example 3: Using the FileUploadWidget in a Flutter screen
+class MyUploadScreen extends StatefulWidget {
+  @override
+  _MyUploadScreenState createState() => _MyUploadScreenState();
+}
+
+class _MyUploadScreenState extends State<MyUploadScreen> {
+  final GlobalKey<FileUploadWidgetState> _fileUploadKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('File Upload')),
+      body: Padding(
+        padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // Icon
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[300]!),
+            FileUploadWidget(
+              key: _fileUploadKey,
+              config: FileUploadConfig(
+                reportId: '507f1f77bcf86cd799439011',
+                reportType: 'scam',
+                autoUpload: false,
+                showProgress: true,
+                allowMultipleFiles: true,
               ),
-              child: Center(child: icon),
+              onFilesUploaded: (files) {
+                print('✅ Files uploaded:');
+                print('  - Screenshots: ${files['screenshots'].length}');
+                print('  - Documents: ${files['documents'].length}');
+                print('  - Voice messages: ${files['voiceMessages'].length}');
+                
+                // Each file in the arrays has MongoDB-style payload:
+                // {
+                //   "_id": {"$oid": "6893190e65c636170decc2b9"},
+                //   "originalName": "document.png",
+                //   "fileName": "23a551c0-f041-4978-9b69-3dcb9ca03b64.jpeg",
+                //   "mimeType": "image/jpeg",
+                //   "size": 5425,
+                //   "key": "threads-scam/23a551c0-f041-4978-9b69-3dcb9ca03b64.jpeg",
+                //   "url": "https://scamdetect-dev-afsouth1.s3.amazonaws.com/threads-scam/23a551c0-f041-4978-9b69-3dcb9ca03b64.jpeg",
+                //   "uploadPath": "threads-scam",
+                //   "path": "threads-scam",
+                //   "createdAt": {"$date": "2025-08-06T08:57:50.691Z"},
+                //   "updatedAt": {"$date": "2025-08-06T08:57:50.691Z"},
+                //   "__v": 0
+                // }
+              },
+              onError: (error) {
+                print('❌ Upload error: $error');
+              },
             ),
-            const SizedBox(height: 8),
-
-            // Title
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-
-            // Selected count
-            Text(
-              'Selected: $selectedCount',
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                // Trigger upload programmatically
+                final result = await _fileUploadKey.currentState?.triggerUpload();
+                print('Manual upload result: $result');
+              },
+              child: Text('Upload Files'),
             ),
           ],
         ),
@@ -871,782 +957,4 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     );
   }
 }
-
-// Usage Examples:
-/*
-// Basic usage for scam reports
-FileUploadWidget(
-  config: FileUploadConfig(
-    reportId: '123',
-    reportType: 'scam',
-    autoUpload: false,
-  ),
-  onFilesUploaded: (files) {
-    print('Files uploaded: $files');
-  },
-)
-
-// Advanced usage with custom configuration
-FileUploadWidget(
-  config: FileUploadConfig(
-    reportId: '456',
-    reportType: 'fraud',
-    autoUpload: true,
-    showProgress: true,
-    allowMultipleFiles: true,
-    allowedImageExtensions: ['png', 'jpg', 'jpeg'],
-    allowedDocumentExtensions: ['pdf', 'doc'],
-    allowedAudioExtensions: ['mp3', 'wav'],
-    maxFileSize: 5, // 5MB limit
-    customUploadUrl: 'https://custom-api.com/upload',
-    additionalHeaders: {'X-Custom-Header': 'value'},
-  ),
-  onFilesUploaded: (files) {
-    print('Files uploaded: $files');
-  },
-  onError: (error) {
-    print('Upload error: $error');
-  },
-  customImageIcon: Icon(Icons.image),
-  customDocumentIcon: Icon(Icons.description),
-  customAudioIcon: Icon(Icons.audiotrack),
-  imageButtonText: 'Add Photos',
-  documentButtonText: 'Add Files',
-  audioButtonText: 'Add Audio',
-  showFileCount: true,
-  showUploadButton: false, // Hide upload button for auto-upload
-)
-
-
-
-
-
-
-
-
-
-
-// import 'package:flutter/material.dart';
-// import 'dart:io';
-// import 'package:dio/dio.dart';
-// import 'package:image_picker/image_picker.dart';
-// import 'package:file_picker/file_picker.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
-
-// class FileUploadService {
-//   static final Dio _dio = Dio();
-//   static const String baseUrl = 'http://localhost:3996/api/v1';
-
-//   // Get MIME type for file
-//   static String _getMimeType(String fileName) {
-//     String extension = fileName.split('.').last.toLowerCase();
-//     switch (extension) {
-//       case 'pdf':
-//         return 'application/pdf';
-//       case 'doc':
-//         return 'application/msword';
-//       case 'docx':
-//         return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-//       case 'txt':
-//         return 'text/plain';
-//       case 'png':
-//         return 'image/png';
-//       case 'jpg':
-//       case 'jpeg':
-//         return 'image/jpeg';
-//       case 'gif':
-//         return 'image/gif';
-//       case 'bmp':
-//         return 'image/bmp';
-//       case 'webp':
-//         return 'image/webp';
-//       case 'mp3':
-//         return 'audio/mpeg';
-//       case 'wav':
-//         return 'audio/wav';
-//       case 'm4a':
-//         return 'audio/mp4';
-//       case 'mp4':
-//         return 'video/mp4';
-//       case 'avi':
-//         return 'video/x-msvideo';
-//       case 'mov':
-//         return 'video/quicktime';
-//       case 'mkv':
-//         return 'video/x-matroska';
-//       case 'aac':
-//         return 'audio/aac';
-//       default:
-//         return 'application/octet-stream';
-//     }
-//   }
-
-//   // File upload response model
-//   static Map<String, dynamic> _createFileData(Map<String, dynamic> response) {
-//     return {
-//       'fileId': response['fileId'],
-//       'url': response['url'],
-//       'key': response['key'],
-//       'fileName': response['fileName'],
-//       'size': response['size'],
-//       'contentType': response['contentType'],
-//     };
-//   }
-
-//   // Upload single file
-//   static Future<Map<String, dynamic>?> uploadFile(
-//     File file,
-//     String reportId,
-//     String fileType, {
-//     Function(int, int)? onProgress,
-//   }) async {
-//     try {
-//       // Get auth token
-//       final prefs = await SharedPreferences.getInstance();
-//       final token = prefs.getString('access_token');
-
-//       // Validate file exists
-//       if (!await file.exists()) {
-//         throw Exception('File does not exist: ${file.path}');
-//       }
-
-//       // Create FormData with proper field name and MIME type
-//       String fileName = file.path.split('/').last;
-//       String mimeType = _getMimeType(fileName);
-
-//       var formData = FormData.fromMap({
-//         'file': await MultipartFile.fromFile(
-//           file.path,
-//           filename: fileName,
-//           contentType: DioMediaType.parse(mimeType),
-//         ),
-//       });
-
-//       print('Uploading file: ${file.path}');
-//       print('Report ID: $reportId');
-//       print('File type: $fileType');
-//       print('Token: ${token != null ? 'Present' : 'Missing'}');
-
-//       // Determine the correct endpoint based on file type
-//       String endpoint;
-//       switch (fileType.toLowerCase()) {
-//         case 'malware':
-//           endpoint = '$baseUrl/file-upload/threads-malware?reportId=$reportId';
-//           break;
-//         case 'fraud':
-//           endpoint = '$baseUrl/file-upload/threads-fraud?reportId=$reportId';
-//           break;
-//         case 'scam':
-//         default:
-//           endpoint = '$baseUrl/file-upload/threads-scam?reportId=$reportId';
-//           break;
-//       }
-
-//       // Upload with progress tracking
-//       var response = await _dio.post(
-//         endpoint,
-//         data: formData,
-//         options: Options(
-//           headers: {
-//             'Content-Type': 'multipart/form-data',
-//             if (token != null) 'Authorization': 'Bearer $token',
-//           },
-//           validateStatus: (status) =>
-//               status != null && status < 500, // Accept 2xx, 3xx, 4xx
-//         ),
-//         onSendProgress: onProgress,
-//       );
-
-//       print('Upload response status: ${response.statusCode}');
-//       print('Upload response data: ${response.data}');
-
-//       if (response.statusCode == 200 || response.statusCode == 201) {
-//         return _createFileData(response.data);
-//       } else {
-//         print('Upload failed with status: ${response.statusCode}');
-//         print('Response data: ${response.data}');
-//         return null;
-//       }
-//     } catch (e) {
-//       print('Error uploading file: $e');
-//       return null;
-//     }
-//   }
-
-//   // New method to upload files and return metadata for report integration
-//   static Future<List<Map<String, dynamic>>> uploadFilesForReport(
-//     List<File> files,
-//     String reportType,
-//   ) async {
-//     List<Map<String, dynamic>> uploadedFiles = [];
-
-//     for (File file in files) {
-//       try {
-//         final result = await uploadFile(file, '', reportType);
-//         if (result != null) {
-//           // Add additional metadata similar to React example
-//           final fileMetadata = {
-//             'uploadPath': result['url'] ?? '',
-//             's3Url': result['url'] ?? '',
-//             's3Key': result['key'] ?? '',
-//             'originalName': result['fileName'] ?? '',
-//             'fileId': result['fileId'] ?? result['key'] ?? '',
-//             'url': result['url'] ?? '',
-//             'key': result['key'] ?? '',
-//             'fileName': result['fileName'] ?? '',
-//             'size': result['size'] ?? 0,
-//             'contentType': result['contentType'] ?? 'application/octet-stream',
-//           };
-//           uploadedFiles.add(fileMetadata);
-//         }
-//       } catch (e) {
-//         print('Error uploading file ${file.path}: $e');
-//       }
-//     }
-
-//     return uploadedFiles;
-//   }
-
-//   // New method to upload files directly as part of report submission
-//   static Future<List<Map<String, dynamic>>> uploadFilesDirectly(
-//     List<File> files,
-//     String reportType,
-//   ) async {
-//     List<Map<String, dynamic>> uploadedFiles = [];
-
-//     print('🟡 uploadFilesDirectly called with ${files.length} files');
-//     print('🟡 Report type: $reportType');
-
-//     for (int i = 0; i < files.length; i++) {
-//       File file = files[i];
-//       try {
-//         print('🟡 Processing file ${i + 1}/${files.length}: ${file.path}');
-
-//         // Get auth token
-//         final prefs = await SharedPreferences.getInstance();
-//         final token = prefs.getString('access_token');
-
-//         // Validate file exists
-//         if (!await file.exists()) {
-//           print('❌ File does not exist: ${file.path}');
-//           continue;
-//         }
-
-//         // Create FormData with proper field name and MIME type
-//         String fileName = file.path.split('/').last;
-//         String mimeType = _getMimeType(fileName);
-
-//         print('🟡 File details:');
-//         print('🟡 - File name: $fileName');
-//         print('🟡 - MIME type: $mimeType');
-//         print('🟡 - File size: ${await file.length()} bytes');
-
-//         var formData = FormData.fromMap({
-//           'file': await MultipartFile.fromFile(
-//             file.path,
-//             filename: fileName,
-//             contentType: DioMediaType.parse(mimeType),
-//           ),
-//         });
-
-//         print('🟡 Uploading file directly: ${file.path}');
-//         print('🟡 File type: $reportType');
-
-//         // Use the direct upload endpoint without reportId
-//         String endpoint = '$baseUrl/file-upload/$reportType';
-
-//         print('🟡 Upload endpoint: $endpoint');
-//         print('🟡 Auth token present: ${token != null}');
-
-//         // Upload with progress tracking
-//         var response = await _dio.post(
-//           endpoint,
-//           data: formData,
-//           options: Options(
-//             headers: {
-//               'Content-Type': 'multipart/form-data',
-//               if (token != null) 'Authorization': 'Bearer $token',
-//             },
-//             validateStatus: (status) => status != null && status < 500,
-//           ),
-//         );
-
-//         print('🟡 Upload response status: ${response.statusCode}');
-//         print('🟡 Upload response data: ${response.data}');
-
-//         if (response.statusCode == 200 || response.statusCode == 201) {
-//           final result = _createFileData(response.data);
-//           // Add additional metadata similar to React example
-//           final fileMetadata = {
-//             'uploadPath': result['url'] ?? '',
-//             's3Url': result['url'] ?? '',
-//             's3Key': result['key'] ?? '',
-//             'originalName': result['fileName'] ?? '',
-//             'fileId': result['fileId'] ?? result['key'] ?? '',
-//             'url': result['url'] ?? '',
-//             'key': result['key'] ?? '',
-//             'fileName': result['fileName'] ?? '',
-//             'size': result['size'] ?? 0,
-//             'contentType': result['contentType'] ?? 'application/octet-stream',
-//           };
-//           uploadedFiles.add(fileMetadata);
-//           print('🟡 File uploaded successfully: ${fileMetadata['fileName']}');
-//           print('🟡 File metadata: $fileMetadata');
-//         } else {
-//           print('❌ Upload failed with status: ${response.statusCode}');
-//           print('❌ Response data: ${response.data}');
-//         }
-//       } catch (e) {
-//         print('❌ Error uploading file ${file.path}: $e');
-//         if (e is DioException) {
-//           print('❌ DioException type: ${e.type}');
-//           print('❌ DioException message: ${e.message}');
-//           print('❌ DioException response: ${e.response?.data}');
-//         }
-//       }
-//     }
-
-//     print('🟡 Total files uploaded: ${uploadedFiles.length}');
-//     print('🟡 Uploaded files: $uploadedFiles');
-//     return uploadedFiles;
-//   }
-
-//   // Upload multiple files
-//   static Future<List<Map<String, dynamic>>> uploadFiles(
-//     List<File> files,
-//     String reportId,
-//     String fileType, {
-//     Function(int, int)? onProgress,
-//   }) async {
-//     List<Map<String, dynamic>> uploadedFiles = [];
-
-//     for (int i = 0; i < files.length; i++) {
-//       File file = files[i];
-
-//       // Calculate progress for multiple files
-//       Function(int, int)? progressCallback;
-//       if (onProgress != null) {
-//         progressCallback = (sent, total) {
-//           int overallProgress =
-//               ((i * 100) + (sent * 100 / total)) ~/ files.length;
-//           onProgress(overallProgress, 100);
-//         };
-//       }
-
-//       var result = await uploadFile(
-//         file,
-//         reportId,
-//         fileType,
-//         onProgress: progressCallback,
-//       );
-//       if (result != null) {
-//         uploadedFiles.add(result);
-//       }
-//     }
-
-//     return uploadedFiles;
-//   }
-
-//   // Categorize files by type
-//   static Map<String, List<Map<String, dynamic>>> categorizeFiles(
-//     List<Map<String, dynamic>> uploadedFiles,
-//   ) {
-//     List<Map<String, dynamic>> images = [];
-//     List<Map<String, dynamic>> documents = [];
-//     List<Map<String, dynamic>> voiceFiles = [];
-
-//     for (var file in uploadedFiles) {
-//       String fileName = file['fileName']?.toString().toLowerCase() ?? '';
-
-//       if (fileName.endsWith('.png') ||
-//           fileName.endsWith('.jpg') ||
-//           fileName.endsWith('.jpeg') ||
-//           fileName.endsWith('.gif') ||
-//           fileName.endsWith('.bmp') ||
-//           fileName.endsWith('.webp')) {
-//         images.add(file);
-//       } else if (fileName.endsWith('.pdf') ||
-//           fileName.endsWith('.doc') ||
-//           fileName.endsWith('.docx') ||
-//           fileName.endsWith('.txt')) {
-//         documents.add(file);
-//       } else if (fileName.endsWith('.mp3') ||
-//           fileName.endsWith('.wav') ||
-//           fileName.endsWith('.m4a')) {
-//         voiceFiles.add(file);
-//       }
-//     }
-
-//     return {'images': images, 'documents': documents, 'voiceFiles': voiceFiles};
-//   }
-// }
-
-// class FileUploadWidget extends StatefulWidget {
-//   final String reportId;
-//   final Function(List<Map<String, dynamic>>) onFilesUploaded;
-//   final bool autoUpload;
-//   final String reportType; // Add report type parameter
-
-//   const FileUploadWidget({
-//     Key? key,
-//     required this.reportId,
-//     required this.onFilesUploaded,
-//     this.autoUpload = false,
-//     this.reportType = 'scam', // Default to scam
-//   }) : super(key: key);
-
-//   @override
-//   State<FileUploadWidget> createState() => FileUploadWidgetState();
-// }
-
-// class FileUploadWidgetState extends State<FileUploadWidget> {
-//   final ImagePicker _picker = ImagePicker();
-//   List<File> selectedImages = [];
-//   List<File> selectedDocuments = [];
-//   List<File> selectedVoiceFiles = [];
-
-//   bool isUploading = false;
-//   int uploadProgress = 0;
-//   String uploadStatus = '';
-
-//   // Method to trigger upload from outside
-//   Future<List<Map<String, dynamic>>> triggerUpload() async {
-//     if (selectedImages.isEmpty &&
-//         selectedDocuments.isEmpty &&
-//         selectedVoiceFiles.isEmpty) {
-//       return [];
-//     }
-
-//     setState(() {
-//       isUploading = true;
-//       uploadProgress = 0;
-//       uploadStatus = 'Preparing files...';
-//     });
-
-//     try {
-//       List<Map<String, dynamic>> allUploadedFiles = [];
-
-//       // Upload images
-//       if (selectedImages.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading images...');
-//         var uploadedImages = await FileUploadService.uploadFiles(
-//           selectedImages,
-//           widget.reportId,
-//           'image',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedImages);
-//       }
-
-//       // Upload documents
-//       if (selectedDocuments.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading documents...');
-//         var uploadedDocuments = await FileUploadService.uploadFiles(
-//           selectedDocuments,
-//           widget.reportId,
-//           'document',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedDocuments);
-//       }
-
-//       // Upload voice files
-//       if (selectedVoiceFiles.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading voice files...');
-//         var uploadedVoiceFiles = await FileUploadService.uploadFiles(
-//           selectedVoiceFiles,
-//           widget.reportId,
-//           'voice',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedVoiceFiles);
-//       }
-
-//       setState(() {
-//         isUploading = false;
-//         uploadStatus = 'Upload completed!';
-//       });
-
-//       // Notify parent widget
-//       widget.onFilesUploaded(allUploadedFiles);
-
-//       return allUploadedFiles;
-//     } catch (e) {
-//       setState(() {
-//         isUploading = false;
-//         uploadStatus = 'Upload failed';
-//       });
-
-//       String errorMessage = 'Upload failed';
-//       if (e.toString().contains('400')) {
-//         errorMessage = 'Bad request - check file format and size';
-//       } else if (e.toString().contains('401')) {
-//         errorMessage = 'Authentication required';
-//       } else if (e.toString().contains('403')) {
-//         errorMessage = 'Access denied';
-//       } else if (e.toString().contains('404')) {
-//         errorMessage = 'Upload endpoint not found';
-//       } else if (e.toString().contains('413')) {
-//         errorMessage = 'File too large';
-//       } else if (e.toString().contains('500')) {
-//         errorMessage = 'Server error - try again later';
-//       }
-
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text(errorMessage),
-//           backgroundColor: Colors.red,
-//           duration: const Duration(seconds: 5),
-//         ),
-//       );
-
-//       return [];
-//     }
-//   }
-
-//   // Pick images
-//   Future<void> _pickImages() async {
-//     final images = await _picker.pickMultiImage();
-//     if (images != null) {
-//       setState(() {
-//         selectedImages.addAll(images.map((e) => File(e.path)));
-//       });
-//     }
-//   }
-
-//   // Pick documents
-//   Future<void> _pickDocuments() async {
-//     final result = await FilePicker.platform.pickFiles(
-//       allowMultiple: true,
-//       type: FileType.custom,
-//       allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
-//     );
-
-//     if (result != null) {
-//       setState(() {
-//         selectedDocuments.addAll(result.paths.map((e) => File(e!)));
-//       });
-//     }
-//   }
-
-//   // Pick voice files
-//   Future<void> _pickVoiceFiles() async {
-//     final result = await FilePicker.platform.pickFiles(
-//       allowMultiple: true,
-//       type: FileType.custom,
-//       allowedExtensions: ['mp3', 'wav', 'm4a'],
-//     );
-
-//     if (result != null) {
-//       setState(() {
-//         selectedVoiceFiles.addAll(result.paths.map((e) => File(e!)));
-//       });
-//     }
-//   }
-
-//   // Remove file from list
-//   void _removeFile(List<File> fileList, int index) {
-//     setState(() {
-//       fileList.removeAt(index);
-//     });
-//   }
-
-//   // Upload all files
-//   Future<void> _uploadAllFiles() async {
-//     if (selectedImages.isEmpty &&
-//         selectedDocuments.isEmpty &&
-//         selectedVoiceFiles.isEmpty) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(
-//           content: Text('Please select at least one file to upload'),
-//         ),
-//       );
-//       return;
-//     }
-
-//     setState(() {
-//       isUploading = true;
-//       uploadProgress = 0;
-//       uploadStatus = 'Preparing files...';
-//     });
-
-//     try {
-//       List<Map<String, dynamic>> allUploadedFiles = [];
-
-//       // Upload images
-//       if (selectedImages.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading images...');
-//         var uploadedImages = await FileUploadService.uploadFiles(
-//           selectedImages,
-//           widget.reportId,
-//           'image',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedImages);
-//       }
-
-//       // Upload documents
-//       if (selectedDocuments.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading documents...');
-//         var uploadedDocuments = await FileUploadService.uploadFiles(
-//           selectedDocuments,
-//           widget.reportId,
-//           'document',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedDocuments);
-//       }
-
-//       // Upload voice files
-//       if (selectedVoiceFiles.isNotEmpty) {
-//         setState(() => uploadStatus = 'Uploading voice files...');
-//         var uploadedVoiceFiles = await FileUploadService.uploadFiles(
-//           selectedVoiceFiles,
-//           widget.reportId,
-//           'voice',
-//           onProgress: (sent, total) {
-//             setState(() => uploadProgress = sent);
-//           },
-//         );
-//         allUploadedFiles.addAll(uploadedVoiceFiles);
-//       }
-
-//       setState(() {
-//         isUploading = false;
-//         uploadStatus = 'Upload completed!';
-//       });
-
-//       // Notify parent widget
-//       widget.onFilesUploaded(allUploadedFiles);
-
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text(
-//             'Successfully uploaded ${allUploadedFiles.length} files',
-//           ),
-//           backgroundColor: Colors.green,
-//         ),
-//       );
-//     } catch (e) {
-//       setState(() {
-//         isUploading = false;
-//         uploadStatus = 'Upload failed';
-//       });
-
-//       String errorMessage = 'Upload failed';
-//       if (e.toString().contains('400')) {
-//         errorMessage = 'Bad request - check file format and size';
-//       } else if (e.toString().contains('401')) {
-//         errorMessage = 'Authentication required';
-//       } else if (e.toString().contains('403')) {
-//         errorMessage = 'Access denied';
-//       } else if (e.toString().contains('404')) {
-//         errorMessage = 'Upload endpoint not found';
-//       } else if (e.toString().contains('413')) {
-//         errorMessage = 'File too large';
-//       } else if (e.toString().contains('500')) {
-//         errorMessage = 'Server error - try again later';
-//       }
-
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text(errorMessage),
-//           backgroundColor: Colors.red,
-//           duration: const Duration(seconds: 5),
-//         ),
-//       );
-//     }
-//   }
-
-//   // Get currently selected files with their types
-//   List<Map<String, dynamic>> getUploadedFiles() {
-//     List<Map<String, dynamic>> files = [];
-
-//     // Add screenshots
-//     files.addAll(
-//       selectedImages.map(
-//         (file) => {'file': file, 'type': 'screenshot', 'path': file.path},
-//       ),
-//     );
-
-//     // Add documents
-//     files.addAll(
-//       selectedDocuments.map(
-//         (file) => {'file': file, 'type': 'document', 'path': file.path},
-//       ),
-//     );
-
-//     // Add voice files
-//     files.addAll(
-//       selectedVoiceFiles.map(
-//         (file) => {'file': file, 'type': 'voice', 'path': file.path},
-//       ),
-//     );
-
-//     return files;
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         // Images
-//         ListTile(
-//           leading: Image.asset(
-//             'assets/image/document.png', // your local image path
-//             width: 30,
-//             height: 30,
-//           ),
-//           title: const Text('Add Images'),
-//           subtitle: Text('Selected: ${selectedImages.length}'),
-//           onTap: _pickImages,
-//         ),
-
-//         // Documents
-//         ListTile(
-//           leading: Image.asset(
-//             'assets/image/document.png', // your local image path
-//             width: 30,
-//             height: 30,
-//           ),
-//           title: const Text('Add Documents'),
-//           subtitle: Text('Selected: ${selectedDocuments.length}'),
-//           onTap: _pickDocuments,
-//         ),
-
-//         // Voice Files
-//         ListTile(
-//           leading: Image.asset(
-//             'assets/image/document.png', // your local image path
-//             width: 30,
-//             height: 30,
-//           ),
-//           title: const Text('Add Voice Files'),
-//           subtitle: Text('Selected: ${selectedVoiceFiles.length}'),
-//           onTap: _pickVoiceFiles,
-//         ),
-
-//         // Show upload button only if not in auto upload mode
-//         if (!widget.autoUpload) ...[
-//           const SizedBox(height: 20),
-//           ElevatedButton(
-//             onPressed: isUploading ? null : _uploadAllFiles,
-//             child: Text(isUploading ? 'Uploading...' : 'Upload Files'),
-//           ),
-//         ],
-//       ],
-//      );
-//    }
-//  }
-//}
-*/
+*/ 

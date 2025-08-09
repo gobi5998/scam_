@@ -111,7 +111,7 @@ class FraudReportService {
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
       final key =
-          '${report.phoneNumbers.join(',')}_${report.emailAddresses.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+          '${report.phoneNumbers.join(',')}_${report.emails.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
 
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
@@ -206,7 +206,7 @@ class FraudReportService {
             report.alertLevels ??
             '', // Also send as severity for backend compatibility
         'phoneNumbers': report.phoneNumbers ?? [],
-        'emailAddresses': report.emailAddresses ?? [],
+        'emailAddresses': report.emails ?? [],
         'mediaHandles': report.socialMediaHandles ?? [],
         'website': report.website ?? '',
         'description': report.description ?? '',
@@ -237,8 +237,8 @@ class FraudReportService {
         'age': report.minAge != null && report.maxAge != null
             ? {'min': report.minAge, 'max': report.maxAge}
             : null,
-        'screenshotUrls': report.screenshotPaths ?? [],
-        'documentUrls': report.documentPaths ?? [],
+        'screenshotUrls': report.screenshots ?? [],
+        'documentUrls': report.documents ?? [],
         'voiceMessageUrls':
             [], // Fraud reports don't typically have voice files
       };
@@ -394,7 +394,7 @@ class FraudReportService {
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
       final key =
-          '${report.phoneNumbers.join(',')}_${report.emailAddresses.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+          '${report.phoneNumbers.join(',')}_${report.emails.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
 
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
@@ -460,7 +460,7 @@ class FraudReportService {
       for (var report in allReports) {
         // Create unique key based on phone, email, description, and alertLevels
         final phone = report.phoneNumbers.join(',');
-        final email = report.emailAddresses.join(',');
+        final email = report.emails.join(',');
         final description = report.description ?? '';
         final alertLevels = report.alertLevels ?? '';
 

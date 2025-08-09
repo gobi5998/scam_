@@ -508,7 +508,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           alertLevels: null,
           name: name ?? '',
           phoneNumbers: finalPhoneNumbers,
-          emailAddresses: finalEmailAddresses,
+          emails: finalEmailAddresses,
           website: website ?? '',
           description: description!,
           createdAt: now,
