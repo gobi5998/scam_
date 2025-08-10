@@ -17,7 +17,8 @@ class FileUploadConfig {
   final List<String> allowedDocumentExtensions;
   final List<String> allowedAudioExtensions;
   final List<String> allowedvideoExtensions;
-  final int maxFileSize; // in MB (default 10MB, but server may have different limits)
+  final int
+  maxFileSize; // in MB (default 10MB, but server may have different limits)
   final String? customUploadUrl;
   final Map<String, String>? additionalHeaders;
 
@@ -38,7 +39,8 @@ class FileUploadConfig {
     this.allowedDocumentExtensions = const ['pdf', 'doc', 'docx', 'txt'],
     this.allowedAudioExtensions = const ['mp3', 'wav', 'm4a'],
     this.allowedvideoExtensions = const ['mp4'],
-    this.maxFileSize = 5, // 5MB default (server nginx limit appears to be lower)
+    this.maxFileSize =
+        5, // 5MB default (server nginx limit appears to be lower)
     this.customUploadUrl,
     this.additionalHeaders,
   });
@@ -55,12 +57,12 @@ class FileUploadService {
     final machineId = random.nextInt(0xFFFFFF);
     final processId = random.nextInt(0xFFFF);
     final counter = random.nextInt(0xFFFFFF);
-    
+
     final timestampHex = timestamp.toRadixString(16).padLeft(8, '0');
     final machineIdHex = machineId.toRadixString(16).padLeft(6, '0');
     final processIdHex = processId.toRadixString(16).padLeft(4, '0');
     final counterHex = counter.toRadixString(16).padLeft(6, '0');
-    
+
     return timestampHex + machineIdHex + processIdHex + counterHex;
   }
 
@@ -125,7 +127,7 @@ class FileUploadService {
       ...config.allowedImageExtensions,
       ...config.allowedDocumentExtensions,
       ...config.allowedAudioExtensions,
-      ...config.allowedvideoExtensions
+      ...config.allowedvideoExtensions,
     ];
 
     if (!allAllowedExtensions.contains(extension)) {
@@ -136,7 +138,9 @@ class FileUploadService {
   }
 
   // Create MongoDB-style payload from server response (normalized for backend)
-  static Map<String, dynamic> createMongoDBPayload(Map<String, dynamic> response) {
+  static Map<String, dynamic> createMongoDBPayload(
+    Map<String, dynamic> response,
+  ) {
     print('🔍 Creating MongoDB-style payload from response: $response');
 
     // Extract _id as plain string (no $oid wrapper)
@@ -151,13 +155,22 @@ class FileUploadService {
     }
 
     // Normalize timestamps as ISO strings (no $date wrapper)
-    final createdAtStr = (response['createdAt']?.toString() ?? DateTime.now().toUtc().toIso8601String());
-    final updatedAtStr = (response['updatedAt']?.toString() ?? DateTime.now().toUtc().toIso8601String());
+    final createdAtStr =
+        (response['createdAt']?.toString() ??
+        DateTime.now().toUtc().toIso8601String());
+    final updatedAtStr =
+        (response['updatedAt']?.toString() ??
+        DateTime.now().toUtc().toIso8601String());
 
     // Normalize required fields
-    final mimeType = response['mimeType']?.toString() ?? response['contentType']?.toString() ?? '';
-    final key = response['key']?.toString() ?? response['s3Key']?.toString() ?? '';
-    final url = response['url']?.toString() ?? response['s3Url']?.toString() ?? '';
+    final mimeType =
+        response['mimeType']?.toString() ??
+        response['contentType']?.toString() ??
+        '';
+    final key =
+        response['key']?.toString() ?? response['s3Key']?.toString() ?? '';
+    final url =
+        response['url']?.toString() ?? response['s3Url']?.toString() ?? '';
 
     // Build payload matching backend schema (no extended JSON wrappers)
     final mongoDBPayload = {
@@ -168,11 +181,17 @@ class FileUploadService {
       'contentType': mimeType, // required by backend
       'size': int.tryParse(response['size']?.toString() ?? '0') ?? 0,
       'key': key,
-      's3Key': key,           // required by backend
+      's3Key': key, // required by backend
       'url': url,
-      's3Url': url,           // required by backend
-      'uploadPath': response['uploadPath']?.toString() ?? response['path']?.toString() ?? '',
-      'path': response['path']?.toString() ?? response['uploadPath']?.toString() ?? '',
+      's3Url': url, // required by backend
+      'uploadPath':
+          response['uploadPath']?.toString() ??
+          response['path']?.toString() ??
+          '',
+      'path':
+          response['path']?.toString() ??
+          response['uploadPath']?.toString() ??
+          '',
       'createdAt': createdAtStr,
       'updatedAt': updatedAtStr,
       '__v': int.tryParse(response['__v']?.toString() ?? '0') ?? 0,
@@ -202,7 +221,8 @@ class FileUploadService {
 
   // Detect server file size limit from 413 error
   static int detectServerLimit(String errorMessage) {
-    if (errorMessage.contains('413') || errorMessage.contains('Request Entity Too Large')) {
+    if (errorMessage.contains('413') ||
+        errorMessage.contains('Request Entity Too Large')) {
       // Based on the error, suggest a conservative limit
       return 3; // 3MB as a safe limit
     }
@@ -211,10 +231,10 @@ class FileUploadService {
 
   // Upload single file with configuration
   static Future<Map<String, dynamic>?> uploadFile(
-      File file,
+    File file,
     FileUploadConfig config, {
-        Function(int, int)? onProgress,
-      }) async {
+    Function(int, int)? onProgress,
+  }) async {
     try {
       print('🟡 Starting upload for file: ${file.path}');
 
@@ -228,9 +248,9 @@ class FileUploadService {
       // Get auth token
       String? token;
       try {
-      final prefs = await SharedPreferences.getInstance();
+        final prefs = await SharedPreferences.getInstance();
         token = prefs.getString('access_token');
-      print('🔑 Token present: ${token != null}');
+        print('🔑 Token present: ${token != null}');
       } catch (e) {
         print('🟡 Error getting auth token: $e');
       }
@@ -242,7 +262,9 @@ class FileUploadService {
       print('🟡 File details:');
       print('🟡 - Name: $fileName');
       print('🟡 - MIME type: $mimeType');
-      print('🟡 - Size: ${getFileSizeMB(file)}MB (${await file.length()} bytes)');
+      print(
+        '🟡 - Size: ${getFileSizeMB(file)}MB (${await file.length()} bytes)',
+      );
       print('🟡 - Max allowed: ${config.maxFileSize}MB');
 
       var formData = FormData.fromMap({
@@ -257,7 +279,9 @@ class FileUploadService {
       String effectiveReportId = config.reportId;
       if (!_isValidObjectId(effectiveReportId)) {
         final generated = generateObjectId();
-        print('🟡 Provided reportId "${config.reportId}" is not a valid ObjectId. Using generated: $generated');
+        print(
+          '🟡 Provided reportId "${config.reportId}" is not a valid ObjectId. Using generated: $generated',
+        );
         effectiveReportId = generated;
       }
 
@@ -267,7 +291,8 @@ class FileUploadService {
       formData.fields.add(MapEntry('originalName', fileName));
 
       // Determine upload URL
-      final uploadUrl = config.customUploadUrl ?? 
+      final uploadUrl =
+          config.customUploadUrl ??
           '$baseUrl/file-upload/threads-${config.reportType}?reportId=$effectiveReportId';
 
       print('🟡 Report Type: ${config.reportType}');
@@ -302,29 +327,33 @@ class FileUploadService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Treat success:false as an error
-        if (response.data is Map<String, dynamic> && response.data['success'] == false) {
-          final details = response.data['details'] ?? response.data['message'] ?? 'Upload failed';
+        if (response.data is Map<String, dynamic> &&
+            response.data['success'] == false) {
+          final details =
+              response.data['details'] ??
+              response.data['message'] ??
+              'Upload failed';
           throw Exception(details);
         }
 
         print('✅ Upload successful with status: ${response.statusCode}');
         print('🟡 Raw response data: ${response.data}');
-        
+
         // Check if response has data field
         Map<String, dynamic> responseData;
         if (response.data is Map<String, dynamic>) {
           if (response.data['data'] != null) {
             responseData = response.data['data'];
             print('🟡 Using data field from response: $responseData');
-            } else {
-              responseData = response.data;
-            print('🟡 Using direct response data: $responseData');
-            }
           } else {
+            responseData = response.data;
+            print('🟡 Using direct response data: $responseData');
+          }
+        } else {
           print('❌ Invalid response format: ${response.data}');
           throw Exception('Invalid response format from server');
         }
-        
+
         // Create MongoDB-style payload
         final mongoDBPayload = createMongoDBPayload(responseData);
         print('✅ File uploaded successfully with MongoDB payload');
@@ -332,13 +361,14 @@ class FileUploadService {
       } else {
         print('❌ Upload failed with status: ${response.statusCode}');
         print('❌ Response data: ${response.data}');
-        
+
         // Handle specific HTTP error codes with user-friendly messages
         String errorMessage;
         switch (response.statusCode) {
           case 413:
             final suggestedLimit = detectServerLimit('413');
-            errorMessage = 'File too large for server (${getFileSizeMB(file)}MB). Server limit appears to be ${suggestedLimit}MB or less. Please compress or choose a smaller file.';
+            errorMessage =
+                'File too large for server (${getFileSizeMB(file)}MB). Server limit appears to be ${suggestedLimit}MB or less. Please compress or choose a smaller file.';
             break;
           case 400:
             errorMessage = 'Bad request - check file format and size';
@@ -358,7 +388,7 @@ class FileUploadService {
           default:
             errorMessage = 'Upload failed: ${response.statusCode}';
         }
-        
+
         throw Exception(errorMessage);
       }
     } catch (e) {
@@ -374,10 +404,10 @@ class FileUploadService {
 
   // Upload multiple files with configuration
   static Future<List<Map<String, dynamic>>> uploadFiles(
-      List<File> files,
+    List<File> files,
     FileUploadConfig config, {
-        Function(int, int)? onProgress,
-      }) async {
+    Function(int, int)? onProgress,
+  }) async {
     List<Map<String, dynamic>> uploadedFiles = [];
 
     for (int i = 0; i < files.length; i++) {
@@ -412,8 +442,8 @@ class FileUploadService {
 
   // Categorize files by type and create MongoDB-style payloads
   static Map<String, dynamic> categorizeFiles(
-      List<Map<String, dynamic>> uploadedFiles,
-      ) {
+    List<Map<String, dynamic>> uploadedFiles,
+  ) {
     List<Map<String, dynamic>> screenshots = [];
     List<Map<String, dynamic>> documents = [];
     List<Map<String, dynamic>> voiceMessages = [];
@@ -442,7 +472,8 @@ class FileUploadService {
       print('🟡 - mimeType: $mimeType');
 
       // Check both fileName and originalName for file extensions
-      bool isImage = fileName.endsWith('.png') ||
+      bool isImage =
+          fileName.endsWith('.png') ||
           fileName.endsWith('.jpg') ||
           fileName.endsWith('.jpeg') ||
           fileName.endsWith('.gif') ||
@@ -456,7 +487,8 @@ class FileUploadService {
           originalName.endsWith('.webp') ||
           mimeType.startsWith('image/');
 
-      bool isAudio = fileName.endsWith('.mp3') ||
+      bool isAudio =
+          fileName.endsWith('.mp3') ||
           fileName.endsWith('.wav') ||
           fileName.endsWith('.m4a') ||
           originalName.endsWith('.mp3') ||
@@ -464,7 +496,8 @@ class FileUploadService {
           originalName.endsWith('.m4a') ||
           mimeType.startsWith('audio/');
 
-      bool isDocument = fileName.endsWith('.pdf') ||
+      bool isDocument =
+          fileName.endsWith('.pdf') ||
           fileName.endsWith('.doc') ||
           fileName.endsWith('.docx') ||
           fileName.endsWith('.txt') ||
@@ -496,8 +529,7 @@ class FileUploadService {
       } else if (isVideo) {
         videofiles.add(file);
         print('📄 Categorized as document');
-      }
-       else {
+      } else {
         print('❓ Unknown file type, adding to documents');
         documents.add(file);
       }
@@ -508,7 +540,7 @@ class FileUploadService {
       'screenshots': screenshots,
       'voiceMessages': voiceMessages,
       'documents': documents,
-      'videofiles' : videofiles
+      'videofiles': videofiles,
     };
 
     print('🟡 Categorization complete:');
@@ -521,10 +553,10 @@ class FileUploadService {
 
   // Upload files and categorize them
   static Future<Map<String, dynamic>> uploadFilesAndCategorize(
-      List<File> files,
+    List<File> files,
     FileUploadConfig config, {
-        Function(int, int)? onProgress,
-      }) async {
+    Function(int, int)? onProgress,
+  }) async {
     List<Map<String, dynamic>> uploadedFiles = await uploadFiles(
       files,
       config,
@@ -560,7 +592,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   List<File> selectedVoiceFiles = [];
   List<File> selectedVideoFiles = [];
 
-
   bool isUploading = false;
   int uploadProgress = 0;
   String uploadStatus = '';
@@ -570,7 +601,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     'screenshots': [],
     'voiceMessages': [],
     'documents': [],
-    'videofiles' :[]
+    'videofiles': [],
   };
 
   // Method to get current uploaded files without triggering upload
@@ -603,7 +634,9 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     final validationErrors = _validateFiles();
     if (validationErrors.isNotEmpty) {
       print('❌ File validation errors: ${validationErrors.join(', ')}');
-      widget.onError?.call('File validation errors:\n${validationErrors.join('\n')}');
+      widget.onError?.call(
+        'File validation errors:\n${validationErrors.join('\n')}',
+      );
       return {
         'screenshots': [],
         'voiceMessages': [],
@@ -623,7 +656,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       if (selectedImages.isNotEmpty ||
           selectedDocuments.isNotEmpty ||
           selectedVoiceFiles.isNotEmpty ||
-      selectedVideoFiles.isNotEmpty) {
+          selectedVideoFiles.isNotEmpty) {
         setState(() => uploadStatus = 'Uploading files...');
 
         List<File> allFiles = [];
@@ -672,7 +705,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         'screenshots': [],
         'voiceMessages': [],
         'documents': [],
-        'videofiles':[],
+        'videofiles': [],
       };
     } catch (e) {
       print('❌ Error in triggerUpload: $e');
@@ -702,7 +735,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         'screenshots': [],
         'voiceMessages': [],
         'documents': [],
-        'videofiles':[],
+        'videofiles': [],
       };
     }
   }
@@ -717,7 +750,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         selectedImages.addAll(images.map((e) => File(e.path)));
       });
       print('📸 Total images selected: ${selectedImages.length}');
-      
+
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
         _autoUploadFiles();
@@ -742,7 +775,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         selectedDocuments.addAll(result.paths.map((e) => File(e!)));
       });
       print('📄 Total documents selected: ${selectedDocuments.length}');
-      
+
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
         _autoUploadFiles();
@@ -767,7 +800,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         selectedVoiceFiles.addAll(result.paths.map((e) => File(e!)));
       });
       print('🎵 Total voice files selected: ${selectedVoiceFiles.length}');
-      
+
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
         _autoUploadFiles();
@@ -783,7 +816,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: ['mp4'],
-
     );
 
     if (result != null) {
@@ -792,7 +824,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         selectedVideoFiles.addAll(result.paths.map((e) => File(e!)));
       });
       print('🎵 Total video files selected: ${selectedVideoFiles.length}');
-      
+
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
         _autoUploadFiles();
@@ -856,11 +888,13 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       try {
         final fileSize = file.lengthSync();
         final maxSizeBytes = widget.config.maxFileSize * 1024 * 1024;
-        
+
         if (fileSize > maxSizeBytes) {
           final fileName = file.path.split('/').last;
           final fileSizeMB = (fileSize / (1024 * 1024)).toStringAsFixed(2);
-          errors.add('$fileName (${fileSizeMB}MB) exceeds ${widget.config.maxFileSize}MB limit');
+          errors.add(
+            '$fileName (${fileSizeMB}MB) exceeds ${widget.config.maxFileSize}MB limit',
+          );
         }
       } catch (e) {
         errors.add('Cannot read file: ${file.path.split('/').last}');
@@ -889,7 +923,9 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     if (validationErrors.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('File validation errors:\n${validationErrors.join('\n')}'),
+          content: Text(
+            'File validation errors:\n${validationErrors.join('\n')}',
+          ),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 5),
         ),
@@ -908,7 +944,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       if (selectedImages.isNotEmpty ||
           selectedDocuments.isNotEmpty ||
           selectedVoiceFiles.isNotEmpty ||
-      selectedVideoFiles.isNotEmpty) {
+          selectedVideoFiles.isNotEmpty) {
         setState(() => uploadStatus = 'Uploading files...');
 
         List<File> allFiles = [];
@@ -937,19 +973,18 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         widget.onFilesUploaded(categorizedFiles);
 
         // Show success message with file counts
-        int totalFiles = (categorizedFiles['screenshots'] as List).length +
+        int totalFiles =
+            (categorizedFiles['screenshots'] as List).length +
             (categorizedFiles['voiceMessages'] as List).length +
             (categorizedFiles['documents'] as List).length +
             (categorizedFiles['videofiles'] as List).length;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Successfully uploaded $totalFiles files',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Text('Successfully uploaded $totalFiles files'),
+        //     backgroundColor: Colors.green,
+        //   ),
+        // );
       }
     } catch (e) {
       setState(() {
@@ -981,50 +1016,123 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     return Column(
       children: [
         // Images
-        ListTile(
-          leading: Image.asset(
-            'assets/image/document.png',
-            width: 40,
-            height: 40,
+        Container(
+          padding: const EdgeInsets.all(8.0),
+          margin: const EdgeInsets.symmetric(vertical: 5.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          title: const Text('Add Images'),
-          subtitle: Text('Selected: ${selectedImages.length}${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}'),
-          onTap: _pickImages,
+          child: ListTile(
+            leading: Image.asset(
+              'assets/image/screenshot.png',
+              width: 40,
+              height: 40,
+            ),
+            title: const Text('Add Screenshots'),
+            subtitle: Text(
+              'Selected: ${selectedImages.length}'
+              '${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+            ),
+            onTap: _pickImages,
+          ),
         ),
 
         // Documents
-        ListTile(
-          leading: Image.asset(
-            'assets/image/document.png',
-            width: 40,
-            height: 40,
+        Container(
+          padding: const EdgeInsets.all(8.0),
+          margin: const EdgeInsets.symmetric(vertical: 5.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          title: const Text('Add Documents'),
-          subtitle: Text('Selected: ${selectedDocuments.length}${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}'),
-          onTap: _pickDocuments,
+          child: ListTile(
+            leading: Image.asset(
+              'assets/image/doc.png',
+              width: 40,
+              height: 40,
+            ),
+            title: const Text('Add Documents'),
+            subtitle: Text(
+              'Selected: ${selectedDocuments.length}${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+            ),
+            onTap: _pickDocuments,
+          ),
         ),
 
         // Voice Files
-        ListTile(
-          leading: Image.asset(
-            'assets/image/document.png',
-            width: 40,
-            height: 40,
+        Container(
+          padding: const EdgeInsets.all(8.0),
+          margin: const EdgeInsets.symmetric(vertical: 5.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          title: const Text('Add Voice Files'),
-          subtitle: Text('Selected: ${selectedVoiceFiles.length}${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}'),
-          onTap: _pickVoiceFiles,
+          child: ListTile(
+            leading: Image.asset(
+              'assets/image/voice.png',
+              width: 40,
+              height: 40,
+            ),
+            title: const Text('Add Voice Messages'),
+            subtitle: Text(
+              'Selected: ${selectedVoiceFiles.length}${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+            ),
+            onTap: _pickVoiceFiles,
+          ),
         ),
 
-        ListTile(
-          leading: Image.asset(
-            'assets/image/document.png',
-            width: 40,
-            height: 40,
+        Container(
+          padding: const EdgeInsets.all(8.0),
+          margin: const EdgeInsets.symmetric(vertical: 5.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          title: const Text('Add Videos'),
-          subtitle: Text('Selected: ${selectedVideoFiles.length}${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}'),
-          onTap: _pickVideoFiles,
+          child: ListTile(
+            leading: Image.asset(
+              'assets/image/video.png',
+              width: 40,
+              height: 40,
+            ),
+            title: const Text('Add Videos'),
+            subtitle: Text(
+              'Selected: ${selectedVideoFiles.length}${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+            ),
+            onTap: _pickVideoFiles,
+          ),
         ),
 
         // Show upload progress if uploading
@@ -1060,15 +1168,14 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                   LinearProgressIndicator(
                     value: uploadProgress / 100,
                     backgroundColor: Colors.blue.shade100,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.blue.shade600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '$uploadProgress%',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
                   ),
                 ],
               ],
@@ -1095,18 +1202,18 @@ Future<void> uploadSingleFile() async {
   );
 
   final file = File('/path/to/document.png');
-  
+
   // Check file size before upload
   final fileSizeMB = FileUploadService.getFileSizeMB(file);
   print('File size: ${fileSizeMB}MB');
-  
+
   if (double.parse(fileSizeMB) > config.maxFileSize) {
     print('❌ File too large: ${fileSizeMB}MB > ${config.maxFileSize}MB');
     return;
   }
-  
+
   final result = await FileUploadService.uploadFile(file, config);
-  
+
   if (result != null) {
     print('✅ Upload successful with MongoDB payload:');
     print('  - ObjectId: ${result['_id']}');
@@ -1165,7 +1272,7 @@ Future<void> uploadMultipleFiles() async {
     print('🎬 Video files: ${categorizedFiles['videofiles'].length}');
   } catch (e) {
     print('❌ Upload failed: $e');
-    
+
     // Handle specific error types
     if (e.toString().contains('413')) {
       print('💡 Solution: Compress files or choose smaller files');
@@ -1218,7 +1325,7 @@ class _MyUploadScreenState extends State<MyUploadScreen> {
                 ],
               ),
             ),
-            
+
             FileUploadWidget(
               key: _fileUploadKey,
               config: FileUploadConfig(
@@ -1235,7 +1342,7 @@ class _MyUploadScreenState extends State<MyUploadScreen> {
                 print('  - Documents: ${files['documents'].length}');
                 print('  - Voice messages: ${files['voiceMessages'].length}');
                 print('  - Video files: ${files['videofiles'].length}');
-                
+
                 // Each file in the arrays has MongoDB-style payload:
                 // {
                 //   "_id": "6893190e65c636170decc2b9",
@@ -1254,7 +1361,7 @@ class _MyUploadScreenState extends State<MyUploadScreen> {
               },
               onError: (error) {
                 print('❌ Upload error: $error');
-                
+
                 // Show user-friendly error message
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -1290,7 +1397,7 @@ Future<void> handleLargeFileUpload() async {
   );
 
   final file = File('/path/to/large_video.mp4');
-  
+
   try {
     final result = await FileUploadService.uploadFile(file, config);
     print('✅ Upload successful: $result');
@@ -1307,7 +1414,7 @@ Future<void> handleLargeFileUpload() async {
     }
   }
 }
-*/ 
+*/
 
 // =============================================================================
 // DEBUG HELPER - Test server file size limits
@@ -1317,7 +1424,7 @@ Future<void> handleLargeFileUpload() async {
 // Debug method to test server file size limits
 Future<void> debugServerFileSizeLimit() async {
   print('🔍 Testing server file size limits...');
-  
+
   final config = FileUploadConfig(
     reportId: '507f1f77bcf86cd799439011',
     reportType: 'scam',
@@ -1326,27 +1433,27 @@ Future<void> debugServerFileSizeLimit() async {
 
   // Test with different file sizes
   final testSizes = [1, 2, 3, 4, 5]; // MB
-  
+
   for (int sizeMB in testSizes) {
     print('🧪 Testing ${sizeMB}MB file...');
-    
+
     // Create a test file of the specified size
     final testFile = await createTestFile(sizeMB);
-    
+
     try {
       final result = await FileUploadService.uploadFile(testFile, config);
       print('✅ ${sizeMB}MB file uploaded successfully');
-      
+
       // Clean up test file
       await testFile.delete();
     } catch (e) {
       print('❌ ${sizeMB}MB file failed: $e');
-      
+
       if (e.toString().contains('413')) {
         print('🚨 Server limit detected: ${sizeMB - 1}MB or less');
         break;
       }
-      
+
       // Clean up test file
       await testFile.delete();
     }
@@ -1357,19 +1464,19 @@ Future<void> debugServerFileSizeLimit() async {
 Future<File> createTestFile(int sizeMB) async {
   final tempDir = await Directory.systemTemp.createTemp('upload_test');
   final testFile = File('${tempDir.path}/test_${sizeMB}mb.bin');
-  
+
   // Create a file with random data of specified size
   final random = Random();
   final bytes = List<int>.generate(sizeMB * 1024 * 1024, (i) => random.nextInt(256));
   await testFile.writeAsBytes(bytes);
-  
+
   print('📁 Created test file: ${testFile.path} (${FileUploadService.getFileSizeMB(testFile)}MB)');
   return testFile;
 }
 
 // Usage: Call this method to find the actual server limit
 // await debugServerFileSizeLimit();
-*/ 
+*/
 
 // =============================================================================
 // QUICK TEST METHOD - Test your 4MB file
@@ -1379,7 +1486,7 @@ Future<File> createTestFile(int sizeMB) async {
 // Quick test for your 4MB file
 Future<void> test4MBFile() async {
   print('🧪 Testing 4MB file upload...');
-  
+
   final config = FileUploadConfig(
     reportId: '507f1f77bcf86cd799439011',
     reportType: 'scam',
@@ -1388,7 +1495,7 @@ Future<void> test4MBFile() async {
 
   // Replace with your actual file path
   final testFile = File('/path/to/your/4mb_file.mp4');
-  
+
   if (!await testFile.exists()) {
     print('❌ Test file not found: ${testFile.path}');
     print('💡 Please update the file path in the test method');
@@ -1397,7 +1504,7 @@ Future<void> test4MBFile() async {
 
   final fileSizeMB = FileUploadService.getFileSizeMB(testFile);
   print('📁 File size: ${fileSizeMB}MB');
-  
+
   if (double.parse(fileSizeMB) > config.maxFileSize) {
     print('❌ File too large: ${fileSizeMB}MB > ${config.maxFileSize}MB');
     return;
@@ -1409,7 +1516,7 @@ Future<void> test4MBFile() async {
     print('📊 Result: $result');
   } catch (e) {
     print('❌ Upload failed: $e');
-    
+
     if (e.toString().contains('413')) {
       print('🚨 Server limit is lower than expected');
       print('💡 Try with a smaller file (1-3MB)');
@@ -1419,4 +1526,4 @@ Future<void> test4MBFile() async {
 
 // Usage: Call this method to test your 4MB file
 // await test4MBFile();
-*/ 
+*/

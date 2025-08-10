@@ -144,14 +144,14 @@ class _ReportScam2State extends State<ReportScam2> {
         print(
           '✅ Backend API test successful: ${response.length} reports found',
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Backend connection successful! Found ${response.length} reports',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Text(
+        //       'Backend connection successful! Found ${response.length} reports',
+        //     ),
+        //     backgroundColor: Colors.green,
+        //   ),
+        // );
       } catch (e) {
         print('❌ Backend API test failed: $e');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -792,12 +792,12 @@ class _ReportScam2State extends State<ReportScam2> {
                     uploadedFilesData = files;
                     filesUploaded = true;
                   });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Files uploaded successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  // ScaffoldMessenger.of(context).showSnackBar(
+                  //   SnackBar(
+                  //     content: Text('Files uploaded successfully!'),
+                  //     backgroundColor: Colors.green,
+                  //   ),
+                  // );
                 },
                 onError: (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
