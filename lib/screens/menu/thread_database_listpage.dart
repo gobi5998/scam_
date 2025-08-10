@@ -399,7 +399,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                         fontSize: 10,
                         color: status == 'Synced' || status == 'Completed'
                             ? Colors.green
-                            : Colors.grey[600],
+                            : Colors.green[600],
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -517,20 +517,20 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         } catch (apiError) {
           print('❌ Direct API call failed: $apiError');
           // Fallback to complex filter method
-          newReports = await _apiService.getReportsWithComplexFilter(
-            searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+        newReports = await _apiService.getReportsWithComplexFilter(
+          searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
             categoryIds: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
                 ? [widget.selectedCategories.first]
-                : null,
-            typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+              : null,
+          typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
                 ? [widget.selectedTypes.first]
-                : null,
+              : null,
             severityLevels: widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
                 ? [widget.selectedSeverities.first]
                 : null,
-            page: _currentPage,
-            limit: _pageSize,
-          );
+          page: _currentPage,
+          limit: _pageSize,
+        );
           print('🔍 Fallback complex filter returned ${newReports.length} reports');
           print('🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}');
         }
@@ -1084,8 +1084,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             } catch (apiError) {
               print('❌ Direct API call failed: $apiError');
               // Fallback to complex filter method
-              reports = await _apiService.getReportsWithComplexFilter(
-                searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+            reports = await _apiService.getReportsWithComplexFilter(
+              searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
                 categoryIds: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
                     ? [widget.selectedCategories.first]
                     : null,
@@ -1095,9 +1095,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 severityLevels: widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
                     ? [widget.selectedSeverities.first]
                     : null,
-                page: _currentPage,
-                limit: _pageSize,
-              );
+              page: _currentPage,
+              limit: _pageSize,
+            );
               print('🔍 Fallback complex filter returned ${reports.length} reports');
               print('🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}');
             }
@@ -1396,7 +1396,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           // If no ID match, try to match by name
           final selectedSeverityLevel = widget.severityLevels.firstWhere(
             (level) => (level['_id'] ?? level['id']) == selectedSeverityId,
-            orElse: () => {'name': selectedSeverityId.toLowerCase()},
+                    orElse: () => {'name': selectedSeverityId.toLowerCase()},
           );
           
           final selectedSeverityName = selectedSeverityLevel['name']?.toString().toLowerCase() ?? selectedSeverityId.toLowerCase();
@@ -1790,13 +1790,46 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
   bool _hasEvidence(Map<String, dynamic> report) {
     final type = report['type'];
-    if (type == 'malware') {
-      return (report['fileName']?.toString().isNotEmpty == true) ||
-          (report['malwareType']?.toString().isNotEmpty == true);
-    } else {
-      return (report['emailAddresses']?.toString().isNotEmpty == true) ||
-          (report['phoneNumbers']?.toString().isNotEmpty == true) ||
-          (report['website']?.toString().isNotEmpty == true);
+
+    bool _isNotEmpty(dynamic value) {
+      if (value == null) return false;
+      if (value is String) return value.trim().isNotEmpty;
+      if (value is List) return value.isNotEmpty;
+      if (value is Map) return value.isNotEmpty;
+      return true;
+    }
+
+    // Dynamic evidence checking based on report type
+    switch (type?.toString().toLowerCase()) {
+      case 'scam':
+      case 'report scam':
+        return _isNotEmpty(report['screenshots']) ||
+            _isNotEmpty(report['documents']) ||
+            _isNotEmpty(report['voiceMessages']) ||
+            _isNotEmpty(report['videoFiles']);
+
+      case 'fraud':
+      case 'report fraud':
+        return _isNotEmpty(report['screenshots']) ||
+            _isNotEmpty(report['documents']) ||
+            _isNotEmpty(report['voiceMessages']) ||
+            _isNotEmpty(report['videoFiles']) ;
+            
+
+      case 'malware':
+      case 'report malware':
+        return _isNotEmpty(report['screenshots']) ||
+            _isNotEmpty(report['documents']) ||
+            _isNotEmpty(report['voiceMessages']) ||
+            _isNotEmpty(report['videoFiles']) ;
+           
+      default:
+        // For unknown types, check all possible evidence fields
+        return _isNotEmpty(report['screenshots']) ||
+            _isNotEmpty(report['documents']) ||
+            _isNotEmpty(report['voiceMessages']) ||
+            _isNotEmpty(report['videoFiles']) ;
+        
     }
   }
 
@@ -1814,14 +1847,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         report['synced'] == true ||
         report['uploaded'] == true ||
         report['completed'] == true) {
-      return 'Synced';
+      return 'completed';
     }
 
     if (report['_id'] != null ||
         (report['reportCategoryId'] != null ||
             report['reportTypeId'] != null ||
             report['malwareType'] != null)) {
-      return 'Synced';
+      return 'completed';
     }
 
     return 'Pending';
@@ -1883,28 +1916,28 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         return (alertLevel['name'] ?? 'medium').toString().toLowerCase();
       } else if (alertLevel is String) {
         // If it's a string, normalize it
-        final normalized = alertLevel.toLowerCase().trim();
-        
+    final normalized = alertLevel.toLowerCase().trim();
+
         // Map common variations to standard lowercase format
-        switch (normalized) {
-          case 'low':
-          case 'low risk':
-          case 'low severity':
-            return 'low';
-          case 'medium':
-          case 'medium risk':
-          case 'medium severity':
-            return 'medium';
-          case 'high':
-          case 'high risk':
-          case 'high severity':
-            return 'high';
-          case 'critical':
-          case 'critical risk':
-          case 'critical severity':
-            return 'critical';
-          default:
-            return normalized;
+    switch (normalized) {
+      case 'low':
+      case 'low risk':
+      case 'low severity':
+        return 'low';
+      case 'medium':
+      case 'medium risk':
+      case 'medium severity':
+        return 'medium';
+      case 'high':
+      case 'high risk':
+      case 'high severity':
+        return 'high';
+      case 'critical':
+      case 'critical risk':
+      case 'critical severity':
+        return 'critical';
+      default:
+        return normalized;
         }
       } else {
         return 'medium';
@@ -2028,7 +2061,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       } else if (difference.inHours < 24) {
         return '${difference.inHours} hours ago';
       } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
+      return '${difference.inDays} days ago';
       } else if (difference.inDays < 30) {
         final weeks = (difference.inDays / 7).floor();
         return '${weeks} week${weeks > 1 ? 's' : ''} ago';
@@ -2386,11 +2419,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Offline Mode - Showing local data',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      'Offline Mode - Showing local data',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
                         ),
                         if (widget.hasSearchQuery || widget.hasSelectedCategory || widget.hasSelectedType || widget.hasSelectedSeverity)
                           Text(

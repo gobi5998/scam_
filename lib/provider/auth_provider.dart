@@ -254,6 +254,60 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Set user data from API response (for auto-login)
+  Future<void> setUserData(Map<String, dynamic> userData) async {
+    try {
+      print('🔐 Setting user data from API response: $userData');
+      
+      // Extract user information from the API response
+      String userId = '';
+      String username = '';
+      String email = '';
+
+      // Handle different response formats
+      if (userData.containsKey('id')) {
+        userId = userData['id'].toString();
+      } else if (userData.containsKey('sub')) {
+        userId = userData['sub'].toString();
+      } else if (userData.containsKey('userId')) {
+        userId = userData['userId'].toString();
+      }
+
+      if (userData.containsKey('username')) {
+        username = userData['username'].toString();
+      } else if (userData.containsKey('preferred_username')) {
+        username = userData['preferred_username'].toString();
+      } else if (userData.containsKey('userName')) {
+        username = userData['userName'].toString();
+      }
+
+      if (userData.containsKey('email')) {
+        email = userData['email'].toString();
+      } else if (userData.containsKey('emailAddress')) {
+        email = userData['emailAddress'].toString();
+      }
+
+      // Create user object
+      _currentUser = User(
+        id: userId,
+        username: username,
+        email: email,
+      );
+
+      _isLoggedIn = true;
+      _errorMessage = '';
+      
+      print('🔐 User data set successfully: ${_currentUser?.username}');
+      notifyListeners();
+    } catch (e) {
+      print('🔐 Error setting user data: $e');
+      _isLoggedIn = false;
+      _currentUser = null;
+      _errorMessage = 'Failed to set user data: $e';
+      notifyListeners();
+    }
+  }
+
   // Future<bool> updateProfile(Map<String, dynamic> profileData) async {
   //   try {
   //     _isLoading = true;

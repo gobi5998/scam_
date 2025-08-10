@@ -42,6 +42,13 @@ class AuthApiService {
     return await _dioService.authGet('api/auth/user/me');
   }
 
+  static Future<Response> uploadProfileImage(FormData formData) async {
+    return await _dioService.authPost(
+      'api/auth/upload-profile-image',
+      data: formData,
+    );
+  }
+
   static Future<Response> updateProfile(
     Map<String, dynamic> profileData,
   ) async {

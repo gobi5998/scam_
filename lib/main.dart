@@ -34,6 +34,7 @@ import 'services/app_version_service.dart';
 import 'services/api_service.dart';
 import 'services/auth_api_service.dart';
 import 'services/dio_service.dart';
+import 'services/token_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,12 +94,6 @@ void main() async {
   // Update existing reports with keycloakUserId
   await ReportUpdateService.updateAllExistingReports();
 
-  // // Initialize offline storage
-  // await OfflineStorageService.initialize();
-
-  // // Initialize connectivity monitoring
-  // await ConnectivityService().initialize();
-
   // Initialize app version service
   await AppVersionService.initialize();
 
@@ -116,10 +111,6 @@ void main() async {
   // NUCLEAR DUPLICATE REMOVAL - Clear everything and start fresh
   print('☢️ NUCLEAR DUPLICATE CLEANUP ON APP STARTUP...');
 
-  // TEMPORARILY DISABLED - Clear all local data
-  // await ScamReportService.clearAllData();
-  // await FraudReportService.clearAllData();
-
   // TARGETED DUPLICATE REMOVAL - One time only on startup
   print('🔍 Running targeted duplicate removal on startup...');
   try {
@@ -136,19 +127,6 @@ void main() async {
   } catch (e) {
     print('❌ Error during startup duplicate removal: $e');
   }
-
-  // Clear all backend data (only if online) - REMOVED TO PREVENT CONTINUOUS RUNNING
-  // final startupConnectivity = await Connectivity().checkConnectivity();
-  // if (startupConnectivity != ConnectivityResult.none) {
-  //   try {
-  //     await ApiService().clearAllBackendData();
-  //   } catch (e) {
-  //     print('❌ Error clearing backend data on startup: $e');
-  //     print('⚠️ Skipping backend cleanup due to connection issues');
-  //   }
-  // } else {
-  //   print('⚠️ Skipping backend cleanup - no internet connection');
-  // }
 
   // Initial sync if online
   final initialConnectivity = await Connectivity().checkConnectivity();
@@ -217,31 +195,6 @@ void main() async {
 
       hasCleanedUp = true; // Prevent multiple executions
 
-      // NUCLEAR DUPLICATE CLEANUP when connectivity is restored
-      // TEMPORARILY DISABLED - Clear local data
-      // try {
-      //   await ScamReportService.clearAllData();
-      //   print('Scam data cleared successfully');
-      // } catch (e) {
-      //   print('Error clearing scam data: $e');
-      // }
-
-      // try {
-      //   await FraudReportService.clearAllData();
-      //   print('Fraud data cleared successfully');
-      // } catch (e) {
-      //   print('Error clearing fraud data: $e');
-      // }
-
-      // Also clear backend data (only if online) - REMOVED TO PREVENT CONTINUOUS RUNNING
-      // try {
-      //   await ApiService().clearAllBackendData();
-      //   print('Backend data cleared successfully');
-      // } catch (e) {
-      //   print('Error clearing backend data: $e');
-      //   print('⚠️ Backend cleanup failed, continuing with sync...');
-      // }
-
       // Then sync reports
       try {
         await ScamReportService.syncReports();
@@ -288,7 +241,7 @@ class MyApp extends StatelessWidget {
       // home: const SplashScreen(),
       initialRoute: '/',
       routes: {
-        '/': (context) => const SplashScreen(),
+        '/': (context) => const AuthWrapper(), // Use AuthWrapper for auto-login
         '/profile': (context) => ProfilePage(),
         '/thread': (context) => ThreadDatabaseFilterPage(),
         '/subscription': (context) => SubscriptionPlansPage(),
@@ -343,6 +296,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _authChecked = false;
   bool _biometricChecked = false;
   bool _biometricPassed = false;
+  bool _autoLoginAttempted = false;
 
   @override
   void initState() {
@@ -352,49 +306,125 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _initializeAuth() async {
     try {
-      await Provider.of<AuthProvider>(context, listen: false).checkAuthStatus();
-      print(
-        'Auth status checked - User logged in: ${Provider.of<AuthProvider>(context, listen: false).isLoggedIn}',
-      );
+      print('🔐 Initializing auto-login with biometric authentication...');
+      
+      // Check if user has enabled biometric authentication
+      final prefs = await SharedPreferences.getInstance();
+      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+      final autoLoginEnabled = prefs.getBool('auto_login_enabled') ?? true; // Default to true
+      
+      print('🔐 Biometric enabled: $bioEnabled');
+      print('🔐 Auto-login enabled: $autoLoginEnabled');
+
+      if (autoLoginEnabled) {
+        // Try to get stored tokens
+        final accessToken = await TokenStorage.getAccessToken();
+        final refreshToken = await TokenStorage.getRefreshToken();
+        
+        print('🔐 Stored access token: ${accessToken != null ? 'Present' : 'Not present'}');
+        print('🔐 Stored refresh token: ${refreshToken != null ? 'Present' : 'Not present'}');
+
+        if (accessToken != null && refreshToken != null) {
+          print('🔐 Tokens found, attempting auto-login...');
+          
+          // Try to validate the token by calling /api/user/me
+          try {
+            final apiService = ApiService();
+            final userResponse = await apiService.get('api/user/me');
+            
+            if (userResponse.statusCode == 200 && userResponse.data != null) {
+              print('🔐 ✅ Auto-login successful - User validated via /api/user/me');
+              
+              // Update auth provider with user data
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.setUserData(userResponse.data);
+              
+              // If biometric is enabled, check biometric authentication
+              if (bioEnabled) {
+                print('🔐 Biometric enabled, checking biometric authentication...');
+                await _checkBiometrics(authProvider);
+              } else {
+                print('🔐 Biometric disabled, proceeding to dashboard...');
+                setState(() {
+                  _biometricPassed = true;
+                  _authChecked = true;
+                });
+              }
+            } else {
+              print('🔐 ❌ Auto-login failed - Invalid token response');
+              await _handleAutoLoginFailure();
+            }
+          } catch (e) {
+            print('🔐 ❌ Auto-login failed - API error: $e');
+            await _handleAutoLoginFailure();
+          }
+        } else {
+          print('🔐 No stored tokens found, showing login page');
+          await _handleAutoLoginFailure();
+        }
+      } else {
+        print('🔐 Auto-login disabled, showing login page');
+        await _handleAutoLoginFailure();
+      }
     } catch (e) {
-      print('Error checking auth status: $e');
+      print('🔐 Error during auto-login initialization: $e');
+      await _handleAutoLoginFailure();
     }
+  }
+
+  Future<void> _handleAutoLoginFailure() async {
+    print('🔐 Handling auto-login failure...');
+    
+    // Clear any invalid tokens
+    await TokenStorage.clearAllTokens();
+    
+    // Reset auth provider
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.logout();
+    
     setState(() {
       _authChecked = true;
+      _biometricPassed = false;
     });
   }
 
   Future<void> _checkBiometrics(AuthProvider authProvider) async {
     if (!_biometricChecked && authProvider.isLoggedIn) {
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
-
-        if (bioEnabled) {
-          final isAvailable = await BiometricService.isBiometricAvailable();
-          if (isAvailable) {
-            _biometricChecked = true;
-            final passed = await BiometricService.authenticateWithBiometrics();
-            if (!passed) {
-              await authProvider.logout();
-            }
-            setState(() {
-              _biometricPassed = passed;
-            });
-          } else {
-            setState(() {
-              _biometricPassed = true;
-            });
+        print('🔐 Checking biometric availability...');
+        final isAvailable = await BiometricService.isBiometricAvailable();
+        
+        if (isAvailable) {
+          print('🔐 Biometric available, requesting authentication...');
+          _biometricChecked = true;
+          
+          final passed = await BiometricService.authenticateWithBiometrics();
+          print('🔐 Biometric authentication result: $passed');
+          
+          if (!passed) {
+            print('🔐 Biometric authentication failed, logging out...');
+            await authProvider.logout();
+            await TokenStorage.clearAllTokens();
           }
-        } else {
+          
           setState(() {
+            _biometricPassed = passed;
+            _authChecked = true;
+          });
+        } else {
+          print('🔐 Biometric not available, proceeding to dashboard...');
+          setState(() {
+            _biometricChecked = true;
             _biometricPassed = true;
+            _authChecked = true;
           });
         }
       } catch (e) {
-        print('Biometric check error: $e');
+        print('🔐 Biometric check error: $e');
         setState(() {
+          _biometricChecked = true;
           _biometricPassed = true;
+          _authChecked = true;
         });
       }
     }
@@ -405,30 +435,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         print(
-          'AuthWrapper build - authChecked: $_authChecked, isLoading: ${authProvider.isLoading}, isLoggedIn: ${authProvider.isLoggedIn}',
+          '🔐 AuthWrapper build - authChecked: $_authChecked, isLoading: ${authProvider.isLoading}, isLoggedIn: ${authProvider.isLoggedIn}, biometricPassed: $_biometricPassed',
         );
 
         if (!_authChecked || authProvider.isLoading) {
           return const SplashScreen();
         }
 
-        if (authProvider.isLoggedIn) {
-          print('User is logged in, checking biometrics...');
-          if (!_biometricChecked) {
-            _checkBiometrics(authProvider);
-            return const SplashScreen();
-          }
-
-          if (_biometricPassed) {
-            print('Biometric passed, navigating to dashboard');
-            return const DashboardPage();
-          } else {
-            print('Biometric failed, showing login page');
-            return const LoginPage();
-          }
+        if (authProvider.isLoggedIn && _biometricPassed) {
+          print('🔐 User authenticated and biometric passed, navigating to dashboard');
+          return const DashboardPage();
         }
 
-        print('User not logged in, showing login page');
+        print('🔐 User not authenticated or biometric failed, showing login page');
         return const LoginPage();
       },
     );

@@ -6,6 +6,7 @@ class User {
   final String? lastName;
   final String? phone;
   final String? role;
+  final String? profileImageUrl;
   final String? createdAt;
   final String? updatedAt;
 
@@ -17,6 +18,7 @@ class User {
     this.lastName,
     this.phone,
     this.role,
+    this.profileImageUrl,
     this.createdAt,
     this.updatedAt,
   });
@@ -33,6 +35,7 @@ class User {
       lastName: json['lastName'] ?? json['lastname'] ?? json['last_name'] ?? '',
       phone: json['phone'] ?? '',
       role: json['role'] ?? '',
+      profileImageUrl: json['profileImageUrl'] ?? '',
       createdAt: json['createdAt'] ?? '',
       updatedAt: json['updatedAt'] ?? '',
     );
@@ -57,6 +60,7 @@ class User {
       'lastName': lastName,
       'phone': phone,
       'role': role,
+      'profileImageUrl': profileImageUrl,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
