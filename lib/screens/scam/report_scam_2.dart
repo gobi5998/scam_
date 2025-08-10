@@ -40,7 +40,7 @@ class _ReportScam2State extends State<ReportScam2> {
   String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-  GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload');
+      GlobalKey<FileUploadWidgetState>(debugLabel: 'scam_file_upload_${DateTime.now().millisecondsSinceEpoch}');
 
   @override
   void initState() {
@@ -201,6 +201,7 @@ class _ReportScam2State extends State<ReportScam2> {
         'screenshots': [],
         'documents': [],
         'voiceMessages': [],
+        'videofiles':[],
       };
 
       // Upload files if any are selected
@@ -213,7 +214,8 @@ class _ReportScam2State extends State<ReportScam2> {
 
         if (state.selectedImages.isNotEmpty ||
             state.selectedDocuments.isNotEmpty ||
-            state.selectedVoiceFiles.isNotEmpty) {
+            state.selectedVoiceFiles.isNotEmpty ||
+            state.selectedVideoFiles.isNotEmpty) {
           setState(() {
             uploadStatus = 'Uploading files to backend...';
           });
@@ -242,6 +244,7 @@ class _ReportScam2State extends State<ReportScam2> {
               'screenshots': [],
               'documents': [],
               'voiceMessages': [],
+              'videofiles':[],
             };
           }
         } else {
@@ -263,6 +266,9 @@ class _ReportScam2State extends State<ReportScam2> {
       final voiceMessagesForBackend = (uploadedFiles['voiceMessages'] as List? ?? [])
           .cast<Map<String, dynamic>>()
           .toList();
+      final videoMessagesForBackend = (uploadedFiles['videofiles'] as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .toList();
 
       // Extract URLs for local model storage
       final screenshots = screenshotsForBackend
@@ -276,6 +282,10 @@ class _ReportScam2State extends State<ReportScam2> {
           .toList();
 
       final voiceMessages = voiceMessagesForBackend
+          .map((f) => f['url']?.toString() ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList();
+      final videofiles = videoMessagesForBackend
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
@@ -335,16 +345,17 @@ class _ReportScam2State extends State<ReportScam2> {
         'reportOutcome': false,
         'description': widget.report.description ?? '',
         'incidentDate':
-            widget.report.incidentDateTime?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
+            widget.report.incidentDateTime?.toUtc().toIso8601String() ??
+            DateTime.now().toUtc().toIso8601String(),
         'scammerName': widget.report.scammerName ?? '',
         'screenshots': screenshotsForBackend,
         'voiceMessages': voiceMessagesForBackend,
         'documents': documentsForBackend,
+        'videofiles':videoMessagesForBackend,
         'createdAt':
-            widget.report.createdAt?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
+            widget.report.createdAt?.toUtc().toIso8601String() ??
+            DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       };
 
       print('🚀 Form data prepared for backend submission');
@@ -604,7 +615,8 @@ class _ReportScam2State extends State<ReportScam2> {
       final totalFiles =
           state.selectedImages.length +
           state.selectedDocuments.length +
-          state.selectedVoiceFiles.length;
+          state.selectedVoiceFiles.length+
+    state.selectedVideoFiles.length;
 
       if (totalFiles == 0) return '';
 
@@ -617,6 +629,9 @@ class _ReportScam2State extends State<ReportScam2> {
       }
       if (state.selectedVoiceFiles.isNotEmpty) {
         parts.add('${state.selectedVoiceFiles.length} voice file(s)');
+      }
+      if (state.selectedVideoFiles.isNotEmpty) {
+        parts.add('${state.selectedVideoFiles.length} voice file(s)');
       }
 
       return 'Selected: ${parts.join(', ')}';
@@ -710,6 +725,7 @@ class _ReportScam2State extends State<ReportScam2> {
         } catch (e) {
           print('❌ Error getting address from coordinates: $e');
           // Keep the coordinates as fallback
+          address = '${position.latitude}, ${position.longitude}';
         }
       }
 
@@ -767,7 +783,7 @@ class _ReportScam2State extends State<ReportScam2> {
                 config: FileUploadConfig(
                   reportType: 'scam',
                   reportId: widget.report.id ?? FileUploadService.generateObjectId(),
-                  autoUpload: false, // Disable auto-upload
+                  autoUpload: true, // Enable auto-upload
                   showProgress: true,
                   allowMultipleFiles: true,
                 ),
@@ -837,62 +853,62 @@ class _ReportScam2State extends State<ReportScam2> {
               ),
               const SizedBox(height: 10),
 
-              // Show file selection status
-              if (_hasFilesToUpload()) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    border: Border.all(color: Colors.green.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                children: [
-                      Icon(Icons.file_upload, color: Colors.green.shade600),
-                      const SizedBox(width: 8),
-                  Expanded(
-                        child: Text(
-                          _getFileCountText(),
-                          style: TextStyle(
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              // // Show file selection status
+              // if (_hasFilesToUpload()) ...[
+              //   Container(
+              //     padding: const EdgeInsets.all(12),
+              //     margin: const EdgeInsets.only(bottom: 10),
+              //     decoration: BoxDecoration(
+              //       color: Colors.green.shade50,
+              //       border: Border.all(color: Colors.green.shade200),
+              //       borderRadius: BorderRadius.circular(8),
+              //     ),
+              //     child: Row(
+              //   children: [
+              //         Icon(Icons.file_upload, color: Colors.green.shade600),
+              //         const SizedBox(width: 8),
+              //     Expanded(
+              //           child: Text(
+              //             _getFileCountText(),
+              //             style: TextStyle(
+              //               color: Colors.green.shade700,
+              //               fontWeight: FontWeight.w500,
+              //             ),
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // ],
 
-              if (uploadStatus.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    border: Border.all(color: Colors.blue.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade600),
-                      const SizedBox(width: 8),
-                  Expanded(
-                        child: Text(
-                          uploadStatus,
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-                ),
-              ],
+              // if (uploadStatus.isNotEmpty) ...[
+              //   Container(
+              //     padding: const EdgeInsets.all(12),
+              //     margin: const EdgeInsets.only(bottom: 10),
+              //     decoration: BoxDecoration(
+              //       color: Colors.blue.shade50,
+              //       border: Border.all(color: Colors.blue.shade200),
+              //       borderRadius: BorderRadius.circular(8),
+              //     ),
+              //     child: Row(
+              //       children: [
+              //         Icon(Icons.info_outline, color: Colors.blue.shade600),
+              //         const SizedBox(width: 8),
+              //     Expanded(
+              //           child: Text(
+              //             uploadStatus,
+              //             style: TextStyle(
+              //               color: Colors.blue.shade700,
+              //               fontWeight: FontWeight.w500,
+              //         ),
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              //   ),
+              // ],
 
-              // Debug button to test connectivity
+              // // Debug button to test connectivity
               // if (!isUploading) ...[
               //   Container(
               //     margin: const EdgeInsets.only(bottom: 10),

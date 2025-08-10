@@ -1273,17 +1273,51 @@ class ApiService {
   ) async {
     try {
       print('🔍 Fetching reports with filter: $filter');
-      final response = await _dioService.reportsGet(filter.buildUrl());
+      
+      // Construct query parameters to match the working backend URL structure
+      final queryParams = <String, dynamic>{
+        'page': filter.page?.toString() ?? '1',
+        'limit': filter.limit?.toString() ?? '10',
+      };
+
+      // Add search query if present
+      if (filter.search != null && filter.search!.isNotEmpty) {
+        queryParams['search'] = filter.search;
+      }
+
+      // Add category ID if present
+      if (filter.reportCategoryId != null && filter.reportCategoryId!.isNotEmpty) {
+        queryParams['reportCategoryId'] = filter.reportCategoryId;
+      }
+
+      // Add type ID if present
+      if (filter.reportTypeId != null && filter.reportTypeId!.isNotEmpty) {
+        queryParams['reportTypeId'] = filter.reportTypeId;
+      }
+
+      // Add empty parameters to match the URL structure
+      queryParams['deviceTypeId'] = '';
+      queryParams['detectTypeId'] = '';
+      queryParams['operatingSystemName'] = '';
+      queryParams['alertLevels'] = '';
+      queryParams['userId'] = '';
+
+      print('🔍 Constructed query parameters: $queryParams');
+      
+      final response = await _dioService.reportsGet(
+        '/api/v1/reports',
+        queryParameters: queryParams,
+      );
+      
       print('✅ Filter response: ${response.data}');
 
-      if (response.data != null && response.data is List) {
-        return List<Map<String, dynamic>>.from(response.data);
-      } else if (response.data != null && response.data is Map) {
-        // Handle case where response is wrapped in an object
+      if (response.data != null && response.data is Map) {
         final data = response.data as Map<String, dynamic>;
         if (data.containsKey('data') && data['data'] is List) {
           return List<Map<String, dynamic>>.from(data['data']);
         }
+      } else if (response.data != null && response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
       }
 
       print('⚠️ Unexpected response format: ${response.data}');
@@ -1306,7 +1340,7 @@ class ApiService {
     List<String>? typeIds,
     List<String>? severityLevels,
     int page = ApiConfig.defaultPage,
-    int limit = ApiConfig.defaultLimit, // Use default limit from config
+    int limit = ApiConfig.defaultLimit,
   }) async {
     try {
       print('🔍 Fetching reports with complex filter');
@@ -1314,6 +1348,7 @@ class ApiService {
         '📋 Parameters: searchQuery=$searchQuery, categoryIds=$categoryIds, typeIds=$typeIds, severityLevels=$severityLevels, page=$page, limit=$limit',
       );
 
+      // Construct query parameters to match the working backend URL structure
       final queryParams = <String, dynamic>{
         'page': page.toString(),
         'limit': limit.toString(),
@@ -1323,29 +1358,37 @@ class ApiService {
         queryParams['search'] = searchQuery;
       }
       if (categoryIds != null && categoryIds.isNotEmpty) {
-        queryParams['categoryIds'] = categoryIds;
+        queryParams['reportCategoryId'] = categoryIds.first; // Use first category
       }
       if (typeIds != null && typeIds.isNotEmpty) {
-        queryParams['typeIds'] = typeIds;
+        queryParams['reportTypeId'] = typeIds.first; // Use first type
       }
       if (severityLevels != null && severityLevels.isNotEmpty) {
-        queryParams['severityLevels'] = severityLevels;
+        queryParams['alertLevels'] = severityLevels.first; // Use first severity ID directly
+        print('🔍 API Service - Using severity level ID: ${severityLevels.first}');
       }
 
+      // Add empty parameters to match the URL structure
+      queryParams['deviceTypeId'] = '';
+      queryParams['detectTypeId'] = '';
+      queryParams['operatingSystemName'] = '';
+      queryParams['userId'] = '';
+
+      print('🔍 Constructed complex filter parameters: $queryParams');
+
       final response = await _dioService.reportsGet(
-        ApiConfig.reportSecurityIssueEndpoint,
+        '/api/v1/reports',
         queryParameters: queryParams,
       );
       print('✅ Complex filter response: ${response.data}');
 
-      if (response.data != null && response.data is List) {
-        return List<Map<String, dynamic>>.from(response.data);
-      } else if (response.data != null && response.data is Map) {
-        // Handle case where response is wrapped in an object
+      if (response.data != null && response.data is Map) {
         final data = response.data as Map<String, dynamic>;
         if (data.containsKey('data') && data['data'] is List) {
           return List<Map<String, dynamic>>.from(data['data']);
         }
+      } else if (response.data != null && response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
       }
 
       print('⚠️ Unexpected response format: ${response.data}');

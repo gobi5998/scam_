@@ -41,7 +41,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(debugLabel: 'fraud_file_upload');
+      GlobalKey<FileUploadWidgetState>(debugLabel: 'fraud_file_upload_${DateTime.now().millisecondsSinceEpoch}');
 
   @override
   void initState() {
@@ -202,6 +202,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         'screenshots': [],
         'documents': [],
         'voiceMessages': [],
+        'videofiles':[]
       };
 
       // Upload files if any are selected
@@ -214,7 +215,8 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
 
         if (state.selectedImages.isNotEmpty ||
             state.selectedDocuments.isNotEmpty ||
-            state.selectedVoiceFiles.isNotEmpty) {
+            state.selectedVoiceFiles.isNotEmpty ||
+        state.selectedVideoFiles.isNotEmpty) {
           setState(() {
             uploadStatus = 'Uploading files to backend...';
           });
@@ -243,6 +245,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
               'screenshots': [],
               'documents': [],
               'voiceMessages': [],
+              'videofiles':[],
             };
           }
         } else {
@@ -262,6 +265,9 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       final voiceMessages = (uploadedFiles['voiceMessages'] as List)
           .cast<Map<String, dynamic>>();
 
+      final videofiles =(uploadedFiles['videofiles'] as List)
+      .cast<Map<String,dynamic>>();
+
       // Extract URLs for local model storage
       final screenshotUrls = screenshots
           .map((f) => f['url']?.toString() ?? '')
@@ -277,6 +283,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           .map((f) => f['url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList();
+
 
       print('🚀 Extracted file objects:');
       print('🚀 - Screenshots: ${screenshots.length}');
@@ -332,17 +339,18 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         'reportOutcome': false,
         'description': widget.report.description ?? '',
         'incidentDate':
-            widget.report.incidentDateTime?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
+            widget.report.incidentDateTime?.toUtc().toIso8601String() ??
+            DateTime.now().toUtc().toIso8601String(),
         'fraudsterName': widget.report.fraudsterName ?? '',
         'companyName': widget.report.companyName ?? '',
         'screenshots': screenshots,
         'voiceMessages': voiceMessages,
         'documents': documents,
+        'videofiles':videofiles,
         'createdAt':
-            widget.report.createdAt?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
+            widget.report.createdAt?.toUtc().toIso8601String() ??
+            DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       };
 
       print('🚀 Form data prepared for backend submission');
@@ -387,6 +395,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         screenshots: screenshotUrls,
         documents: documentUrls,
         voiceMessages: voiceMessageUrls,
+        // videofiles : videofiles,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
@@ -533,7 +542,8 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
 
       if (state.selectedImages.isEmpty &&
           state.selectedDocuments.isEmpty &&
-          state.selectedVoiceFiles.isEmpty) {
+          state.selectedVoiceFiles.isEmpty &&
+      state.selectedVideoFiles.isEmpty) {
         final shouldSelectFiles = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
@@ -590,7 +600,8 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       final state = _fileUploadKey.currentState!;
       return state.selectedImages.isNotEmpty ||
           state.selectedDocuments.isNotEmpty ||
-          state.selectedVoiceFiles.isNotEmpty;
+          state.selectedVoiceFiles.isNotEmpty ||
+    state.selectedVideoFiles.isNotEmpty;
     }
     return false;
   }
@@ -602,7 +613,8 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       final totalFiles =
           state.selectedImages.length +
           state.selectedDocuments.length +
-          state.selectedVoiceFiles.length;
+          state.selectedVoiceFiles.length +
+    state.selectedVideoFiles.length;
 
       if (totalFiles == 0) return '';
 
@@ -615,6 +627,9 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       }
       if (state.selectedVoiceFiles.isNotEmpty) {
         parts.add('${state.selectedVoiceFiles.length} voice file(s)');
+      }
+      if (state.selectedVideoFiles.isNotEmpty) {
+        parts.add('${state.selectedVideoFiles.length} voice file(s)');
       }
 
       return 'Selected: ${parts.join(', ')}';
@@ -639,7 +654,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   // Add method to get current location dynamically
   Future<Map<String, dynamic>> _getCurrentLocation() async {
     try {
-      print('📍 Getting current location...');
+      print('📍 Getting current location for malware report...');
 
       // Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -661,13 +676,30 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           return {
             'type': 'Point',
             'coordinates': [0.0, 0.0], // Fallback coordinates
-            'address': 'Location permission denied',
+            'address': 'Location permission denied - Please grant location access',
           };
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
         print('❌ Location permission denied forever');
+        // Try to open app settings
+        try {
+          await Geolocator.openAppSettings();
+          print('📍 Opened app settings');
+        } catch (e) {
+          print('❌ Could not open app settings: $e');
+        }
+        
+        return {
+          'type': 'Point',
+          'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Location permission denied forever - Please enable in app settings',
+        };
+      }
+
+      if (permission == LocationPermission.unableToDetermine) {
+        print('❌ Unable to determine location permission');
         return {
           'type': 'Point',
           'coordinates': [0.0, 0.0], // Fallback coordinates
@@ -675,40 +707,78 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         };
       }
 
-      // Get current position
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
-      );
+      print('✅ Location permission granted: $permission');
 
-      print('✅ Location obtained: ${position.latitude}, ${position.longitude}');
+      // Step 3: Get current position with better error handling
+      Position? position;
+      try {
+        print('📍 Attempting to get current position...');
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 15), // Increased timeout
+        );
+        print('✅ Position obtained: ${position.latitude}, ${position.longitude}');
+      } catch (e) {
+        print('❌ Error getting current position: $e');
+        
+        // Try with lower accuracy as fallback
+        try {
+          print('📍 Trying with lower accuracy...');
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 10),
+          );
+          print('✅ Position obtained with lower accuracy: ${position.latitude}, ${position.longitude}');
+        } catch (e2) {
+          print('❌ Error getting position with lower accuracy: $e2');
+          
+          // Try to get last known position as final fallback
+          try {
+            print('📍 Trying to get last known position...');
+            position = await Geolocator.getLastKnownPosition();
+            if (position != null) {
+              print('✅ Last known position: ${position.latitude}, ${position.longitude}');
+            } else {
+              print('❌ No last known position available');
+            }
+          } catch (e3) {
+            print('❌ Error getting last known position: $e3');
+          }
+        }
+      }
+
+      if (position == null) {
+        print('❌ Could not obtain any position data');
+        return {
+          'type': 'Point',
+          'coordinates': [0.0, 0.0], // Fallback coordinates
+          'address': 'Could not obtain location - Check device GPS and try again',
+        };
+      }
 
       // Get real address using geocoding
-      String address =
-          selectedAddress ?? '${position.latitude}, ${position.longitude}';
+      String address = '${position.latitude}, ${position.longitude}';
 
-      // If no selected address, try to get real address from coordinates
-      if (selectedAddress == null) {
-        try {
-          List<Placemark> placemarks = await placemarkFromCoordinates(
-            position.latitude,
-            position.longitude,
-          );
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
 
-          if (placemarks.isNotEmpty) {
-            Placemark placemark = placemarks[0];
-            address = [
-              placemark.street,
-              placemark.subLocality,
-              placemark.locality,
-              placemark.administrativeArea,
-              placemark.country,
-            ].where((e) => e != null && e.isNotEmpty).join(', ');
-          }
-        } catch (e) {
-          print('❌ Error getting address from coordinates: $e');
-          // Keep the coordinates as fallback
+        if (placemarks.isNotEmpty) {
+          Placemark placemark = placemarks[0];
+          address = [
+            placemark.street,
+            placemark.subLocality,
+            placemark.locality,
+            placemark.administrativeArea,
+            placemark.country,
+          ].where((e) => e != null && e.isNotEmpty).join(', ');
         }
+      } catch (e) {
+        print('❌ Error getting address from coordinates: $e');
+        // Keep the coordinates as fallback
+        address = '${position.latitude}, ${position.longitude}';
       }
 
       return {
@@ -720,11 +790,11 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         'address': address,
       };
     } catch (e) {
-      print('❌ Error getting location: $e');
+      print('❌ Error getting location for malware report: $e');
       return {
         'type': 'Point',
         'coordinates': [0.0, 0.0], // Fallback coordinates
-        'address': 'Location error',
+        'address': 'Location services disabled',
       };
     }
   }
@@ -765,7 +835,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                 config: FileUploadConfig(
                   reportType: 'fraud',
                   reportId: widget.report.id ?? FileUploadService.generateObjectId(),
-                  autoUpload: false,
+                  autoUpload: true, // Enable auto-upload
                   showProgress: true,
                   allowMultipleFiles: true,
                 ),

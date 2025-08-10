@@ -39,7 +39,7 @@ class AuthApiService {
   }
 
   static Future<Response> getUserProfile() async {
-    return await _dioService.authGet('/user/me');
+    return await _dioService.authGet('api/auth/user/me');
   }
 
   static Future<Response> updateProfile(

@@ -109,8 +109,8 @@ class _ReportDetailViewState extends State<ReportDetailView> {
             SizedBox(height: 24),
             _buildEvidenceSection(),
             SizedBox(height: 24),
-            _buildTimelineSection(),
-            SizedBox(height: 24),
+            // _buildTimelineSection(),
+            // SizedBox(height: 24),
           ],
         ),
       ),
@@ -764,26 +764,27 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     return 'other';
   }
 
-  Widget _buildTimelineSection() {
-    final report = widget.report;
-    final typedReport = widget.typedReport;
+  // Widget _buildTimelineSection() {
+  //   final report = widget.report;
+  //   final typedReport = widget.typedReport;
 
-    final createdAt = report['createdAt'] ?? typedReport?.createdAt;
-    final updatedAt = report['updatedAt'] ?? typedReport?.updatedAt;
+  //   final createdAt = report['createdAt'] ?? typedReport?.createdAt;
+  //   final updatedAt = report['updatedAt'] ?? typedReport?.updatedAt;
 
-    if (createdAt == null && updatedAt == null) return SizedBox.shrink();
+  //   if (createdAt == null && updatedAt == null) return SizedBox.shrink();
 
-    return _buildSection(
-      title: 'Timeline',
-      icon: Icons.schedule,
-      children: [
-        if (createdAt != null)
-          _buildInfoRow('Created', _formatDateTime(createdAt)),
-        if (updatedAt != null && updatedAt != createdAt)
-          _buildInfoRow('Last Updated', _formatDateTime(updatedAt)),
-      ],
-    );
-  }
+  //   return _buildSection(
+  //     title: 'Timeline',
+  //     icon: Icons.schedule,
+  //     children: [
+  //       if (createdAt != null)
+  //         _buildInfoRow('Created', _formatDateTime(createdAt)),
+  //       if (updatedAt != null && updatedAt != createdAt)
+  //         _buildInfoRow('Last Updated', _formatDateTime(updatedAt)),
+  //     ],
+  //   );
+  // }
+
 
   Widget _buildFinancialDetailsSection() {
     final report = widget.report;
@@ -1035,6 +1036,15 @@ class _ReportDetailViewState extends State<ReportDetailView> {
       );
     final createdBy = report['createdBy'];
     if (createdBy != null) children.add(_buildInfoRow('Created By', createdBy));
+
+    final createdAt = report['createdAt'] ?? typedReport?.createdAt;
+    final updatedAt = report['updatedAt'] ?? typedReport?.updatedAt;
+    if (createdAt == null && updatedAt == null) return SizedBox.shrink();
+
+    children.add(_buildInfoRow('Created At', _formatDateTime(createdAt)));
+    // children.add(_buildInfoRow('Last Updated', _formatDateTime(updatedAt)));
+  
+
 
     //    if (report['location'] != null) {
     //   final location = report['location'];
@@ -2418,46 +2428,6 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                 SizedBox(height: 16),
                 Expanded(child: _buildFileContent(url, filename, type)),
                 SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          final Uri uri = Uri.parse(url);
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(
-                              uri,
-                              mode: LaunchMode.externalApplication,
-                            );
-                          }
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error opening file: $e')),
-                          );
-                        }
-                      },
-                      icon: Icon(Icons.open_in_new),
-                      label: Text('Open in Browser'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await Clipboard.setData(ClipboardData(text: url));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('URL copied to clipboard')),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to copy URL')),
-                          );
-                        }
-                      },
-                      icon: Icon(Icons.copy),
-                      label: Text('Copy URL'),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

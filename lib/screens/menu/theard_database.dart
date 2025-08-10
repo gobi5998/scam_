@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'thread_database_listpage.dart';
 import '../../services/api_service.dart';
@@ -214,26 +215,31 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           jsonDecode(alertLevelsJson).map((x) => Map<String, dynamic>.from(x)),
         );
         severityLevels = alertLevels;
+        print('✅ Loaded ${alertLevels.length} alert levels from local storage');
       } else {
         // Use fallback alert levels
         severityLevels = [
-          {'_id': 'low', 'name': 'low', 'isActive': true},
-          {'_id': 'medium', 'name': 'medium', 'isActive': true},
-          {'_id': 'high', 'name': 'high', 'isActive': true},
+          {'_id': 'low', 'name': 'Low', 'isActive': true},
+          {'_id': 'medium', 'name': 'Medium', 'isActive': true},
+          {'_id': 'high', 'name': 'High', 'isActive': true},
+          {'_id': 'critical', 'name': 'Critical', 'isActive': true},
         ];
+        print('⚠️ No local alert levels found, using fallback data');
       }
     } catch (e) {
-      print('Error loading local alert levels: $e');
+      print('❌ Error loading local alert levels: $e');
       // Use fallback alert levels
       severityLevels = [
-        {'_id': 'low', 'name': 'low', 'isActive': true},
-        {'_id': 'medium', 'name': 'medium', 'isActive': true},
-        {'_id': 'high', 'name': 'high', 'isActive': true},
+        {'_id': 'low', 'name': 'Low', 'isActive': true},
+        {'_id': 'medium', 'name': 'Medium', 'isActive': true},
+        {'_id': 'high', 'name': 'High', 'isActive': true},
+        {'_id': 'critical', 'name': 'Critical', 'isActive': true},
       ];
+      print('⚠️ Using fallback alert levels due to error');
     }
   }
 
-  // Load local reports
+  // Load local reports with proper filtering support
   Future<void> _loadLocalReports() async {
     try {
       List<Map<String, dynamic>> allReports = [];
@@ -249,8 +255,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
-          'reportCategoryId': report.reportCategoryId,
-          'reportTypeId': report.reportTypeId,
+          'reportCategoryId': report.reportCategoryId ?? 'scam_category',
+          'reportTypeId': report.reportTypeId ?? 'scam_type',
+          'categoryName': 'Report Scam',
+          'typeName': 'Scam Report',
           'type': 'scam',
           'isSynced': report.isSynced,
         });
@@ -267,8 +275,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
-          'reportCategoryId': report.reportCategoryId,
-          'reportTypeId': report.reportTypeId,
+          'reportCategoryId': report.reportCategoryId ?? 'fraud_category',
+          'reportTypeId': report.reportTypeId ?? 'fraud_type',
+          'categoryName': 'Report Fraud',
+          'typeName': 'Fraud Report',
           'name': report.name,
           'type': 'fraud',
           'isSynced': report.isSynced,
@@ -286,8 +296,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'phoneNumbers': null,
           'website': null,
           'createdAt': report.date,
-          'reportCategoryId': null,
-          'reportTypeId': null,
+          'reportCategoryId': 'malware_category',
+          'reportTypeId': 'malware_type',
+          'categoryName': 'Report Malware',
+          'typeName': 'Malware Report',
           'type': 'malware',
           'isSynced': report.isSynced,
           'fileName': report.fileName,
@@ -303,6 +315,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
       _localReports = allReports;
       print('📊 Loaded ${_localReports.length} local reports');
+      print('📊 Local reports breakdown:');
+      print('📊   - Scam reports: ${scamBox.length}');
+      print('📊   - Fraud reports: ${fraudBox.length}');
+      print('📊   - Malware reports: ${malwareBox.length}');
     } catch (e) {
       print('Error loading local reports: $e');
       _localReports = [];
@@ -483,9 +499,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   // Load alert levels from backend
   Future<void> _loadAlertLevels() async {
     try {
-      print('Fetching alert levels from API...');
-      final response = await _apiService.get('/alert-level');
-      print('Alert levels response: ${response.data}');
+      print('🔍 Fetching alert levels from backend API...');
+      
+      // Call the backend API to get alert levels
+      final response = await _apiService.get('api/v1/alert-level');
+      print('🔍 Alert levels API response: ${response.data}');
 
       if (response.data != null && response.data is List) {
         final alertLevelsData = List<Map<String, dynamic>>.from(response.data);
@@ -498,7 +516,8 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           severityLevels = activeAlertLevels;
         });
 
-        print('✅ Loaded ${activeAlertLevels.length} active alert levels');
+        print('✅ Loaded ${activeAlertLevels.length} active alert levels from backend');
+        print('🔍 Alert levels data: $activeAlertLevels');
 
         // Save alert levels locally for offline use
         try {
@@ -511,21 +530,322 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         } catch (e) {
           print('⚠️ Failed to save alert levels locally: $e');
         }
+      } else if (response.data != null && response.data is Map) {
+        // Handle case where response is wrapped in an object
+        final data = response.data as Map<String, dynamic>;
+        if (data.containsKey('data') && data['data'] is List) {
+          final alertLevelsData = List<Map<String, dynamic>>.from(data['data']);
+          final activeAlertLevels = alertLevelsData
+              .where((level) => level['isActive'] == true)
+              .toList();
+
+          setState(() {
+            severityLevels = activeAlertLevels;
+          });
+
+          print('✅ Loaded ${activeAlertLevels.length} active alert levels from backend (wrapped response)');
+          print('🔍 Alert levels data: $activeAlertLevels');
+
+          // Save alert levels locally for offline use
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(
+              'local_alert_levels',
+              jsonEncode(activeAlertLevels),
+            );
+            print('✅ Alert levels saved locally for offline use');
+          } catch (e) {
+            print('⚠️ Failed to save alert levels locally: $e');
+          }
+        } else {
+          throw Exception('Unexpected response format: ${response.data}');
+        }
+      } else {
+        throw Exception('Invalid response from alert levels API');
       }
     } catch (e) {
-      print('Error loading alert levels: $e');
+      print('❌ Error loading alert levels from backend: $e');
+      if (e is DioException) {
+        print('📡 DioException type: ${e.type}');
+        print('📡 DioException message: ${e.message}');
+        print('📡 Response status: ${e.response?.statusCode}');
+        print('📡 Response data: ${e.response?.data}');
+      }
+      
       // Use fallback alert levels if API fails
       setState(() {
         severityLevels = [
-          {'_id': 'low', 'name': 'low', 'isActive': true},
-          {'_id': 'medium', 'name': 'medium', 'isActive': true},
-          {'_id': 'high', 'name': 'high', 'isActive': true},
+          {'_id': 'low', 'name': 'Low', 'isActive': true},
+          {'_id': 'medium', 'name': 'Medium', 'isActive': true},
+          {'_id': 'high', 'name': 'High', 'isActive': true},
+          {'_id': 'critical', 'name': 'Critical', 'isActive': true},
         ];
       });
+      print('⚠️ Using fallback alert levels due to API error');
     }
   }
 
+  // Add test method for alert levels API
+  Future<void> _testAlertLevelsAPI() async {
+    try {
+      print('🧪 === TESTING ALERT LEVELS API ===');
+      
+      final response = await _apiService.get('api/v1/alert-level');
+      print('🧪 Alert levels API response status: ${response.statusCode}');
+      print('🧪 Alert levels API response data: ${response.data}');
+      print('🧪 Alert levels API response data type: ${response.data.runtimeType}');
+      
+      if (response.data != null && response.data is List) {
+        final alertLevelsData = List<Map<String, dynamic>>.from(response.data);
+        print('🧪 Found ${alertLevelsData.length} alert levels in response');
+        
+        for (int i = 0; i < alertLevelsData.length; i++) {
+          final level = alertLevelsData[i];
+          print('🧪 Alert Level ${i + 1}:');
+          print('🧪   - ID: ${level['_id']}');
+          print('🧪   - Name: ${level['name']}');
+          print('🧪   - Active: ${level['isActive']}');
+          print('🧪   - Created: ${level['createdAt']}');
+          print('🧪   - Updated: ${level['updatedAt']}');
+        }
+        
+        // Filter active levels
+        final activeLevels = alertLevelsData.where((level) => level['isActive'] == true).toList();
+        print('🧪 Active alert levels: ${activeLevels.length}');
+        for (final level in activeLevels) {
+          print('🧪   - ${level['name']} (${level['_id']})');
+        }
+      } else if (response.data != null && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        print('🧪 Response is wrapped in object with keys: ${data.keys.toList()}');
+        
+        if (data.containsKey('data') && data['data'] is List) {
+          final alertLevelsData = List<Map<String, dynamic>>.from(data['data']);
+          print('🧪 Found ${alertLevelsData.length} alert levels in data array');
+          
+          for (int i = 0; i < alertLevelsData.length; i++) {
+            final level = alertLevelsData[i];
+            print('🧪 Alert Level ${i + 1}:');
+            print('🧪   - ID: ${level['_id']}');
+            print('🧪   - Name: ${level['name']}');
+            print('🧪   - Active: ${level['isActive']}');
+          }
+        }
+      } else {
+        print('🧪 Unexpected response format');
+      }
+      
+      print('🧪 === END TESTING ALERT LEVELS API ===');
+    } catch (e) {
+      print('❌ Error testing alert levels API: $e');
+      if (e is DioException) {
+        print('📡 DioException type: ${e.type}');
+        print('📡 DioException message: ${e.message}');
+        print('📡 Response status: ${e.response?.statusCode}');
+        print('📡 Response data: ${e.response?.data}');
+      }
+    }
+  }
+
+  // Add comprehensive debug method for filter functionality
+  void _debugFilterFunctionality() {
+    print('🔍 === COMPREHENSIVE FILTER DEBUG ===');
+    print('🔍 Current State:');
+    print('🔍   - Search Query: "$searchQuery"');
+    print('🔍   - Selected Categories: $selectedCategoryIds');
+    print('🔍   - Selected Types: $selectedTypeIds');
+    print('🔍   - Selected Severities: $selectedSeverities');
+    print('🔍   - Is Offline: $_isOffline');
+    
+    print('🔍 Available Categories:');
+    for (int i = 0; i < reportCategoryId.length; i++) {
+      final cat = reportCategoryId[i];
+      final id = cat['_id'] ?? cat['id'] ?? 'unknown';
+      final name = cat['name'] ?? 'unknown';
+      final isSelected = selectedCategoryIds.contains(id);
+      print('🔍   ${i + 1}. ID: $id, Name: $name, Selected: $isSelected');
+    }
+    
+    print('🔍 Available Types:');
+    for (int i = 0; i < reportTypeId.length; i++) {
+      final type = reportTypeId[i];
+      final id = type['_id'] ?? type['id'] ?? 'unknown';
+      final name = type['name'] ?? 'unknown';
+      final categoryId = type['categoryId'] ?? 'unknown';
+      final isSelected = selectedTypeIds.contains(id);
+      print('🔍   ${i + 1}. ID: $id, Name: $name, Category: $categoryId, Selected: $isSelected');
+    }
+    
+    print('🔍 Available Severity Levels:');
+    for (int i = 0; i < severityLevels.length; i++) {
+      final level = severityLevels[i];
+      final id = level['_id'] ?? level['id'] ?? 'unknown';
+      final name = level['name'] ?? 'unknown';
+      final isActive = level['isActive'] ?? false;
+      final isSelected = selectedSeverities.contains(id);
+      print('🔍   ${i + 1}. ID: $id, Name: $name, Active: $isActive, Selected: $isSelected');
+    }
+    
+    // Show detailed severity level information
+    if (selectedSeverities.isNotEmpty) {
+      print('🔍 Selected Severity Details:');
+      for (final severityId in selectedSeverities) {
+        final severityLevel = severityLevels.firstWhere(
+          (level) => (level['_id'] ?? level['id']) == severityId,
+          orElse: () => {'name': 'Unknown', 'id': severityId},
+        );
+        print('🔍   - ID: $severityId, Name: ${severityLevel['name']}');
+      }
+    }
+    
+    print('🔍 Local Reports Summary:');
+    print('🔍   - Total Local Reports: ${_localReports.length}');
+    if (_localReports.isNotEmpty) {
+      final scamCount = _localReports.where((r) => r['type'] == 'scam').length;
+      final fraudCount = _localReports.where((r) => r['type'] == 'fraud').length;
+      final malwareCount = _localReports.where((r) => r['type'] == 'malware').length;
+      print('🔍   - Scam Reports: $scamCount');
+      print('🔍   - Fraud Reports: $fraudCount');
+      print('🔍   - Malware Reports: $malwareCount');
+      
+      print('🔍 Sample Local Reports:');
+      for (int i = 0; i < _localReports.length && i < 3; i++) {
+        final report = _localReports[i];
+        print('🔍   Report ${i + 1}:');
+        print('🔍     - ID: ${report['id']}');
+        print('🔍     - Type: ${report['type']}');
+        print('🔍     - Category ID: ${report['reportCategoryId']}');
+        print('🔍     - Type ID: ${report['reportTypeId']}');
+        print('🔍     - Category Name: ${report['categoryName']}');
+        print('🔍     - Type Name: ${report['typeName']}');
+        print('🔍     - Alert Level: ${report['alertLevels']}');
+        print('🔍     - Description: ${report['description']}');
+      }
+    }
+    
+    print('🔍 === END COMPREHENSIVE FILTER DEBUG ===');
+  }
+
+  // Add test method to simulate different filter scenarios
+  void _testFilterScenarios() {
+    print('🧪 === TESTING FILTER SCENARIOS ===');
+    
+    // Test 1: Select Report Scam category
+    print('🧪 Test 1: Selecting Report Scam category');
+    final scamCategoryId = reportCategoryId.firstWhere(
+      (cat) => (cat['name']?.toString().toLowerCase().contains('scam') ?? false),
+      orElse: () => {'_id': 'scam_category', 'name': 'Report Scam'},
+    )['_id'] ?? 'scam_category';
+    
+    print('🧪   - Found scam category ID: $scamCategoryId');
+    print('🧪   - Available categories: ${reportCategoryId.map((c) => '${c['_id']}: ${c['name']}').toList()}');
+    
+    // Test 2: Select Report Fraud category
+    print('🧪 Test 2: Selecting Report Fraud category');
+    final fraudCategoryId = reportCategoryId.firstWhere(
+      (cat) => (cat['name']?.toString().toLowerCase().contains('fraud') ?? false),
+      orElse: () => {'_id': 'fraud_category', 'name': 'Report Fraud'},
+    )['_id'] ?? 'fraud_category';
+    
+    print('🧪   - Found fraud category ID: $fraudCategoryId');
+    
+    // Test 3: Select Report Malware category
+    print('🧪 Test 3: Selecting Report Malware category');
+    final malwareCategoryId = reportCategoryId.firstWhere(
+      (cat) => (cat['name']?.toString().toLowerCase().contains('malware') ?? false),
+      orElse: () => {'_id': 'malware_category', 'name': 'Report Malware'},
+    )['_id'] ?? 'malware_category';
+    
+    print('🧪   - Found malware category ID: $malwareCategoryId');
+    
+    // Test 4: Check available types for each category
+    print('🧪 Test 4: Checking available types');
+    for (final type in reportTypeId) {
+      final typeId = type['_id'] ?? type['id'];
+      final typeName = type['name'];
+      final categoryId = type['categoryId'];
+      print('🧪   - Type: $typeName (ID: $typeId, Category: $categoryId)');
+    }
+    
+    // Test 5: Check severity levels
+    print('🧪 Test 5: Checking severity levels');
+    for (final level in severityLevels) {
+      final levelId = level['_id'] ?? level['id'];
+      final levelName = level['name'];
+      final isActive = level['isActive'];
+      print('🧪   - Level: $levelName (ID: $levelId, Active: $isActive)');
+    }
+    
+    // Test 6: Simulate filter application
+    print('🧪 Test 6: Simulating filter application');
+    print('🧪   - Current search query: "$searchQuery"');
+    print('🧪   - Current selected categories: $selectedCategoryIds');
+    print('🧪   - Current selected types: $selectedTypeIds');
+    print('🧪   - Current selected severities: $selectedSeverities');
+    
+    // Test 7: Check local reports for filtering
+    print('🧪 Test 7: Checking local reports for filtering');
+    if (_localReports.isNotEmpty) {
+      final scamReports = _localReports.where((r) => r['type'] == 'scam').toList();
+      final fraudReports = _localReports.where((r) => r['type'] == 'fraud').toList();
+      final malwareReports = _localReports.where((r) => r['type'] == 'malware').toList();
+      
+      print('🧪   - Scam reports available: ${scamReports.length}');
+      print('🧪   - Fraud reports available: ${fraudReports.length}');
+      print('🧪   - Malware reports available: ${malwareReports.length}');
+      
+      if (scamReports.isNotEmpty) {
+        print('🧪   - Sample scam report: ${scamReports.first['description']}');
+      }
+      if (fraudReports.isNotEmpty) {
+        print('🧪   - Sample fraud report: ${fraudReports.first['description']}');
+      }
+      if (malwareReports.isNotEmpty) {
+        print('🧪   - Sample malware report: ${malwareReports.first['description']}');
+      }
+    }
+    
+    print('🧪 === END TESTING FILTER SCENARIOS ===');
+  }
+
+  // Add test method to simulate Low severity selection
+  void _testLowSeverityFilter() {
+    print('🧪 === TESTING LOW SEVERITY FILTER ===');
+    
+    // Find the Low severity level
+    final lowSeverityLevel = severityLevels.firstWhere(
+      (level) => (level['name']?.toString().toLowerCase() == 'low'),
+      orElse: () => {'_id': 'low', 'name': 'Low'},
+    );
+    
+    print('🧪 Found Low severity level: ${lowSeverityLevel['_id']} - ${lowSeverityLevel['name']}');
+    
+    // Simulate selecting Low severity
+    setState(() {
+      selectedSeverities = [lowSeverityLevel['_id']];
+    });
+    
+    print('🧪 Selected severities after setting Low: $selectedSeverities');
+    
+    // Show what would be passed to the list page
+    print('🧪 Would pass to list page:');
+    print('🧪   - selectedSeverities: $selectedSeverities');
+    print('🧪   - hasSelectedSeverity: ${selectedSeverities.isNotEmpty}');
+    
+    // Show available severity levels for comparison
+    print('🧪 Available severity levels:');
+    for (final level in severityLevels) {
+      final id = level['_id'] ?? level['id'];
+      final name = level['name'];
+      final isSelected = selectedSeverities.contains(id);
+      print('🧪   - $name (ID: $id, Selected: $isSelected)');
+    }
+    
+    print('🧪 === END TESTING LOW SEVERITY FILTER ===');
+  }
+
   void _onCategoryChanged(List<String> categoryIds) {
+    print('🔍 Category changed: $categoryIds');
     setState(() {
       selectedCategoryIds = categoryIds;
       selectedTypeIds = [];
@@ -537,6 +857,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
     if (categoryIds.isNotEmpty) {
       _loadTypesByCategory(categoryIds);
+    } else {
+      // If no categories selected, load all types
+      _loadAllReportTypes();
     }
   }
 
@@ -651,22 +974,13 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
       // Convert alert level IDs to names for API
       final severityLevelsForAPI = selectedSeverities.isNotEmpty
-          ? selectedSeverities.map((severityId) {
-              // Find the alert level name from the severityLevels list
-              final alertLevel = severityLevels.firstWhere(
-                (level) => (level['_id'] ?? level['id']) == severityId,
-                orElse: () => {'name': severityId.toLowerCase()},
-              );
-              return (alertLevel['name'] ?? severityId)
-                  .toString()
-                  .toLowerCase();
-            }).toList()
+          ? selectedSeverities
           : null;
 
+      print('🔍 Debug - selectedSeverities: $selectedSeverities');
       print('🔍 Debug - severityLevelsForAPI: $severityLevelsForAPI');
-      print(
-        '🔍 Debug - severityLevelsForAPI type: ${severityLevelsForAPI.runtimeType}',
-      );
+      print('🔍 Debug - severityLevelsForAPI type: ${severityLevelsForAPI.runtimeType}');
+      print('🔍 Debug - selectedSeverities isEmpty: ${selectedSeverities.isEmpty}');
 
       final reports = await _apiService.getReportsWithComplexFilter(
         searchQuery: searchQuery,
@@ -704,6 +1018,26 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
             icon: Icon(Icons.bug_report),
             onPressed: _testDynamicApiCall,
             tooltip: 'Test Dynamic API',
+          ),
+          IconButton(
+            icon: Icon(Icons.warning),
+            onPressed: _testAlertLevelsAPI,
+            tooltip: 'Test Alert Levels API',
+          ),
+          IconButton(
+            icon: Icon(Icons.filter_alt),
+            onPressed: _debugFilterFunctionality,
+            tooltip: 'Debug Filter Functionality',
+          ),
+          IconButton(
+            icon: Icon(Icons.science),
+            onPressed: _testFilterScenarios,
+            tooltip: 'Test Filter Scenarios',
+          ),
+          IconButton(
+            icon: Icon(Icons.low_priority),
+            onPressed: _testLowSeverityFilter,
+            tooltip: 'Test Low Severity Filter',
           ),
           IconButton(icon: Icon(Icons.more_vert), onPressed: () {}),
         ],
@@ -1032,22 +1366,104 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                   ),
                   onPressed: () {
                     print('🔍 UI Debug - Next button pressed');
-                    print(
-                      '🔍 UI Debug - selectedSeverities: $selectedSeverities',
-                    );
-                    print(
-                      '🔍 UI Debug - selectedSeverities isEmpty: ${selectedSeverities.isEmpty}',
-                    );
+                    print('🔍 UI Debug - selectedSeverities: $selectedSeverities');
+                    print('🔍 UI Debug - selectedSeverities isEmpty: ${selectedSeverities.isEmpty}');
                     print('🔍 Filter Debug - searchQuery: $searchQuery');
-                    print(
-                      '🔍 Filter Debug - selectedCategoryIds: $selectedCategoryIds',
-                    );
-                    print(
-                      '🔍 Filter Debug - selectedTypeIds: $selectedTypeIds',
-                    );
-                    print(
-                      '🔍 Filter Debug - selectedSeverities: $selectedSeverities',
-                    );
+                    print('🔍 Filter Debug - selectedCategoryIds: $selectedCategoryIds');
+                    print('🔍 Filter Debug - selectedTypeIds: $selectedTypeIds');
+                    print('🔍 Filter Debug - selectedSeverities: $selectedSeverities');
+
+                    // Validate that we have proper data
+                    if (selectedCategoryIds.isNotEmpty) {
+                      print('🔍 Selected categories: $selectedCategoryIds');
+                      print('🔍 Available categories: ${reportCategoryId.map((c) => '${c['_id'] ?? c['id']}: ${c['name']}').toList()}');
+                    }
+                    
+                    if (selectedTypeIds.isNotEmpty) {
+                      print('🔍 Selected types: $selectedTypeIds');
+                      print('🔍 Available types: ${reportTypeId.map((t) => '${t['_id'] ?? t['id']}: ${t['name']}').toList()}');
+                    }
+
+                    // Additional validation and debugging
+                    print('🔍 === NEXT BUTTON VALIDATION ===');
+                    print('🔍 Search Query: "${searchQuery}" (hasSearchQuery: ${searchQuery.isNotEmpty})');
+                    print('🔍 Selected Categories: $selectedCategoryIds (hasSelectedCategory: ${selectedCategoryIds.isNotEmpty})');
+                    print('🔍 Selected Types: $selectedTypeIds (hasSelectedType: ${selectedTypeIds.isNotEmpty})');
+                    print('🔍 Selected Severities: $selectedSeverities (hasSelectedSeverity: ${selectedSeverities.isNotEmpty})');
+                    print('🔍 Is Offline: $_isOffline');
+                    print('🔍 Local Reports Count: ${_localReports.length}');
+                    print('🔍 Severity Levels Count: ${severityLevels.length}');
+                    
+                    // Show severity level details
+                    if (selectedSeverities.isNotEmpty) {
+                      print('🔍 Severity Level Details:');
+                      for (final severityId in selectedSeverities) {
+                        final severityLevel = severityLevels.firstWhere(
+                          (level) => (level['_id'] ?? level['id']) == severityId,
+                          orElse: () => {'name': 'Unknown', 'id': severityId},
+                        );
+                        print('🔍   - ID: $severityId, Name: ${severityLevel['name']}');
+                      }
+                    }
+                    
+                    // Debug: Show what will be passed to ThreadDatabaseListPage
+                    print('🔍 === DATA BEING PASSED TO LIST PAGE ===');
+                    print('🔍 searchQuery: "$searchQuery"');
+                    print('🔍 selectedCategories: $selectedCategoryIds');
+                    print('🔍 selectedTypes: $selectedTypeIds');
+                    print('🔍 selectedSeverities: $selectedSeverities');
+                    print('🔍 hasSearchQuery: ${searchQuery.isNotEmpty}');
+                    print('🔍 hasSelectedCategory: ${selectedCategoryIds.isNotEmpty}');
+                    print('🔍 hasSelectedType: ${selectedTypeIds.isNotEmpty}');
+                    print('🔍 hasSelectedSeverity: ${selectedSeverities.isNotEmpty}');
+                    print('🔍 === END DATA BEING PASSED ===');
+
+                    // Check if we have any filters applied
+                    final hasAnyFilters = searchQuery.isNotEmpty || 
+                                        selectedCategoryIds.isNotEmpty || 
+                                        selectedTypeIds.isNotEmpty || 
+                                        selectedSeverities.isNotEmpty;
+                    print('🔍 Has Any Filters: $hasAnyFilters');
+                    
+                    if (hasAnyFilters) {
+                      print('🔍 Filter Summary:');
+                      if (searchQuery.isNotEmpty) {
+                        print('🔍   - Search: "$searchQuery"');
+                      }
+                      if (selectedCategoryIds.isNotEmpty) {
+                        final categoryNames = selectedCategoryIds.map((id) {
+                          final cat = reportCategoryId.firstWhere(
+                            (c) => (c['_id'] ?? c['id']) == id,
+                            orElse: () => {'name': 'Unknown'},
+                          );
+                          return cat['name'] ?? 'Unknown';
+                        }).toList();
+                        print('🔍   - Categories: $categoryNames');
+                      }
+                      if (selectedTypeIds.isNotEmpty) {
+                        final typeNames = selectedTypeIds.map((id) {
+                          final type = reportTypeId.firstWhere(
+                            (t) => (t['_id'] ?? t['id']) == id,
+                            orElse: () => {'name': 'Unknown'},
+                          );
+                          return type['name'] ?? 'Unknown';
+                        }).toList();
+                        print('🔍   - Types: $typeNames');
+                      }
+                      if (selectedSeverities.isNotEmpty) {
+                        final severityNames = selectedSeverities.map((id) {
+                          final level = severityLevels.firstWhere(
+                            (s) => (s['_id'] ?? s['id']) == id,
+                            orElse: () => {'name': 'Unknown'},
+                          );
+                          return level['name'] ?? 'Unknown';
+                        }).toList();
+                        print('🔍   - Severities: $severityNames');
+                      }
+                    } else {
+                      print('🔍 No filters applied - will show all reports');
+                    }
+                    print('🔍 === END NEXT BUTTON VALIDATION ===');
 
                     Navigator.push(
                       context,
@@ -1129,9 +1545,34 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       }
                     } else {
                       newValues.remove(id);
-                      print('Removed ID: $id');
+                      print('🔍 Removed ID: $id');
                     }
-                    print('New selected values: $newValues');
+                    print('🔍 New selected values: $newValues');
+                    
+                    // Additional debug info for category changes
+                    if (label == 'Category') {
+                      print('🔍 Category selection changed:');
+                      print('🔍   - Previous categories: $selectedCategoryIds');
+                      print('🔍   - New categories: $newValues');
+                      print('🔍   - Available categories: ${reportCategoryId.map((c) => '${c['_id'] ?? c['id']}: ${c['name']}').toList()}');
+                    }
+                    
+                    // Additional debug info for type changes
+                    if (label == 'Type') {
+                      print('🔍 Type selection changed:');
+                      print('🔍   - Previous types: $selectedTypeIds');
+                      print('🔍   - New types: $newValues');
+                      print('🔍   - Available types: ${reportTypeId.map((t) => '${t['_id'] ?? t['id']}: ${t['name']}').toList()}');
+                    }
+                    
+                    // Additional debug info for severity changes
+                    if (label == 'Alert Severity Levels') {
+                      print('🔍 Severity selection changed:');
+                      print('🔍   - Previous severities: $selectedSeverities');
+                      print('🔍   - New severities: $newValues');
+                      print('🔍   - Available severities: ${severityLevels.map((s) => '${s['_id'] ?? s['id']}: ${s['name']}').toList()}');
+                    }
+                    
                     onChanged(newValues);
                   },
                 );

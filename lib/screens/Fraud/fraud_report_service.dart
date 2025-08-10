@@ -34,13 +34,14 @@ class FraudReportService {
     }
 
     // Ensure unique timestamp for each report
-    final now = DateTime.now();
-    final uniqueOffset = (report.id?.hashCode ?? 0) % 1000;
-    final uniqueTimestamp = now.add(Duration(milliseconds: uniqueOffset));
+    final now = DateTime.now().toUtc(); // Use UTC time consistently
+    // Remove unique offset to prevent future timestamps
+    // final uniqueOffset = (report.id?.hashCode ?? 0) % 1000;
+    // final uniqueTimestamp = now.add(Duration(milliseconds: uniqueOffset));
 
     report = report.copyWith(
-      createdAt: uniqueTimestamp,
-      updatedAt: uniqueTimestamp,
+      createdAt: now,
+      updatedAt: now,
     );
 
     // Always save to local storage first (offline-first approach)

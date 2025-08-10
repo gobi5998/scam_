@@ -77,6 +77,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _initializeData();
+    _debugTimestampIssues(); // Add debug call
   }
 
   Future<void> _initializeData() async {
@@ -174,6 +175,78 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     return sortedReports;
   }
 
+  // Add debug method to help identify timestamp issues
+  void _debugTimestampIssues() {
+    print('🔍 Debugging timestamp issues...');
+    print('🔍 Current local time: ${DateTime.now()}');
+    print('🔍 Current UTC time: ${DateTime.now().toUtc()}');
+    print('🔍 Current ISO string: ${DateTime.now().toIso8601String()}');
+    print('🔍 Current UTC ISO string: ${DateTime.now().toUtc().toIso8601String()}');
+    
+    // Check a few sample reports
+    if (_filteredReports.isNotEmpty) {
+      print('🔍 Sample report timestamps:');
+      for (int i = 0; i < _filteredReports.length && i < 3; i++) {
+        final report = _filteredReports[i];
+        final createdAt = report['createdAt'];
+        print('🔍 Report $i:');
+        print('🔍   - Raw createdAt: $createdAt');
+        print('🔍   - Type: ${createdAt.runtimeType}');
+        if (createdAt is String) {
+          try {
+            final parsed = DateTime.parse(createdAt);
+            print('🔍   - Parsed: $parsed');
+            print('🔍   - Parsed UTC: ${parsed.toUtc()}');
+          } catch (e) {
+            print('🔍   - Parse error: $e');
+          }
+        }
+      }
+    }
+  }
+
+  // Add method to clear database and recreate with proper timestamps
+  Future<void> _clearAndRecreateDatabase() async {
+    print('🧹 Clearing database to fix timestamp issues...');
+    
+    try {
+      // Clear all Hive boxes
+      final scamBox = Hive.box('scam_reports');
+      final fraudBox = Hive.box('fraud_reports');
+      final malwareBox = Hive.box('malware_reports');
+      
+      await scamBox.clear();
+      await fraudBox.clear();
+      await malwareBox.clear();
+      
+      print('✅ Database cleared successfully');
+      
+      // Reload data
+      await _initializeData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Database cleared and recreated with proper timestamps'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error clearing database: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error clearing database: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   DateTime _parseDateTime(dynamic dateValue) {
     if (dateValue == null) return DateTime.now();
 
@@ -182,9 +255,17 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
 
     if (dateValue is String) {
-      return DateTime.tryParse(dateValue) ?? DateTime.now();
+      try {
+        final parsed = DateTime.parse(dateValue);
+        print('🔍 Parsed date: $parsed from string: $dateValue');
+        return parsed;
+      } catch (e) {
+        print('❌ Error parsing date string: $dateValue, error: $e');
+        return DateTime.now();
+      }
     }
 
+    print('❌ Unknown date type: ${dateValue.runtimeType}');
     return DateTime.now();
   }
 
@@ -371,51 +452,92 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       if (hasFilters) {
         print('🔍 ThreadDB Debug - hasFilters: $hasFilters');
-        print(
-          '🔍 ThreadDB Debug - widget.hasSelectedSeverity: ${widget.hasSelectedSeverity}',
-        );
-        print(
-          '🔍 ThreadDB Debug - widget.selectedSeverities: ${widget.selectedSeverities}',
-        );
-        print(
-          '🔍 ThreadDB Debug - widget.selectedSeverities isEmpty: ${widget.selectedSeverities.isEmpty}',
-        );
+        print('🔍 ThreadDB Debug - searchQuery: ${widget.searchQuery}');
+        print('🔍 ThreadDB Debug - selectedCategories: ${widget.selectedCategories}');
+        print('🔍 ThreadDB Debug - selectedTypes: ${widget.selectedTypes}');
+        print('🔍 ThreadDB Debug - selectedSeverities: ${widget.selectedSeverities}');
+        print('🔍 ThreadDB Debug - hasSelectedCategory: ${widget.hasSelectedCategory}');
+        print('🔍 ThreadDB Debug - hasSelectedType: ${widget.hasSelectedType}');
+        print('🔍 ThreadDB Debug - hasSelectedSeverity: ${widget.hasSelectedSeverity}');
 
-        // Convert alert level IDs to names for API
-        final severityLevelsForAPI =
-            widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
-            ? widget.selectedSeverities.map((severityId) {
-                // Find the alert level name from the severityLevels list
-                final alertLevel = widget.severityLevels.firstWhere(
-                  (level) => (level['_id'] ?? level['id']) == severityId,
-                  orElse: () => {'name': severityId.toLowerCase()},
-                );
-                return (alertLevel['name'] ?? severityId)
-                    .toString()
-                    .toLowerCase();
-              }).toList()
-            : null;
+        // Construct query parameters to match the working backend URL structure
+        final queryParams = <String, dynamic>{
+          'page': _currentPage.toString(),
+          'limit': _pageSize.toString(),
+        };
 
-        print(
-          '🔍 ThreadDB Debug - severityLevelsForAPI: $severityLevelsForAPI',
-        );
+        // Add search query if present
+        if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
+          queryParams['search'] = widget.searchQuery;
+        }
 
-        newReports = await _apiService.getReportsWithComplexFilter(
-          searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-          categoryIds:
-              widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
-              ? widget.selectedCategories
-              : null,
-          typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-              ? widget.selectedTypes
-              : null,
-          severityLevels: severityLevelsForAPI,
-          page: _currentPage,
-          limit: _pageSize,
-        );
+        // Add category ID if selected (use first selected category)
+        if (widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty) {
+          queryParams['reportCategoryId'] = widget.selectedCategories.first;
+          print('🔍 Using category ID: ${widget.selectedCategories.first}');
+        }
+
+        // Add type ID if selected (use first selected type)
+        if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
+          queryParams['reportTypeId'] = widget.selectedTypes.first;
+          print('🔍 Using type ID: ${widget.selectedTypes.first}');
+        }
+
+        // Add severity level if selected (use first selected severity)
+        if (widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty) {
+          queryParams['alertLevels'] = widget.selectedSeverities.first;
+          print('🔍 Using severity ID: ${widget.selectedSeverities.first}');
+        }
+
+        // Add empty parameters to match the URL structure
+        queryParams['deviceTypeId'] = '';
+        queryParams['detectTypeId'] = '';
+        queryParams['operatingSystemName'] = '';
+        queryParams['userId'] = '';
+
+        print('🔍 Constructed query parameters: $queryParams');
+
+        // Make direct API call with constructed parameters using ReportsFilter
+        try {
+          final filter = ReportsFilter(
+            page: _currentPage,
+            limit: _pageSize,
+            search: widget.hasSearchQuery ? widget.searchQuery : null,
+            reportCategoryId: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
+                ? widget.selectedCategories.first
+                : null,
+            reportTypeId: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                ? widget.selectedTypes.first
+                : null,
+          );
+          
+          newReports = await _apiService.fetchReportsWithFilter(filter);
+          print('Direct filter API call returned ${newReports.length} reports');
+          
+        } catch (apiError) {
+          print('❌ Direct API call failed: $apiError');
+          // Fallback to complex filter method
+          newReports = await _apiService.getReportsWithComplexFilter(
+            searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+            categoryIds: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
+                ? [widget.selectedCategories.first]
+                : null,
+            typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                ? [widget.selectedTypes.first]
+                : null,
+            severityLevels: widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
+                ? [widget.selectedSeverities.first]
+                : null,
+            page: _currentPage,
+            limit: _pageSize,
+          );
+          print('🔍 Fallback complex filter returned ${newReports.length} reports');
+          print('🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}');
+        }
       } else {
         final filter = ReportsFilter(page: _currentPage, limit: _pageSize);
         newReports = await _apiService.fetchReportsWithFilter(filter);
+        print('ThreadDB Debug - Simple filter returned ${newReports.length} reports');
       }
 
       if (newReports.isNotEmpty) {
@@ -586,14 +708,30 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       // Handle createdAt - could be String, DateTime, or null
       if (normalized['createdAt'] is String) {
-        normalized['createdAt'] = normalized['createdAt'];
+        // Keep as string but ensure it's valid
+        try {
+          final parsed = DateTime.parse(normalized['createdAt']);
+          normalized['createdAt'] = parsed.toUtc().toIso8601String();
+          print('🔍 Normalized createdAt string to UTC: ${normalized['createdAt']}');
+        } catch (e) {
+          print('❌ Invalid createdAt string: ${normalized['createdAt']}, using current time');
+          normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+        }
       } else if (normalized['createdAt'] is DateTime) {
-        normalized['createdAt'] = (normalized['createdAt'] as DateTime)
-            .toIso8601String();
+        normalized['createdAt'] = (normalized['createdAt'] as DateTime).toUtc().toIso8601String();
+        print('🔍 Normalized createdAt DateTime to UTC: ${normalized['createdAt']}');
       } else if (normalized['createdAt'] != null) {
-        normalized['createdAt'] = normalized['createdAt'].toString();
+        try {
+          final parsed = DateTime.parse(normalized['createdAt'].toString());
+          normalized['createdAt'] = parsed.toUtc().toIso8601String();
+          print('🔍 Normalized createdAt other to UTC: ${normalized['createdAt']}');
+        } catch (e) {
+          print('❌ Could not parse createdAt: ${normalized['createdAt']}, using current time');
+          normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+        }
       } else {
-        normalized['createdAt'] = DateTime.now().toIso8601String();
+        normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+        print('🔍 Set createdAt to current UTC time: ${normalized['createdAt']}');
       }
 
       // Handle phoneNumbers - could be String, List, or null
@@ -843,6 +981,33 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             ? widget.localReports
             : await _getLocalReports();
         print('📱 Loaded ${reports.length} local reports');
+        
+        // Ensure local reports have proper category and type mappings for filtering
+        reports = reports.map((report) {
+          final enhancedReport = Map<String, dynamic>.from(report);
+          
+          // Ensure proper category and type information for filtering
+          if (enhancedReport['type'] == 'scam') {
+            enhancedReport['reportCategoryId'] = enhancedReport['reportCategoryId'] ?? 'scam_category';
+            enhancedReport['reportTypeId'] = enhancedReport['reportTypeId'] ?? 'scam_type';
+            enhancedReport['categoryName'] = enhancedReport['categoryName'] ?? 'Report Scam';
+            enhancedReport['typeName'] = enhancedReport['typeName'] ?? 'Scam Report';
+          } else if (enhancedReport['type'] == 'fraud') {
+            enhancedReport['reportCategoryId'] = enhancedReport['reportCategoryId'] ?? 'fraud_category';
+            enhancedReport['reportTypeId'] = enhancedReport['reportTypeId'] ?? 'fraud_type';
+            enhancedReport['categoryName'] = enhancedReport['categoryName'] ?? 'Report Fraud';
+            enhancedReport['typeName'] = enhancedReport['typeName'] ?? 'Fraud Report';
+          } else if (enhancedReport['type'] == 'malware') {
+            enhancedReport['reportCategoryId'] = enhancedReport['reportCategoryId'] ?? 'malware_category';
+            enhancedReport['reportTypeId'] = enhancedReport['reportTypeId'] ?? 'malware_type';
+            enhancedReport['categoryName'] = enhancedReport['categoryName'] ?? 'Report Malware';
+            enhancedReport['typeName'] = enhancedReport['typeName'] ?? 'Malware Report';
+          }
+          
+          return enhancedReport;
+        }).toList();
+        
+        print('📱 Enhanced ${reports.length} local reports with proper category/type mappings');
       } else {
         // Online mode - try API first
         bool hasFilters =
@@ -855,68 +1020,91 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           if (hasFilters) {
             print('🔍 ThreadDB Debug - hasFilters: $hasFilters');
             print('🔍 ThreadDB Debug - searchQuery: ${widget.searchQuery}');
-            print(
-              '🔍 ThreadDB Debug - selectedCategories: ${widget.selectedCategories}',
-            );
+            print('🔍 ThreadDB Debug - selectedCategories: ${widget.selectedCategories}');
             print('🔍 ThreadDB Debug - selectedTypes: ${widget.selectedTypes}');
-            print(
-              '🔍 ThreadDB Debug - selectedSeverities: ${widget.selectedSeverities}',
-            );
-            print(
-              '🔍 ThreadDB Debug - hasSelectedCategory: ${widget.hasSelectedCategory}',
-            );
-            print(
-              '🔍 ThreadDB Debug - hasSelectedType: ${widget.hasSelectedType}',
-            );
-            print(
-              '🔍 ThreadDB Debug - hasSelectedSeverity: ${widget.hasSelectedSeverity}',
-            );
+            print('🔍 ThreadDB Debug - selectedSeverities: ${widget.selectedSeverities}');
+            print('🔍 ThreadDB Debug - hasSelectedCategory: ${widget.hasSelectedCategory}');
+            print('🔍 ThreadDB Debug - hasSelectedType: ${widget.hasSelectedType}');
+            print('🔍 ThreadDB Debug - hasSelectedSeverity: ${widget.hasSelectedSeverity}');
 
-            final categoryIdsForAPI =
-                widget.hasSelectedCategory &&
-                    widget.selectedCategories.isNotEmpty
-                ? widget.selectedCategories
-                : null;
-            final typeIdsForAPI =
-                widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                ? widget.selectedTypes
-                : null;
-            final severityLevelsForAPI =
-                widget.hasSelectedSeverity &&
-                    widget.selectedSeverities.isNotEmpty
-                ? widget.selectedSeverities.map((severityId) {
-                    // Find the alert level name from the severityLevels list
-                    final alertLevel = widget.severityLevels.firstWhere(
-                      (level) => (level['_id'] ?? level['id']) == severityId,
-                      orElse: () => {'name': severityId.toLowerCase()},
-                    );
-                    return (alertLevel['name'] ?? severityId)
-                        .toString()
-                        .toLowerCase();
-                  }).toList()
-                : null;
+            // Construct query parameters to match the working backend URL structure
+            final queryParams = <String, dynamic>{
+              'page': _currentPage.toString(),
+              'limit': _pageSize.toString(),
+            };
 
-            print('🔍 ThreadDB Debug - categoryIdsForAPI: $categoryIdsForAPI');
-            print('🔍 ThreadDB Debug - typeIdsForAPI: $typeIdsForAPI');
-            print(
-              '🔍 ThreadDB Debug - severityLevelsForAPI: $severityLevelsForAPI',
-            );
+            // Add search query if present
+            if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
+              queryParams['search'] = widget.searchQuery;
+            }
 
-            reports = await _apiService.getReportsWithComplexFilter(
-              searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-              categoryIds: categoryIdsForAPI,
-              typeIds: typeIdsForAPI,
-              severityLevels: severityLevelsForAPI,
-              page: _currentPage,
-              limit: _pageSize,
-            );
-            print('🔍 ThreadDB Debug - API returned ${reports.length} reports');
+            // Add category ID if selected (use first selected category)
+            if (widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty) {
+              queryParams['reportCategoryId'] = widget.selectedCategories.first;
+              print('🔍 Using category ID: ${widget.selectedCategories.first}');
+            }
+
+            // Add type ID if selected (use first selected type)
+            if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
+              queryParams['reportTypeId'] = widget.selectedTypes.first;
+              print('🔍 Using type ID: ${widget.selectedTypes.first}');
+            }
+
+            // Add severity level if selected (use first selected severity)
+            if (widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty) {
+              queryParams['alertLevels'] = widget.selectedSeverities.first;
+              print('🔍 Using severity ID: ${widget.selectedSeverities.first}');
+            }
+
+            // Add empty parameters to match the URL structure
+            queryParams['deviceTypeId'] = '';
+            queryParams['detectTypeId'] = '';
+            queryParams['operatingSystemName'] = '';
+            queryParams['userId'] = '';
+
+            print('🔍 Constructed query parameters: $queryParams');
+
+            // Make direct API call with constructed parameters using ReportsFilter
+            try {
+              final filter = ReportsFilter(
+                page: _currentPage,
+                limit: _pageSize,
+                search: widget.hasSearchQuery ? widget.searchQuery : null,
+                reportCategoryId: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
+                    ? widget.selectedCategories.first
+                    : null,
+                reportTypeId: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                    ? widget.selectedTypes.first
+                    : null,
+              );
+              
+              reports = await _apiService.fetchReportsWithFilter(filter);
+              print('🔍 Direct filter API call returned ${reports.length} reports');
+              
+            } catch (apiError) {
+              print('❌ Direct API call failed: $apiError');
+              // Fallback to complex filter method
+              reports = await _apiService.getReportsWithComplexFilter(
+                searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+                categoryIds: widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
+                    ? [widget.selectedCategories.first]
+                    : null,
+                typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                    ? [widget.selectedTypes.first]
+                    : null,
+                severityLevels: widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
+                    ? [widget.selectedSeverities.first]
+                    : null,
+                page: _currentPage,
+                limit: _pageSize,
+              );
+              print('🔍 Fallback complex filter returned ${reports.length} reports');
+              print('🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}');
+            }
           } else {
             final filter = ReportsFilter(page: _currentPage, limit: _pageSize);
             reports = await _apiService.fetchReportsWithFilter(filter);
-            print(
-              '🔍 ThreadDB Debug - Simple filter returned ${reports.length} reports',
-            );
+            print('🔍 ThreadDB Debug - Simple filter returned ${reports.length} reports');
           }
         } catch (e) {
           print('❌ API failed, falling back to local data: $e');
@@ -945,16 +1133,19 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           widget.hasSelectedSeverity;
 
       if (hasActiveFilters) {
+        print('🔍 Applying filters to ${reports.length} reports...');
         _filteredReports = _applyFilters(reports);
-        print(
-          '🔍 DEBUG: After applying filters: ${_filteredReports.length} reports',
-        );
+        print('🔍 After applying filters: ${_filteredReports.length} reports');
       } else {
         // No filters applied, show all reports
         _filteredReports = reports;
-        print(
-          '🔍 DEBUG: No filters applied, showing all ${_filteredReports.length} reports',
-        );
+        print('🔍 No filters applied, showing all ${_filteredReports.length} reports');
+      }
+
+      // Debug filter issues if needed
+      if (hasActiveFilters && _filteredReports.isEmpty) {
+        print('⚠️ WARNING: Filters applied but no results found!');
+        _debugFilterIssues();
       }
 
       // Remove duplicates and sort by creation date (newest first)
@@ -1015,27 +1206,77 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
 
     if (widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty) {
+      print('🔍 Applying category filter with: ${widget.selectedCategories}');
       filtered = filtered.where((report) {
+        // Try multiple ways to get category information
         final cat = report['reportCategoryId'];
+        final categoryName = report['categoryName']?.toString().toLowerCase();
+        final type = report['type']?.toString().toLowerCase();
+        
         String? catId = cat is Map
             ? cat['_id']?.toString() ?? cat['id']?.toString()
             : cat?.toString();
 
-        // For local reports, also check categoryName
-        final categoryName = report['categoryName']?.toString().toLowerCase();
+        print('🔍 Report category check:');
+        print('🔍   - Category ID: $catId');
+        print('🔍   - Category Name: $categoryName');
+        print('🔍   - Report Type: $type');
+        print('🔍   - Selected Categories: ${widget.selectedCategories}');
 
-        bool matches =
-            catId != null && widget.selectedCategories.contains(catId);
+        bool matches = false;
+
+        // First try exact ID match
+        if (catId != null && widget.selectedCategories.contains(catId)) {
+          matches = true;
+          print('🔍   ✅ Matched by ID: $catId');
+        }
 
         // If no match by ID, try matching by name
         if (!matches && categoryName != null) {
-          matches = widget.selectedCategories.any((selectedCat) {
-            // Try to find category name from the selected category ID
-            final selectedCategoryName = _categoryIdToName[selectedCat]
-                ?.toLowerCase();
-            return selectedCategoryName != null &&
-                categoryName.contains(selectedCategoryName);
-          });
+          for (String selectedCat in widget.selectedCategories) {
+            final selectedCategoryName = _categoryIdToName[selectedCat]?.toLowerCase();
+            if (selectedCategoryName != null && categoryName.contains(selectedCategoryName)) {
+              matches = true;
+              print('🔍   ✅ Matched by name: $selectedCategoryName');
+              break;
+            }
+          }
+        }
+
+        // If still no match, try matching by report type (for offline data)
+        if (!matches && type != null) {
+          for (String selectedCat in widget.selectedCategories) {
+            final selectedCategoryName = _categoryIdToName[selectedCat]?.toLowerCase();
+            if (selectedCategoryName != null) {
+              if (type == 'scam' && selectedCategoryName.contains('scam')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (scam): $type');
+                break;
+              } else if (type == 'fraud' && selectedCategoryName.contains('fraud')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (fraud): $type');
+                break;
+              } else if (type == 'malware' && selectedCategoryName.contains('malware')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (malware): $type');
+                break;
+              }
+            }
+          }
+        }
+
+        // For offline data, also try direct category ID matching
+        if (!matches && catId != null) {
+          if (catId == 'scam_category' && widget.selectedCategories.any((c) => c.contains('scam'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct category ID (scam): $catId');
+          } else if (catId == 'fraud_category' && widget.selectedCategories.any((c) => c.contains('fraud'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct category ID (fraud): $catId');
+          } else if (catId == 'malware_category' && widget.selectedCategories.any((c) => c.contains('malware'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct category ID (malware): $catId');
+          }
         }
 
         return matches;
@@ -1044,25 +1285,77 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
 
     if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
+      print('🔍 Applying type filter with: ${widget.selectedTypes}');
       filtered = filtered.where((report) {
+        // Try multiple ways to get type information
         final type = report['reportTypeId'];
+        final typeName = report['typeName']?.toString().toLowerCase();
+        final reportType = report['type']?.toString().toLowerCase();
+        
         String? typeId = type is Map
             ? type['_id']?.toString() ?? type['id']?.toString()
             : type?.toString();
 
-        // For local reports, also check typeName
-        final typeName = report['typeName']?.toString().toLowerCase();
+        print('🔍 Report type check:');
+        print('🔍   - Type ID: $typeId');
+        print('🔍   - Type Name: $typeName');
+        print('🔍   - Report Type: $reportType');
+        print('🔍   - Selected Types: ${widget.selectedTypes}');
 
-        bool matches = typeId != null && widget.selectedTypes.contains(typeId);
+        bool matches = false;
+
+        // First try exact ID match
+        if (typeId != null && widget.selectedTypes.contains(typeId)) {
+          matches = true;
+          print('🔍   ✅ Matched by ID: $typeId');
+        }
 
         // If no match by ID, try matching by name
         if (!matches && typeName != null) {
-          matches = widget.selectedTypes.any((selectedType) {
-            // Try to find type name from the selected type ID
+          for (String selectedType in widget.selectedTypes) {
             final selectedTypeName = _typeIdToName[selectedType]?.toLowerCase();
-            return selectedTypeName != null &&
-                typeName.contains(selectedTypeName);
-          });
+            if (selectedTypeName != null && typeName.contains(selectedTypeName)) {
+              matches = true;
+              print('🔍   ✅ Matched by name: $selectedTypeName');
+              break;
+            }
+          }
+        }
+
+        // If still no match, try matching by report type (for offline data)
+        if (!matches && reportType != null) {
+          for (String selectedType in widget.selectedTypes) {
+            final selectedTypeName = _typeIdToName[selectedType]?.toLowerCase();
+            if (selectedTypeName != null) {
+              if (reportType == 'scam' && selectedTypeName.contains('scam')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (scam): $reportType');
+                break;
+              } else if (reportType == 'fraud' && selectedTypeName.contains('fraud')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (fraud): $reportType');
+                break;
+              } else if (reportType == 'malware' && selectedTypeName.contains('malware')) {
+                matches = true;
+                print('🔍   ✅ Matched by type (malware): $reportType');
+                break;
+              }
+            }
+          }
+        }
+
+        // For offline data, also try direct type ID matching
+        if (!matches && typeId != null) {
+          if (typeId == 'scam_type' && widget.selectedTypes.any((t) => t.contains('scam'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct type ID (scam): $typeId');
+          } else if (typeId == 'fraud_type' && widget.selectedTypes.any((t) => t.contains('fraud'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct type ID (fraud): $typeId');
+          } else if (typeId == 'malware_type' && widget.selectedTypes.any((t) => t.contains('malware'))) {
+            matches = true;
+            print('🔍   ✅ Matched by direct type ID (malware): $typeId');
+          }
         }
 
         return matches;
@@ -1071,35 +1364,60 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
 
     if (widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty) {
+      print('🔍 === SEVERITY FILTER DEBUG ===');
+      print('🔍 Selected Severities: ${widget.selectedSeverities}');
+      print('🔍 Available Severity Levels: ${widget.severityLevels.map((s) => '${s['_id']}: ${s['name']}').toList()}');
+      print('🔍 Total reports before severity filter: ${filtered.length}');
+      
       filtered = filtered.where((report) {
         final reportSeverity = _getNormalizedAlertLevel(report);
+        final reportSeverityId = _getNormalizedAlertLevelId(report);
+
+        print('🔍 --- Processing Report ---');
+        print('🔍   Report ID: ${report['_id'] ?? report['id']}');
+        print('🔍   Report Description: ${report['description']}');
+        print('🔍   Raw alertLevels: ${report['alertLevels']}');
+        print('🔍   Raw alertSeverityLevel: ${report['alertSeverityLevel']}');
+        print('🔍   Normalized Severity Name: $reportSeverity');
+        print('🔍   Normalized Severity ID: $reportSeverityId');
 
         // Check if any of the selected severities match
-        return widget.selectedSeverities.any((selectedSeverityId) {
-          // Convert selected severity ID to name for comparison
-          final selectedSeverityName =
-              widget.severityLevels
-                  .firstWhere(
-                    (level) =>
-                        (level['_id'] ?? level['id']) == selectedSeverityId,
-                    orElse: () => {'name': selectedSeverityId.toLowerCase()},
-                  )['name']
-                  ?.toString()
-                  .toLowerCase() ??
-              selectedSeverityId.toLowerCase();
-
-          // Debug print to help identify issues
-          if (reportSeverity.isNotEmpty) {
-            print(
-              'Filtering severity: Report="$reportSeverity" vs Selected ID="$selectedSeverityId" -> Name="$selectedSeverityName"',
-            );
-            print('Report data: ${report['alertLevels']}');
+        bool matches = false;
+        for (String selectedSeverityId in widget.selectedSeverities) {
+          print('🔍   Checking against selected severity ID: $selectedSeverityId');
+          
+          // First try to match by ID
+          if (reportSeverityId != null && reportSeverityId == selectedSeverityId) {
+            print('🔍   ✅ Matched by ID: $selectedSeverityId');
+            matches = true;
+            break;
           }
 
-          return reportSeverity == selectedSeverityName;
-        });
+          // If no ID match, try to match by name
+          final selectedSeverityLevel = widget.severityLevels.firstWhere(
+            (level) => (level['_id'] ?? level['id']) == selectedSeverityId,
+            orElse: () => {'name': selectedSeverityId.toLowerCase()},
+          );
+          
+          final selectedSeverityName = selectedSeverityLevel['name']?.toString().toLowerCase() ?? selectedSeverityId.toLowerCase();
+          print('🔍   Selected severity name: $selectedSeverityName');
+
+          // Debug print to help identify issues
+          print('🔍   Severity comparison: Report="$reportSeverity" vs Selected="$selectedSeverityName"');
+          
+          if (reportSeverity == selectedSeverityName) {
+            print('🔍   ✅ Matched by name: $selectedSeverityName');
+            matches = true;
+            break;
+          }
+        }
+
+        print('🔍   Final match result: $matches');
+        return matches;
       }).toList();
-      print('🔍 After severity filter: ${filtered.length} reports');
+      
+      print('🔍 Total reports after severity filter: ${filtered.length}');
+      print('🔍 === END SEVERITY FILTER DEBUG ===');
     }
 
     return filtered;
@@ -1325,6 +1643,36 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
   Future<void> _loadCategoryAndTypeNames() async {
     await Future.wait([_loadTypeNames(), _loadCategoryNames()]);
+    
+    // Ensure we have proper mappings for offline mode
+    _ensureOfflineMappings();
+  }
+
+  void _ensureOfflineMappings() {
+    // Add fallback mappings for offline mode
+    if (!_categoryIdToName.containsKey('scam_category')) {
+      _categoryIdToName['scam_category'] = 'Report Scam';
+    }
+    if (!_categoryIdToName.containsKey('fraud_category')) {
+      _categoryIdToName['fraud_category'] = 'Report Fraud';
+    }
+    if (!_categoryIdToName.containsKey('malware_category')) {
+      _categoryIdToName['malware_category'] = 'Report Malware';
+    }
+    
+    if (!_typeIdToName.containsKey('scam_type')) {
+      _typeIdToName['scam_type'] = 'Scam Report';
+    }
+    if (!_typeIdToName.containsKey('fraud_type')) {
+      _typeIdToName['fraud_type'] = 'Fraud Report';
+    }
+    if (!_typeIdToName.containsKey('malware_type')) {
+      _typeIdToName['malware_type'] = 'Malware Report';
+    }
+    
+    print('🔍 Offline mappings ensured:');
+    print('🔍 Categories: $_categoryIdToName');
+    print('🔍 Types: $_typeIdToName');
   }
 
   Future<void> _loadTypeNames() async {
@@ -1516,70 +1864,76 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     // Normalize the alert level
     final normalized = alertLevel.toLowerCase().trim();
     switch (normalized) {
-      case 'low':
-      case 'low risk':
-      case 'low severity':
-        return 'Low';
-      case 'medium':
-      case 'medium risk':
-      case 'medium severity':
-        return 'Medium';
-      case 'high':
-      case 'high risk':
-      case 'high severity':
-        return 'High';
-      case 'critical':
-      case 'critical risk':
-      case 'critical severity':
-        return 'Critical';
+     
       default:
         return alertLevel.isNotEmpty ? alertLevel : 'Unknown';
     }
   }
 
   String _getNormalizedAlertLevel(Map<String, dynamic> report) {
-    // Handle alertLevels - could be String, Map, or null
-    String alertLevel = '';
+    try {
+      // Try to get alert level from different possible fields
+      final alertLevel = report['alertLevels'] ??
+          report['alertSeverityLevel'] ??
+          report['severityLevel'] ??
+          'medium';
 
-    if (report['alertLevels'] is Map) {
-      final alertMap = report['alertLevels'] as Map;
-      alertLevel =
-          alertMap['name']?.toString() ??
-          alertMap['_id']?.toString() ??
-          alertMap['id']?.toString() ??
-          '';
-    } else if (report['alertLevels'] is String) {
-      alertLevel = report['alertLevels'].toString();
-    } else {
-      alertLevel =
-          report['alertSeverityLevel']?.toString() ??
-          report['severity']?.toString() ??
-          '';
-    }
-
-    // Normalize the alert level to lowercase for consistent comparison and backend compatibility
-    final normalized = alertLevel.toLowerCase().trim();
-
-    // Map common variations to standard lowercase format for backend
-    switch (normalized) {
-      case 'low':
-      case 'low risk':
-      case 'low severity':
-        return 'low';
-      case 'medium':
-      case 'medium risk':
-      case 'medium severity':
+      if (alertLevel is Map) {
+        // If it's a map, extract the name
+        return (alertLevel['name'] ?? 'medium').toString().toLowerCase();
+      } else if (alertLevel is String) {
+        // If it's a string, normalize it
+        final normalized = alertLevel.toLowerCase().trim();
+        
+        // Map common variations to standard lowercase format
+        switch (normalized) {
+          case 'low':
+          case 'low risk':
+          case 'low severity':
+            return 'low';
+          case 'medium':
+          case 'medium risk':
+          case 'medium severity':
+            return 'medium';
+          case 'high':
+          case 'high risk':
+          case 'high severity':
+            return 'high';
+          case 'critical':
+          case 'critical risk':
+          case 'critical severity':
+            return 'critical';
+          default:
+            return normalized;
+        }
+      } else {
         return 'medium';
-      case 'high':
-      case 'high risk':
-      case 'high severity':
-        return 'high';
-      case 'critical':
-      case 'critical risk':
-      case 'critical severity':
-        return 'critical';
-      default:
-        return normalized;
+      }
+    } catch (e) {
+      print('❌ Error normalizing alert level: $e');
+      return 'medium';
+    }
+  }
+
+  String? _getNormalizedAlertLevelId(Map<String, dynamic> report) {
+    try {
+      // Try to get alert level ID from different possible fields
+      final alertLevel = report['alertLevels'] ??
+          report['alertSeverityLevel'] ??
+          report['severityLevel'];
+
+      if (alertLevel is Map) {
+        // If it's a map, extract the ID
+        return alertLevel['_id']?.toString() ?? alertLevel['id']?.toString();
+      } else if (alertLevel is String) {
+        // If it's a string, it might be an ID
+        return alertLevel;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error getting alert level ID: $e');
+      return null;
     }
   }
 
@@ -1609,19 +1963,85 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     if (createdAt == null) return 'Unknown time';
 
     try {
-      DateTime createdDate = createdAt is String
-          ? DateTime.parse(createdAt)
-          : createdAt is DateTime
-          ? createdAt
-          : throw Exception('Invalid date');
-      final now = DateTime.now();
-      final difference = now.difference(createdDate);
+      DateTime createdDate;
+      
+      if (createdAt is String) {
+        // Handle ISO string parsing with timezone awareness
+        createdDate = DateTime.parse(createdAt);
+      } else if (createdAt is DateTime) {
+        createdDate = createdAt;
+      } else {
+        print('❌ Invalid date type: ${createdAt.runtimeType}');
+        return 'Invalid time';
+      }
 
-      if (difference.inMinutes < 60)
+      final now = DateTime.now();
+      
+      // Debug logging to identify the issue
+      print('🔍 Time calculation debug:');
+      print('🔍 - Created date: $createdDate');
+      print('🔍 - Current time: $now');
+      print('🔍 - Created date (UTC): ${createdDate.toUtc()}');
+      print('🔍 - Current time (UTC): ${now.toUtc()}');
+      
+      // Use local time comparison to avoid timezone issues
+      // Convert both to local time for comparison
+      final createdLocal = createdDate.toLocal();
+      final nowLocal = now.toLocal();
+      
+      // Calculate difference using local time
+      final difference = nowLocal.difference(createdLocal);
+      
+      print('🔍 - Created date (Local): $createdLocal');
+      print('🔍 - Current time (Local): $nowLocal');
+      print('🔍 - Time difference: ${difference.inMinutes} minutes');
+      print('🔍 - Is negative: ${difference.isNegative}');
+      
+      // Handle negative values (future dates) - this is the main issue
+      if (difference.isNegative) {
+        print('⚠️ Future date detected: ${difference.inMinutes.abs()} minutes in the future');
+        print('⚠️ This suggests the timestamp was created incorrectly');
+        
+        // If the difference is small (less than 1 hour), treat as "Just now"
+        if (difference.inMinutes.abs() < 60) {
+          return 'Just now';
+        }
+        
+        // For larger future differences, show the actual future time
+        final absMinutes = difference.inMinutes.abs();
+        if (absMinutes < 60) {
+          return 'In ${absMinutes} minutes';
+        } else if (absMinutes < 1440) { // less than 24 hours
+          final hours = (absMinutes / 60).floor();
+          return 'In ${hours} hour${hours > 1 ? 's' : ''}';
+        } else {
+          final days = (absMinutes / 1440).floor();
+          return 'In ${days} day${days > 1 ? 's' : ''}';
+        }
+      }
+
+      // Format the time difference for past dates
+      if (difference.inMinutes < 1) {
+        return 'Just now';
+      } else if (difference.inMinutes < 60) {
         return '${difference.inMinutes} minutes ago';
-      if (difference.inHours < 24) return '${difference.inHours} hours ago';
-      return '${difference.inDays} days ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours} hours ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return '${weeks} week${weeks > 1 ? 's' : ''} ago';
+      } else if (difference.inDays < 365) {
+        final months = (difference.inDays / 30).floor();
+        return '${months} month${months > 1 ? 's' : ''} ago';
+      } else {
+        final years = (difference.inDays / 365).floor();
+        return '${years} year${years > 1 ? 's' : ''} ago';
+      }
     } catch (e) {
+      print('❌ Error calculating time ago: $e');
+      print('❌ Created at value: $createdAt');
       return 'Unknown time';
     }
   }
@@ -1754,6 +2174,47 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
+  // Add debug method to help identify filter issues
+  void _debugFilterIssues() {
+    print('🔍 === FILTER DEBUG ===');
+    print('🔍 Widget parameters:');
+    print('🔍   - searchQuery: "${widget.searchQuery}"');
+    print('🔍   - selectedCategories: ${widget.selectedCategories}');
+    print('🔍   - selectedTypes: ${widget.selectedTypes}');
+    print('🔍   - selectedSeverities: ${widget.selectedSeverities}');
+    print('🔍   - hasSearchQuery: ${widget.hasSearchQuery}');
+    print('🔍   - hasSelectedCategory: ${widget.hasSelectedCategory}');
+    print('🔍   - hasSelectedType: ${widget.hasSelectedType}');
+    print('🔍   - hasSelectedSeverity: ${widget.hasSelectedSeverity}');
+    print('🔍   - isOffline: ${widget.isOffline}');
+    print('🔍   - localReports count: ${widget.localReports.length}');
+    print('🔍   - severityLevels count: ${widget.severityLevels.length}');
+    
+    print('🔍 Category mappings:');
+    _categoryIdToName.forEach((id, name) {
+      print('🔍   - $id -> $name');
+    });
+    
+    print('🔍 Type mappings:');
+    _typeIdToName.forEach((id, name) {
+      print('🔍   - $id -> $name');
+    });
+    
+    print('🔍 Current filtered reports: ${_filteredReports.length}');
+    if (_filteredReports.isNotEmpty) {
+      print('🔍 Sample report:');
+      final sample = _filteredReports.first;
+      print('🔍   - ID: ${sample['id'] ?? sample['_id']}');
+      print('🔍   - Type: ${sample['type']}');
+      print('🔍   - Category ID: ${sample['reportCategoryId']}');
+      print('🔍   - Type ID: ${sample['reportTypeId']}');
+      print('🔍   - Category Name: ${sample['categoryName']}');
+      print('🔍   - Type Name: ${sample['typeName']}');
+      print('🔍   - Alert Level: ${sample['alertLevels']}');
+    }
+    print('🔍 === END FILTER DEBUG ===');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1773,6 +2234,43 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _initializeData();
+              _debugTimestampIssues(); // Add debug call on refresh
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: () {
+              _debugTimestampIssues();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Timestamp debug info printed to console'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_alt),
+            onPressed: () {
+              _debugFilterIssues();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Filter debug info printed to console'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.clear_all),
+            onPressed: () {
+              _clearAndRecreateDatabase();
+            },
+          ),
           IconButton(
             onPressed: () {
               showDialog(
@@ -1820,17 +2318,29 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'All  Reported Records:',
+                        'All Reported Records:',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      // if (widget.searchQuery.isNotEmpty)
-                      //   Text('Search: "${widget.searchQuery}"', style: TextStyle(fontSize: 12)),
-                      // if (widget.scamTypeId.isNotEmpty)
-                      //   Text('Category: ${widget.scamTypeId}', style: TextStyle(fontSize: 12)),
-                      // if (widget.selectedType != null && widget.selectedType!.isNotEmpty)
-                      //   Text('Type: ${widget.selectedType}', style: TextStyle(fontSize: 12)),
-                      // if (widget.selectedSeverity != null && widget.selectedSeverity!.isNotEmpty)
-                      //   Text('Severity: ${widget.selectedSeverity}', style: TextStyle(fontSize: 12)),
+                      if (widget.hasSearchQuery || widget.hasSelectedCategory || widget.hasSelectedType || widget.hasSelectedSeverity)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (widget.hasSearchQuery)
+                              Text('Search: "${widget.searchQuery}"', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
+                            if (widget.hasSelectedCategory)
+                              Text('Category: ${widget.selectedCategories.map((id) => _categoryIdToName[id] ?? id).join(', ')}', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
+                            if (widget.hasSelectedType)
+                              Text('Type: ${widget.selectedTypes.map((id) => _typeIdToName[id] ?? id).join(', ')}', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
+                            if (widget.hasSelectedSeverity)
+                              Text('Severity: ${widget.selectedSeverities.map((id) {
+                                final level = widget.severityLevels.firstWhere(
+                                  (level) => (level['_id'] ?? level['id']) == id,
+                                  orElse: () => {'name': id},
+                                );
+                                return level['name'] ?? id;
+                              }).join(', ')}', style: TextStyle(fontSize: 12, color: Colors.blue[700])),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -1872,12 +2382,25 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                   Icon(Icons.wifi_off, color: Colors.orange.shade600, size: 20),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'Offline Mode - Showing local data',
-                      style: TextStyle(
-                        color: Colors.orange.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Offline Mode - Showing local data',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (widget.hasSearchQuery || widget.hasSelectedCategory || widget.hasSelectedType || widget.hasSelectedSeverity)
+                          Text(
+                            'Filters applied to local data',
+                            style: TextStyle(
+                              color: Colors.orange.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   Container(
@@ -1887,7 +2410,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${widget.localReports.length} reports available',
+                      '${_filteredReports.length} reports',
                       style: TextStyle(
                         color: Colors.green.shade700,
                         fontSize: 12,
