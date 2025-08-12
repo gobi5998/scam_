@@ -158,6 +158,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   DateTime? incidentDateTime;
   double? amountInvolved;
   String selectedCurrency = 'INR'; // Default currency
+  String selectedCurrencySymbol = '₹'; // Default currency symbol
   List<String> phoneNumbers = [];
   List<String> emailAddresses = [];
   List<String> socialMediaHandles = [];
@@ -165,7 +166,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   bool isOnline = true;
 
   // Age range variables
-  RangeValues _ageRange = const RangeValues(1, 100);
+  RangeValues _ageRange = const RangeValues(10, 100);
   int? minAge;
   int? maxAge;
 
@@ -205,9 +206,13 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   @override
   void initState() {
     super.initState();
+    _initializeForm();
+    _setupNetworkListener();
+  }
+
+  void _initializeForm() {
     _loadFraudTypes();
     _loadCategoryId();
-    _setupNetworkListener();
     _setupValidationListeners();
 
     // Initialize age range with dynamic values
@@ -387,7 +392,15 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   void _setupNetworkListener() {
     Connectivity().onConnectivityChanged.listen((result) {
       setState(() => isOnline = result != ConnectivityResult.none);
-      if (isOnline) FraudReportService.syncReports();
+      if (isOnline) {
+        print(
+          '🌐 Network connection restored - triggering comprehensive sync...',
+        );
+        // Use the new comprehensive sync method
+        FraudReportService.syncOfflineReports().catchError((error) {
+          print('❌ Auto-sync failed: $error');
+        });
+      }
     });
   }
 
@@ -903,10 +916,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                                 favorite: ['INR', 'USD', 'EUR'],
                                 onSelect: (Currency currency) {
                                   print(
-                                    '🪙 Currency selected: ${currency.code}',
+                                    '🪙 Currency selected: ${currency.code} (${currency.symbol})',
                                   );
                                   setState(() {
                                     selectedCurrency = currency.code;
+                                    selectedCurrencySymbol = currency.symbol;
                                   });
                                 },
                               );
@@ -935,14 +949,14 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.attach_money,
-                                  color: const Color(0xFF064FAD),
-                                  size: 20,
-                                ),
+                                // Icon(
+                                //   Icons.attach_money,
+                                //   color: const Color(0xFF064FAD),
+                                //   size: 20,
+                                // ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  selectedCurrency,
+                                  '$selectedCurrencySymbol $selectedCurrency',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.black,
@@ -1067,9 +1081,9 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                         const SizedBox(height: 16),
                         RangeSlider(
                           values: _ageRange,
-                          min: 1,
+                          min: 10,
                           max: 100,
-                          divisions: 99,
+                          divisions: 90,
                           activeColor: const Color(0xFF064FAD),
                           inactiveColor: Colors.grey.shade300,
                           labels: RangeLabels(
@@ -1089,7 +1103,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '1',
+                              '10',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],

@@ -5,6 +5,7 @@ class DrawerMenuItem extends StatelessWidget {
   final String label;
   final String routeName;
   final Color? textColor;
+  final Color? iconColor;
   final double iconSize;
 
   const DrawerMenuItem({
@@ -13,13 +14,19 @@ class DrawerMenuItem extends StatelessWidget {
     required this.label,
     required this.routeName,
     this.textColor,
+    this.iconColor,
     this.iconSize = 25,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Image.asset(ImagePath, width: iconSize, height: iconSize),
+      leading: Image.asset(
+        ImagePath,
+        width: iconSize,
+        height: iconSize,
+        color: iconColor,
+      ),
       title: Text(
         label,
         style: TextStyle(
@@ -35,5 +42,3 @@ class DrawerMenuItem extends StatelessWidget {
     );
   }
 }
-
-

@@ -21,6 +21,16 @@ class BiometricService {
         return true;
       }
       
+      // If device is supported but canCheckBiometrics is false, still try to get available biometrics
+      if (isDeviceSupported) {
+        final availableBiometrics = await getAvailableBiometrics();
+        if (availableBiometrics.isNotEmpty) {
+          print('Device is supported and has biometric methods: $availableBiometrics');
+          return true;
+        }
+      }
+      
+      print('Biometric not available');
       return false;
     } on PlatformException catch (e) {
       print('Error checking biometric availability: $e');

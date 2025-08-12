@@ -171,8 +171,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     phoneNumbers:
         (json['phoneNumbers'] as List?)?.map((e) => e.toString()).toList() ??
         [],
-    emails:
-        (json['emails'] as List?)?.map((e) => e.toString()).toList() ?? [],
+    emails: (json['emails'] as List?)?.map((e) => e.toString()).toList() ?? [],
     companyName: json['companyName'],
     socialMediaHandles:
         (json['mediaHandles'] as List?)?.map((e) => e.toString()).toList() ??

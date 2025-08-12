@@ -285,6 +285,10 @@ class _SplashToAuthState extends State<SplashToAuth> {
   }
 }
 
+/// AuthWrapper handles the authentication flow:
+/// 1. Fresh Login: User enters email/password -> goes directly to dashboard (no biometric)
+/// 2. Auto-Login: App starts with stored tokens -> checks biometric -> goes to dashboard
+/// 3. Logout: User logs out -> shows login page
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -297,16 +301,193 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _biometricChecked = false;
   bool _biometricPassed = false;
   bool _autoLoginAttempted = false;
+  bool _isFreshLogin = false;
 
   @override
   void initState() {
     super.initState();
     _initializeAuth();
+    
+    // Listen to auth provider state changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.addListener(_onAuthStateChanged);
+    });
   }
+
+  @override
+  void dispose() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.removeListener(_onAuthStateChanged);
+    super.dispose();
+  }
+
+  void _onAuthStateChanged() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    print('🔐 Auth state changed - isLoggedIn: ${authProvider.isLoggedIn}');
+    
+    // If user just logged in and we haven't checked biometric yet
+    if (authProvider.isLoggedIn && !_authChecked) {
+      print('🔐 User just logged in, checking for biometric setup...');
+      // Check if we need to show biometric setup dialog
+      _checkBiometricSetup();
+    }
+  }
+
+  Future<void> _checkBiometricSetup() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final showBiometricSetup = prefs.getBool('show_biometric_setup') ?? false;
+      
+      if (showBiometricSetup) {
+        print('🔐 Showing biometric setup dialog...');
+        // Clear the flag first
+        await prefs.setBool('show_biometric_setup', false);
+        
+        // Show biometric setup dialog
+        if (mounted) {
+          _showBiometricSetupDialog();
+        }
+      } else {
+        print('🔐 No biometric setup needed, proceeding to dashboard...');
+        setState(() {
+          _isFreshLogin = true;
+          _biometricPassed = true;
+          _authChecked = true;
+        });
+      }
+    } catch (e) {
+      print('🔐 Error checking biometric setup: $e');
+      setState(() {
+        _isFreshLogin = true;
+        _biometricPassed = true;
+        _authChecked = true;
+      });
+    }
+  }
+
+  void _showBiometricSetupDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Enable Biometric Login',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF064FAD),
+            ),
+          ),
+          content: const Text(
+            'Would you like to enable biometric authentication for faster login? You can use fingerprint or face recognition to quickly access the app.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                // User declined biometric setup
+                print('🔐 User declined biometric setup');
+                setState(() {
+                  _isFreshLogin = true;
+                  _biometricPassed = true;
+                  _authChecked = true;
+                });
+              },
+              child: const Text(
+                'Not Now',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                // User accepted biometric setup
+                print('🔐 User accepted biometric setup, testing biometric...');
+                await _setupBiometric();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF064FAD),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Enable'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _setupBiometric() async {
+    try {
+      print('🔐 Testing biometric authentication for setup...');
+      final passed = await BiometricService.authenticateWithBiometrics();
+      
+      if (passed) {
+        print('🔐 Biometric test successful, enabling biometric login...');
+        // Enable biometric
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('biometric_enabled', true);
+        await BiometricService.enableBiometric();
+        
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Biometric login enabled successfully!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        print('🔐 Biometric test failed, biometric not enabled');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Biometric authentication failed. You can enable it later in settings.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+      
+      // Proceed to dashboard regardless of biometric setup result
+      setState(() {
+        _isFreshLogin = true;
+        _biometricPassed = true;
+        _authChecked = true;
+      });
+    } catch (e) {
+      print('🔐 Error setting up biometric: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error setting up biometric. You can enable it later in settings.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      setState(() {
+        _isFreshLogin = true;
+        _biometricPassed = true;
+        _authChecked = true;
+      });
+    }
+  }
+
+
 
   Future<void> _initializeAuth() async {
     try {
       print('🔐 Initializing auto-login with biometric authentication...');
+      
+      // First, check the current auth provider state
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.checkAuthStatus();
       
       // Check if user has enabled biometric authentication
       final prefs = await SharedPreferences.getInstance();
@@ -315,6 +496,38 @@ class _AuthWrapperState extends State<AuthWrapper> {
       
       print('🔐 Biometric enabled: $bioEnabled');
       print('🔐 Auto-login enabled: $autoLoginEnabled');
+      print('🔐 Current auth provider state - isLoggedIn: ${authProvider.isLoggedIn}');
+
+      // If user is already logged in (from auth provider), proceed to dashboard
+      if (authProvider.isLoggedIn) {
+        final accessToken = await TokenStorage.getAccessToken();
+        final refreshToken = await TokenStorage.getRefreshToken();
+        
+        // If no stored tokens, this is a fresh login - go directly to dashboard
+        if (accessToken == null || refreshToken == null) {
+          print('🔐 Fresh login detected (no stored tokens), proceeding directly to dashboard...');
+          setState(() {
+            _isFreshLogin = true;
+            _biometricPassed = true;
+            _authChecked = true;
+          });
+          return;
+        }
+        
+        // If we have stored tokens, this is auto-login - check biometric
+        print('🔐 Auto-login detected (with stored tokens), checking biometric...');
+        if (bioEnabled) {
+          print('🔐 Biometric enabled, checking biometric authentication...');
+          await _checkBiometrics(authProvider);
+        } else {
+          print('🔐 Biometric disabled, proceeding to dashboard...');
+          setState(() {
+            _biometricPassed = true;
+            _authChecked = true;
+          });
+        }
+        return;
+      }
 
       if (autoLoginEnabled) {
         // Try to get stored tokens
@@ -336,7 +549,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
               print('🔐 ✅ Auto-login successful - User validated via /api/user/me');
               
               // Update auth provider with user data
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
               await authProvider.setUserData(userResponse.data);
               
               // If biometric is enabled, check biometric authentication
@@ -384,7 +596,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     
     setState(() {
       _authChecked = true;
-      _biometricPassed = false;
+      _biometricPassed = false; // Set to false since no biometric was attempted
     });
   }
 
@@ -402,15 +614,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
           print('🔐 Biometric authentication result: $passed');
           
           if (!passed) {
-            print('🔐 Biometric authentication failed, logging out...');
-            await authProvider.logout();
-            await TokenStorage.clearAllTokens();
+            print('🔐 Biometric authentication failed, but allowing access to dashboard...');
+            // Allow access to dashboard even if biometric fails
+            setState(() {
+              _biometricPassed = true; // Allow access to dashboard
+              _authChecked = true;
+            });
+            
+            print('🔐 Warning: Biometric authentication failed, but user can still access the app');
+            
+            // Show a user-friendly message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Biometric authentication failed, but you can still access the app.'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          } else {
+            setState(() {
+              _biometricPassed = true; // Always allow access if biometric passes
+              _authChecked = true;
+            });
           }
-          
-          setState(() {
-            _biometricPassed = passed;
-            _authChecked = true;
-          });
         } else {
           print('🔐 Biometric not available, proceeding to dashboard...');
           setState(() {
@@ -430,26 +658,699 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
+  Future<void> _handleBiometricFailure(AuthProvider authProvider) async {
+    try {
+      // Clear all tokens and data
+      await TokenStorage.clearAllTokens();
+      await authProvider.logout();
+      
+      // Force a small delay to ensure state updates are processed
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Double-check auth status to ensure logout was successful
+      await authProvider.checkAuthStatus();
+      
+      print('🔐 Biometric failure handled - user logged out');
+    } catch (e) {
+      print('🔐 Error handling biometric failure: $e');
+      // Fallback: ensure we're logged out
+      await authProvider.logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         print(
-          '🔐 AuthWrapper build - authChecked: $_authChecked, isLoading: ${authProvider.isLoading}, isLoggedIn: ${authProvider.isLoggedIn}, biometricPassed: $_biometricPassed',
+          '🔐 AuthWrapper build - authChecked: $_authChecked, isLoading: ${authProvider.isLoading}, isLoggedIn: ${authProvider.isLoggedIn}, biometricPassed: $_biometricPassed, isFreshLogin: $_isFreshLogin',
         );
 
         if (!_authChecked || authProvider.isLoading) {
+          print('🔐 Showing splash screen - auth not checked or loading');
           return const SplashScreen();
         }
 
-        if (authProvider.isLoggedIn && _biometricPassed) {
-          print('🔐 User authenticated and biometric passed, navigating to dashboard');
+        // If user is logged in, allow access to dashboard regardless of biometric status
+        if (authProvider.isLoggedIn) {
+          if (_isFreshLogin) {
+            print('🔐 Fresh login - navigating directly to dashboard');
+          } else if (_biometricPassed) {
+            print('🔐 Auto-login with biometric - navigating to dashboard');
+          } else {
+            print('🔐 Auto-login with biometric failed - but allowing access to dashboard');
+          }
           return const DashboardPage();
         }
 
-        print('🔐 User not authenticated or biometric failed, showing login page');
+        // User is not logged in, show login page
+        print('🔐 User is not logged in, showing login page');
         return const LoginPage();
       },
     );
   }
 }
+
+
+
+
+
+
+
+
+
+// import 'package:flutter/material.dart';
+// import 'package:provider/provider.dart';
+// import 'package:security_alert/provider/scam_report_provider.dart';
+// import 'package:security_alert/screens/menu/feedbackPage.dart';
+// import 'package:security_alert/screens/menu/profile_page.dart';
+// import 'package:security_alert/screens/menu/ratepage.dart';
+// import 'package:security_alert/screens/menu/shareApp.dart';
+// import 'package:security_alert/screens/menu/theard_database.dart';
+// import 'package:security_alert/screens/scam/scam_report_service.dart';
+// import 'package:security_alert/screens/scam/report_scam_1.dart';
+// import 'package:security_alert/screens/malware/report_malware_1.dart';
+// import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
+
+// import 'package:security_alert/screens/subscriptionPage/subscription_plans_page.dart';
+
+// import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:security_alert/provider/auth_provider.dart';
+// import 'package:security_alert/provider/dashboard_provider.dart';
+// import 'package:security_alert/screens/SplashScreen.dart';
+// import 'package:security_alert/screens/dashboard_page.dart';
+// import 'package:security_alert/screens/login.dart';
+// import 'package:security_alert/services/biometric_service.dart';
+// import 'package:hive_flutter/hive_flutter.dart';
+// import 'package:connectivity_plus/connectivity_plus.dart';
+// import 'dart:async';
+// import 'models/scam_report_model.dart'; // ✅ Make sure this file contains: part 'scam_report_model.g.dart';
+// import 'models/fraud_report_model.dart'; // at the top, if not already present
+// import 'models/malware_report_model.dart';
+// // import 'models/report_model.dart'; // not used directly
+// import 'screens/Fraud/fraud_report_service.dart';
+// import 'screens/malware/malware_report_service.dart';
+// import 'services/report_update_service.dart';
+// import 'services/app_version_service.dart';
+// import 'services/api_service.dart';
+// // import 'services/auth_api_service.dart'; // not used directly
+// import 'services/dio_service.dart';
+// import 'services/offline_cache_service.dart';
+// import 'package:http/http.dart' as http;
+// import 'config/api_config.dart';
+
+// void main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Hive.initFlutter();
+
+//   Hive.registerAdapter(ScamReportModelAdapter());
+//   Hive.registerAdapter(FraudReportModelAdapter());
+//   Hive.registerAdapter(MalwareReportModelAdapter());
+//   // Hive.registerAdapter(ReportModelAdapter()); // Will be generated by build_runner
+
+//   // Open Hive boxes with error handling for corrupted databases
+//   print('📦 Opening Hive boxes...');
+//   // Initialize lightweight offline cache box
+//   try {
+//     await OfflineCacheService.initialize();
+//     print('✅ Offline cache initialized');
+//   } catch (e) {
+//     print('❌ Failed to initialize offline cache: $e');
+//   }
+
+//   try {
+//     await Hive.openBox<ScamReportModel>('scam_reports');
+//     print('✅ Scam reports box opened successfully');
+//   } catch (e) {
+//     print('❌ Error opening scam_reports box: $e');
+//     print('🧹 Clearing corrupted scam_reports box...');
+//     await Hive.deleteBoxFromDisk('scam_reports');
+//     await Hive.openBox<ScamReportModel>('scam_reports');
+//     print('✅ Scam reports box recreated successfully');
+//   }
+
+//   try {
+//     await Hive.openBox<FraudReportModel>('fraud_reports');
+//     print('✅ Fraud reports box opened successfully');
+//   } catch (e) {
+//     print('❌ Error opening fraud_reports box: $e');
+//     print('🧹 Clearing corrupted fraud_reports box...');
+//     await Hive.deleteBoxFromDisk('fraud_reports');
+//     await Hive.openBox<FraudReportModel>('fraud_reports');
+//     print('✅ Fraud reports box recreated successfully');
+//   }
+
+//   try {
+//     await Hive.openBox<MalwareReportModel>('malware_reports');
+//     print('✅ Malware reports box opened successfully');
+//   } catch (e) {
+//     print('❌ Error opening malware_reports box: $e');
+//     print('🧹 Clearing corrupted malware_reports box...');
+//     await Hive.deleteBoxFromDisk('malware_reports');
+//     await Hive.openBox<MalwareReportModel>('malware_reports');
+//     print('✅ Malware reports box recreated successfully');
+//   }
+
+//   // Check existing data
+//   final scamBox = Hive.box<ScamReportModel>('scam_reports');
+//   final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+//   final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+//   print('📊 Existing data on startup:');
+//   print('📊 - Scam reports: ${scamBox.length}');
+//   print('📊 - Fraud reports: ${fraudBox.length}');
+//   print('📊 - Malware reports: ${malwareBox.length}');
+
+//   // Update existing reports with keycloakUserId
+//   await ReportUpdateService.updateAllExistingReports();
+
+//   // // Initialize offline storage
+//   // await OfflineStorageService.initialize();
+
+//   // // Initialize connectivity monitoring
+//   // await ConnectivityService().initialize();
+
+//   // Initialize app version service
+//   await AppVersionService.initialize();
+
+//   // DioService interceptors are automatically set up in the constructor
+//   // No need to call AuthApiService.setupInterceptors() anymore
+
+//   // Test the interceptor functionality
+//   print('🧪 Testing interceptor functionality...');
+//   try {
+//     await DioService().testInterceptor();
+//   } catch (e) {
+//     print('❌ Interceptor test failed: $e');
+//   }
+
+//   // NUCLEAR DUPLICATE REMOVAL - Clear everything and start fresh
+//   print('☢️ NUCLEAR DUPLICATE CLEANUP ON APP STARTUP...');
+
+//   // TEMPORARILY DISABLED - Clear all local data
+//   // await ScamReportService.clearAllData();
+//   // await FraudReportService.clearAllData();
+
+//   // TARGETED DUPLICATE REMOVAL - One time only on startup
+//   print('🔍 Running targeted duplicate removal on startup...');
+//   try {
+//     // Remove duplicates from local storage
+//     await ScamReportService.removeDuplicateScamReports();
+//     await FraudReportService.removeDuplicateFraudReports();
+
+//     // Remove duplicates from backend (only if online)
+//     final startupConnectivity = await Connectivity().checkConnectivity();
+//     if (startupConnectivity != ConnectivityResult.none) {
+//       await ApiService().removeDuplicateScamFraudReports();
+//     }
+//     print('✅ Startup duplicate removal completed');
+//   } catch (e) {
+//     print('❌ Error during startup duplicate removal: $e');
+//   }
+
+//   // Clear all backend data (only if online) - REMOVED TO PREVENT CONTINUOUS RUNNING
+//   // final startupConnectivity = await Connectivity().checkConnectivity();
+//   // if (startupConnectivity != ConnectivityResult.none) {
+//   //   try {
+//   //     await ApiService().clearAllBackendData();
+//   //   } catch (e) {
+//   //     print('❌ Error clearing backend data on startup: $e');
+//   //     print('⚠️ Skipping backend cleanup due to connection issues');
+//   //   }
+//   // } else {
+//   //   print('⚠️ Skipping backend cleanup - no internet connection');
+//   // }
+
+//   // Initial sync if online
+//   final initialConnectivity = await Connectivity().checkConnectivity();
+//   if (initialConnectivity != ConnectivityResult.none) {
+//     // Prewarm reference data so offline forms mirror online lists
+//     try {
+//       await ApiService().prewarmReferenceData();
+//     } catch (e) {
+//       print('Prewarm error: $e');
+//     }
+
+//     print('Initial sync: Syncing reports on app start...');
+
+//     try {
+//       await ScamReportService.syncReports();
+//       print('Initial sync: Scam reports synced');
+//     } catch (e) {
+//       print('Initial sync: Error syncing scam reports: $e');
+//     }
+
+//     try {
+//       await FraudReportService.syncReports();
+//       print('Initial sync: Fraud reports synced');
+//     } catch (e) {
+//       print('Initial sync: Error syncing fraud reports: $e');
+//     }
+
+//     try {
+//       await MalwareReportService.syncReports();
+//       print('Initial sync: Malware reports synced');
+//     } catch (e) {
+//       print('Initial sync: Error syncing malware reports: $e');
+//     }
+//   }
+
+//   // Set up periodic sync (every 5 minutes when online) - more frequent for better sync
+//   Timer.periodic(const Duration(minutes: 5), (timer) async {
+//     final connectivity = await Connectivity().checkConnectivity();
+//     if (connectivity != ConnectivityResult.none) {
+//       print('🔄 Periodic sync: Checking for unsynced reports...');
+
+//       try {
+//         final scamBox = Hive.box<ScamReportModel>('scam_reports');
+//         final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+//         final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+//         final unsyncedScam = scamBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedFraud = fraudBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedMalware = malwareBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+
+//         if (unsyncedScam > 0 || unsyncedFraud > 0 || unsyncedMalware > 0) {
+//           print(
+//             '🔄 Periodic sync: Found unsynced reports - Scam: $unsyncedScam, Fraud: $unsyncedFraud, Malware: $unsyncedMalware',
+//           );
+
+//           if (unsyncedScam > 0) {
+//             await ScamReportService.syncReports();
+//             print('✅ Periodic sync: Scam reports synced');
+//           }
+
+//           if (unsyncedFraud > 0) {
+//             await FraudReportService.syncReports();
+//             print('✅ Periodic sync: Fraud reports synced');
+//           }
+
+//           if (unsyncedMalware > 0) {
+//             await MalwareReportService.syncReports();
+//             print('✅ Periodic sync: Malware reports synced');
+//           }
+//         } else {
+//           print('ℹ️ Periodic sync: No unsynced reports found');
+//         }
+//       } catch (e) {
+//         print('❌ Periodic sync: Error during sync: $e');
+//       }
+//     } else {
+//       print('📱 Periodic sync: No internet connection - skipping');
+//     }
+//   });
+
+//   // Track if we've already cleaned up to prevent continuous execution
+//   bool hasCleanedUp = false;
+
+//   // Debug method to manually test sync
+//   Future<void> testSync() async {
+//     print('🧪 MANUAL SYNC TEST STARTED');
+
+//     try {
+//       final scamBox = Hive.box<ScamReportModel>('scam_reports');
+//       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+//       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+//       print('📊 Current state:');
+//       print('  - Scam reports: ${scamBox.length}');
+//       print('  - Fraud reports: ${fraudBox.length}');
+//       print('  - Malware reports: ${malwareBox.length}');
+
+//       // Check unsynced reports before sync
+//       final unsyncedScam = scamBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+//       final unsyncedFraud = fraudBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+//       final unsyncedMalware = malwareBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+
+//       print('📊 Unsynced reports before sync:');
+//       print('  - Scam: $unsyncedScam');
+//       print('  - Fraud: $unsyncedFraud');
+//       print('  - Malware: $unsyncedMalware');
+
+//       if (unsyncedScam > 0) {
+//         print('🔄 Testing scam sync...');
+//         await ScamReportService.syncReports();
+//       }
+
+//       if (unsyncedFraud > 0) {
+//         print('🔄 Testing fraud sync...');
+//         await FraudReportService.syncReports();
+//       }
+
+//       if (unsyncedMalware > 0) {
+//         print('🔄 Testing malware sync...');
+//         await MalwareReportService.syncReports();
+//       }
+
+//       // Check unsynced reports after sync
+//       final unsyncedScamAfter = scamBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+//       final unsyncedFraudAfter = fraudBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+//       final unsyncedMalwareAfter = malwareBox.values
+//           .where((r) => r.isSynced != true)
+//           .length;
+
+//       print('📊 Unsynced reports after sync:');
+//       print('  - Scam: $unsyncedScamAfter');
+//       print('  - Fraud: $unsyncedFraudAfter');
+//       print('  - Malware: $unsyncedMalwareAfter');
+
+//       print('✅ MANUAL SYNC TEST COMPLETED');
+//     } catch (e) {
+//       print('❌ Manual sync test failed: $e');
+//     }
+//   }
+
+//   // Track previous connectivity state
+//   ConnectivityResult? _previousConnectivity;
+
+//   Connectivity().onConnectivityChanged.listen((result) async {
+//     print('🌐 CONNECTIVITY CHANGE DETECTED: $result');
+//     print('🌐 Previous connectivity: $_previousConnectivity');
+
+//     // Check if we're coming back online
+//     final wasOffline = _previousConnectivity == ConnectivityResult.none;
+//     final isNowOnline = result != ConnectivityResult.none;
+
+//     _previousConnectivity = result;
+
+//     if (result == ConnectivityResult.none) {
+//       print('📱 Going offline - no sync needed');
+//       return;
+//     }
+
+//     if (wasOffline && isNowOnline) {
+//       print('🌐 Internet connection restored, syncing reports...');
+//       print('🔍 Connectivity result: $result');
+
+//       // Debug: Check how many unsynced reports exist before sync
+//       try {
+//         final scamBox = Hive.box<ScamReportModel>('scam_reports');
+//         final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+//         final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+//         final unsyncedScam = scamBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedFraud = fraudBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedMalware = malwareBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+
+//         print('📊 Before sync - Unsynced reports:');
+//         print('  - Scam: $unsyncedScam');
+//         print('  - Fraud: $unsyncedFraud');
+//         print('  - Malware: $unsyncedMalware');
+
+//         if (unsyncedScam == 0 && unsyncedFraud == 0 && unsyncedMalware == 0) {
+//           print(
+//             'ℹ️ No unsynced reports to sync - all reports are already synced',
+//           );
+//           return;
+//         }
+//       } catch (e) {
+//         print('❌ Error checking unsynced reports: $e');
+//       }
+
+//       // Test API connectivity first
+//       print('🔍 Testing API connectivity before sync...');
+//       try {
+//         final connectivity = await Connectivity().checkConnectivity();
+//         print('🌐 Current connectivity: $connectivity');
+
+//         // Test a simple API call
+//         final testResponse = await http.get(
+//           Uri.parse(
+//             '${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}',
+//           ),
+//           headers: {'Accept': 'application/json'},
+//         );
+//         print('🔍 API test response status: ${testResponse.statusCode}');
+
+//         if (testResponse.statusCode != 200) {
+//           print('⚠️ API test failed - server might be down');
+//         }
+//       } catch (e) {
+//         print('❌ API connectivity test failed: $e');
+//       }
+
+//       // Always sync when we come back online
+//       print('🔄 Starting scam sync...');
+//       try {
+//         await ScamReportService.syncReports();
+//         print('✅ Scam reports synced successfully');
+//       } catch (e) {
+//         print('❌ Error syncing scam reports: $e');
+//         print('🔍 Scam sync error details: ${e.toString()}');
+//       }
+
+//       print('🔄 Starting fraud sync...');
+//       try {
+//         await FraudReportService.syncReports();
+//         print('✅ Fraud reports synced successfully');
+//       } catch (e) {
+//         print('❌ Error syncing fraud reports: $e');
+//         print('🔍 Fraud sync error details: ${e.toString()}');
+//       }
+
+//       print('🔄 Starting malware sync...');
+//       try {
+//         await MalwareReportService.syncReports();
+//         print('✅ Malware reports synced successfully');
+//       } catch (e) {
+//         print('❌ Error syncing malware reports: $e');
+//         print('🔍 Malware sync error details: ${e.toString()}');
+//       }
+
+//       // Debug: Check how many unsynced reports exist after sync
+//       try {
+//         final scamBox = Hive.box<ScamReportModel>('scam_reports');
+//         final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+//         final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+//         final unsyncedScam = scamBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedFraud = fraudBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+//         final unsyncedMalware = malwareBox.values
+//             .where((r) => r.isSynced != true)
+//             .length;
+
+//         print('📊 After sync - Unsynced reports:');
+//         print('  - Scam: $unsyncedScam');
+//         print('  - Fraud: $unsyncedFraud');
+//         print('  - Malware: $unsyncedMalware');
+
+//         final totalUnsynced = unsyncedScam + unsyncedFraud + unsyncedMalware;
+//         if (totalUnsynced > 0) {
+//           print('⚠️ Some reports still unsynced - sync may have failed');
+//         } else {
+//           print('✅ All reports successfully synced!');
+//         }
+//       } catch (e) {
+//         print('❌ Error checking unsynced reports after sync: $e');
+//       }
+
+//       // Run heavier one-time cleanup only once per app session
+//       if (!hasCleanedUp) {
+//         hasCleanedUp = true;
+//         // (Cleanup steps remain disabled/commented to avoid data loss.)
+
+//         // Test sync on first connectivity restore
+//         print('🧪 Running manual sync test on first connectivity restore...');
+//         await testSync();
+//       }
+//     } else {
+//       print(
+//         'ℹ️ Connectivity changed but not from offline to online - skipping sync',
+//       );
+//     }
+//   });
+
+//   runApp(
+//     MultiProvider(
+//       providers: [
+//         ChangeNotifierProvider(create: (_) => AuthProvider()),
+//         ChangeNotifierProvider(create: (_) => DashboardProvider()),
+//         ChangeNotifierProvider(create: (_) => ScamReportProvider()),
+//       ],
+//       child: const MyApp(),
+//     ),
+//   );
+// }
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       // home: const SplashScreen(),
+//       initialRoute: '/',
+//       routes: {
+//         '/': (context) => const SplashScreen(),
+//         '/profile': (context) => ProfilePage(),
+//         '/thread': (context) => ThreadDatabaseFilterPage(),
+//         '/subscription': (context) => SubscriptionPlansPage(),
+//         '/rate': (context) => Ratepage(),
+//         '/share': (context) => Shareapp(),
+//         '/feedback': (context) => Feedbackpage(),
+//         '/splashScreen': (context) => SplashScreen(),
+//         '/scam-report': (context) => ReportScam1(categoryId: 'scam_category'),
+//         '/malware-report': (context) =>
+//             ReportMalware1(categoryId: 'malware_category'),
+//         '/fraud-report': (context) =>
+//             ReportFraudStep1(categoryId: 'fraud_category'),
+//       },
+//     );
+//   }
+// }
+
+// class SplashToAuth extends StatefulWidget {
+//   const SplashToAuth({super.key});
+
+//   @override
+//   State<SplashToAuth> createState() => _SplashToAuthState();
+// }
+
+// class _SplashToAuthState extends State<SplashToAuth> {
+//   bool _showAuthWrapper = false;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     Future.delayed(const Duration(seconds: 2), () {
+//       setState(() {
+//         _showAuthWrapper = true;
+//       });
+//     });
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return _showAuthWrapper ? const AuthWrapper() : const SplashScreen();
+//   }
+// }
+
+// class AuthWrapper extends StatefulWidget {
+//   const AuthWrapper({super.key});
+
+//   @override
+//   State<AuthWrapper> createState() => _AuthWrapperState();
+// }
+
+// class _AuthWrapperState extends State<AuthWrapper> {
+//   bool _authChecked = false;
+//   bool _biometricChecked = false;
+//   bool _biometricPassed = false;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     _initializeAuth();
+//   }
+
+//   Future<void> _initializeAuth() async {
+//     try {
+//       await Provider.of<AuthProvider>(context, listen: false).checkAuthStatus();
+//       print(
+//         'Auth status checked - User logged in: ${Provider.of<AuthProvider>(context, listen: false).isLoggedIn}',
+//       );
+//     } catch (e) {
+//       print('Error checking auth status: $e');
+//     }
+//     setState(() {
+//       _authChecked = true;
+//     });
+//   }
+
+//   Future<void> _checkBiometrics(AuthProvider authProvider) async {
+//     if (!_biometricChecked && authProvider.isLoggedIn) {
+//       try {
+//         final prefs = await SharedPreferences.getInstance();
+//         final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
+//         if (bioEnabled) {
+//           final isAvailable = await BiometricService.isBiometricAvailable();
+//           if (isAvailable) {
+//             _biometricChecked = true;
+//             final passed = await BiometricService.authenticateWithBiometrics();
+//             if (!passed) {
+//               await authProvider.logout();
+//             }
+//             setState(() {
+//               _biometricPassed = passed;
+//             });
+//           } else {
+//             setState(() {
+//               _biometricPassed = true;
+//             });
+//           }
+//         } else {
+//           setState(() {
+//             _biometricPassed = true;
+//           });
+//         }
+//       } catch (e) {
+//         print('Biometric check error: $e');
+//         setState(() {
+//           _biometricPassed = true;
+//         });
+//       }
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Consumer<AuthProvider>(
+//       builder: (context, authProvider, child) {
+//         print(
+//           'AuthWrapper build - authChecked: $_authChecked, isLoading: ${authProvider.isLoading}, isLoggedIn: ${authProvider.isLoggedIn}',
+//         );
+
+//         if (!_authChecked || authProvider.isLoading) {
+//           return const SplashScreen();
+//         }
+
+//         if (authProvider.isLoggedIn) {
+//           print('User is logged in, checking biometrics...');
+//           if (!_biometricChecked) {
+//             _checkBiometrics(authProvider);
+//             return const SplashScreen();
+//           }
+
+//           if (_biometricPassed) {
+//             print('Biometric passed, navigating to dashboard');
+//             return const DashboardPage();
+//           } else {
+//             print('Biometric failed, showing login page');
+//             return const LoginPage();
+//           }
+//         }
+
+//         print('User not logged in, showing login page');
+//         return const LoginPage();
+//       },
+//     );
+//   }
+// }

@@ -62,11 +62,15 @@ class DashboardDrawer extends StatelessWidget {
               ImagePath: ImagePath.profile,
               label: 'Profile',
               routeName: '/profile',
+              textColor: Colors.black,
+              iconColor: Colors.black,
             ),
             DrawerMenuItem(
               ImagePath: ImagePath.thread,
               label: 'Thread Database',
               routeName: '/thread',
+              textColor: Colors.black,
+              iconColor: Colors.black,
             ),
             // DrawerMenuItem(
             //   ImagePath: ImagePath.subscription,
