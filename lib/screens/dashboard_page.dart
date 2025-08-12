@@ -5,6 +5,7 @@ import 'package:security_alert/custom/Image/image.dart';
 import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
 import 'package:security_alert/screens/scam/report_scam_1.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
+import '../services/api_service.dart';
 import '../custom/bottomnavigation.dart';
 import '../custom/customButton.dart';
 import '../provider/dashboard_provider.dart';
@@ -42,11 +43,31 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     // Load dashboard data when the page is initialized
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<DashboardProvider>(
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Load dashboard data
+      await Provider.of<DashboardProvider>(
         context,
         listen: false,
       ).loadDashboardData();
+
+      // Load thread statistics independently with a small delay to ensure proper initialization
+      await Future.delayed(Duration(milliseconds: 500));
+      await Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      ).loadThreadStatistics();
+
+      // Load thread analysis for default range (1w)
+      await Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      ).loadThreadAnalysis('1w');
+
+      // Load percentage count data for reported features
+      await Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      ).loadPercentageCount();
     });
     _loadReportTypes();
     _loadReportCategories();
@@ -66,15 +87,31 @@ class _DashboardPageState extends State<DashboardPage> {
         print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
       }
 
+      // Test direct thread statistics fetch
+      print('🧪 Testing direct thread statistics fetch...');
+      final apiService = ApiService();
+      final directThreadStats = await apiService.getThreadStatistics();
+      print('🧪 Direct thread stats result: $directThreadStats');
+
+      // Test direct thread analysis fetch
+      print('🧪 Testing direct thread analysis fetch...');
+      final directThreadAnalysis = await apiService.getThreadAnalysis('1w');
+      print('🧪 Direct thread analysis result: $directThreadAnalysis');
+
+      // Test direct percentage count fetch
+      print('🧪 Testing direct percentage count fetch...');
+      final directPercentageCount = await apiService.getPercentageCount();
+      print('🧪 Direct percentage count result: $directPercentageCount');
+
       // Show a snackbar with the results for debugging
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'API Test: Found ${categories.length} categories from backend',
+              'API Test: ${categories.length} categories loaded successfully',
             ),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 5),
           ),
         );
       }
@@ -176,6 +213,7 @@ class _DashboardPageState extends State<DashboardPage> {
       extendBody: true,
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
+
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -494,7 +532,7 @@ class _DashboardPageState extends State<DashboardPage> {
               selectedItemColor: Colors.black,
               items: [
                 customBottomNavItem(BottomNav: BottomNav.home, label: 'Home'),
-                customBottomNavItem(BottomNav: BottomNav.alert, label: 'Alert'),
+                customBottomNavItem(BottomNav: BottomNav.alert, label: 'Threads'),
                 customBottomNavItem(
                   BottomNav: BottomNav.profile,
                   label: 'Profile',
@@ -670,49 +708,82 @@ class _DashboardPageState extends State<DashboardPage> {
                                         fontFamily: 'Poppins',
                                       ),
                                     ),
-                                    Container(
-                                      padding:
-                                          ResponsiveHelper.getResponsiveEdgeInsets(
-                                            context,
-                                            8,
+                                    PopupMenuButton<String>(
+                                      onSelected: (String value) {
+                                        print('🔄 Selected period: $value');
+                                        // Reload percentage count data when period changes
+                                        Provider.of<DashboardProvider>(
+                                          context,
+                                          listen: false,
+                                        ).loadPercentageCount();
+                                      },
+                                      itemBuilder: (BuildContext context) =>
+                                          ['Weekly', 'Monthly'].map((
+                                            String period,
+                                          ) {
+                                            return PopupMenuItem<String>(
+                                              value: period,
+                                              child: Text(
+                                                period,
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize:
+                                                      ResponsiveHelper.getResponsiveFontSize(
+                                                        context,
+                                                        14,
+                                                      ),
+                                                  fontWeight: FontWeight.w500,
+                                                  fontFamily: 'Poppins',
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                      child: Container(
+                                        padding:
+                                            ResponsiveHelper.getResponsiveEdgeInsets(
+                                              context,
+                                              8,
+                                            ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.shade800,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.shade800,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            'Weekly',
-                                            style: TextStyle(
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Weekly',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize:
+                                                    ResponsiveHelper.getResponsiveFontSize(
+                                                      context,
+                                                      12,
+                                                    ),
+                                                fontWeight: FontWeight.w500,
+                                                fontFamily: 'Poppins',
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              width:
+                                                  ResponsiveHelper.getResponsivePadding(
+                                                    context,
+                                                    4,
+                                                  ),
+                                            ),
+                                            Icon(
+                                              Icons.keyboard_arrow_down,
                                               color: Colors.white,
-                                              fontSize:
+                                              size:
                                                   ResponsiveHelper.getResponsiveFontSize(
                                                     context,
-                                                    12,
+                                                    16,
                                                   ),
-                                              fontWeight: FontWeight.w500,
-                                              fontFamily: 'Poppins',
                                             ),
-                                          ),
-                                          SizedBox(
-                                            width:
-                                                ResponsiveHelper.getResponsivePadding(
-                                                  context,
-                                                  4,
-                                                ),
-                                          ),
-                                          Icon(
-                                            Icons.keyboard_arrow_down,
-                                            color: Colors.white,
-                                            size:
-                                                ResponsiveHelper.getResponsiveFontSize(
-                                                  context,
-                                                  16,
-                                                ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -774,46 +845,131 @@ class _DashboardPageState extends State<DashboardPage> {
                                     18,
                                   ),
                                 ),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Expanded(
-                                      child: _StatCard(
-                                        label: '50K+',
-                                        desc: 'Scams Reported',
-                                        highlight: true,
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      width:
-                                          ResponsiveHelper.getResponsivePadding(
-                                            context,
-                                            8,
+                                Consumer<DashboardProvider>(
+                                  builder: (context, dashboardProvider, child) {
+                                    final threadStats =
+                                        dashboardProvider.threadStatistics;
+                                    final isLoading =
+                                        dashboardProvider.isLoading;
+
+                                    // Show loading state when data is being fetched or not available
+                                    if (isLoading) {
+                                      return Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceEvenly,
+                                        children: [
+                                          Expanded(
+                                            child: _StatCard(
+                                              label: '...',
+                                              desc: 'Scams Reported',
+                                              highlight: true,
+                                            ),
                                           ),
-                                    ),
-                                    Expanded(
-                                      child: _StatCard(
-                                        label: '10K+',
-                                        desc: 'Malware Samples',
-                                        highlight: true,
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      width:
-                                          ResponsiveHelper.getResponsivePadding(
-                                            context,
-                                            8,
+                                          SizedBox(
+                                            width:
+                                                ResponsiveHelper.getResponsivePadding(
+                                                  context,
+                                                  8,
+                                                ),
                                           ),
-                                    ),
-                                    Expanded(
-                                      child: _StatCard(
-                                        label: '24/7',
-                                        desc: 'Threat Monitoring',
-                                        highlight: true,
-                                      ),
-                                    ),
-                                  ],
+                                          Expanded(
+                                            child: _StatCard(
+                                              label: '...',
+                                              desc: 'Malware Samples',
+                                              highlight: true,
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width:
+                                                ResponsiveHelper.getResponsivePadding(
+                                                  context,
+                                                  8,
+                                                ),
+                                          ),
+                                          Expanded(
+                                            child: _StatCard(
+                                              label: '...',
+                                              desc: 'Fraud Cases',
+                                              highlight: true,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    // Default values if no data available
+                                    String scamCount = '0';
+                                    String malwareCount = '0';
+                                    String fraudCount = '0';
+
+                                    if (threadStats.isNotEmpty) {
+                                      // Find the counts for each category
+                                      for (var stat in threadStats) {
+                                        final categoryName =
+                                            stat['categoryName']?.toString() ??
+                                            '';
+                                        final reportCount =
+                                            stat['reportCount']?.toString() ??
+                                            '0';
+
+                                        if (categoryName.toLowerCase().contains(
+                                          'scam',
+                                        )) {
+                                          scamCount = reportCount;
+                                        } else if (categoryName
+                                            .toLowerCase()
+                                            .contains('malware')) {
+                                          malwareCount = reportCount;
+                                        } else if (categoryName
+                                            .toLowerCase()
+                                            .contains('fraud')) {
+                                          fraudCount = reportCount;
+                                        }
+                                      }
+                                    }
+
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        Expanded(
+                                          child: _StatCard(
+                                            label: '$scamCount+',
+                                            desc: 'Scams Reported',
+                                            highlight: true,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width:
+                                              ResponsiveHelper.getResponsivePadding(
+                                                context,
+                                                8,
+                                              ),
+                                        ),
+                                        Expanded(
+                                          child: _StatCard(
+                                            label: '$malwareCount+',
+                                            desc: 'Malware Samples',
+                                            highlight: true,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width:
+                                              ResponsiveHelper.getResponsivePadding(
+                                                context,
+                                                8,
+                                              ),
+                                        ),
+                                        Expanded(
+                                          child: _StatCard(
+                                            label: '$fraudCount+',
+                                            desc: 'Fraud Cases',
+                                            highlight: true,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ],
                             ),

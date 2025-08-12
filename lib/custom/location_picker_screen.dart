@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import '../services/location_storage_service.dart';
 
 class LocationPickerScreen extends StatefulWidget {
   final Function(String, String)? onLocationSelected;
@@ -35,18 +36,21 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     _getCurrentLocation();
   }
 
-  void _loadSavedAddresses() {
-    _savedAddresses =
-        widget.savedAddresses ??
-        [
-          SavedAddress(
-            id: '1',
-            label: 'Home',
-            address:
-                'No:25, Pon Nagar, Kavery Nagar, Reddiarpalayam, Puducherry, India',
-            isSelected: true,
-          ),
-        ];
+  void _loadSavedAddresses() async {
+    final saved = await LocationStorageService.getSavedAddresses();
+    setState(() {
+      _savedAddresses =
+          (widget.savedAddresses ??
+          saved
+              .map(
+                (e) => SavedAddress(
+                  id: e['savedAt'] ?? e['label'] ?? DateTime.now().toString(),
+                  label: e['label'] ?? 'Saved',
+                  address: e['address'] ?? '',
+                ),
+              )
+              .toList());
+    });
   }
 
   Future<void> _getCurrentLocation() async {
@@ -165,6 +169,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       widget.onLocationSelected!(locationName, address);
     }
 
+    // Persist for offline reuse
+    LocationStorageService.addSavedAddress(
+      label: locationName,
+      address: address,
+    );
+    LocationStorageService.saveLastSelectedAddress(
+      label: locationName,
+      address: address,
+    );
+
     Navigator.of(context).pop();
   }
 
@@ -176,6 +190,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           _currentLocationAddress!,
         );
       }
+      LocationStorageService.saveLastSelectedAddress(
+        label: 'Current Location',
+        address: _currentLocationAddress!,
+      );
       Navigator.of(context).pop();
     }
   }
@@ -184,6 +202,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     if (widget.onLocationSelected != null) {
       widget.onLocationSelected!(address.label, address.address);
     }
+    LocationStorageService.saveLastSelectedAddress(
+      label: address.label,
+      address: address.address,
+    );
     Navigator.of(context).pop();
   }
 

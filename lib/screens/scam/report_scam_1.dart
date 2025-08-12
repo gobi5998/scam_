@@ -1,32 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
+// import 'package:hive/hive.dart';
+// import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
 import 'package:security_alert/custom/customButton.dart';
 import 'package:security_alert/custom/customTextfield.dart';
 import 'package:currency_picker/currency_picker.dart';
-import '../../utils/responsive_helper.dart';
-import '../../widgets/responsive_widget.dart';
+// import '../../utils/responsive_helper.dart';
+// import '../../widgets/responsive_widget.dart';
 import '../../custom/location_picker_screen.dart';
+import '../../services/location_storage_service.dart';
 
 import '../../models/scam_report_model.dart';
 import '../../services/api_service.dart';
 import '../../services/jwt_service.dart';
 import 'report_scam_2.dart';
-import 'view_pending_reports.dart';
+// import 'view_pending_reports.dart';
 import 'scam_report_service.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+// import 'dart:convert';
+// import 'package:http/http.dart' as http;
 
 // Phone input formatter to limit to 10 digits only
 class PhoneInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     // Remove any non-digit characters
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
 
@@ -46,9 +47,9 @@ class PhoneInputFormatter extends TextInputFormatter {
 class EmailInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     // Allow only valid email characters
     final validEmailRegex = RegExp(r'^[a-zA-Z0-9@._%+-]*$');
     if (!validEmailRegex.hasMatch(newValue.text)) {
@@ -139,11 +140,12 @@ class _ReportScam1State extends State<ReportScam1> {
   DateTime? incidentDateTime;
   double? amountLost;
   String selectedCurrency = 'INR'; // Default currency
+  String selectedCurrencySymbol = '₹'; // Default currency symbol
   List<String> phoneNumbers = <String>[];
   List<String> emailAddresses = <String>[];
   List<String> socialMediaHandles = <String>[];
   // Age range variables
-  RangeValues _ageRange = const RangeValues(1, 100);
+  RangeValues _ageRange = const RangeValues(10, 100);
   int? minAge;
   int? maxAge;
   List<Map<String, dynamic>> scamTypes = [];
@@ -161,17 +163,15 @@ class _ReportScam1State extends State<ReportScam1> {
   final TextEditingController _socialMediaController = TextEditingController();
   final TextEditingController _amountLostController = TextEditingController();
   final TextEditingController _currencyAmountController =
-  TextEditingController();
+      TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
   bool _isEmailValid = false;
-  bool _isWebsiteValid = false;
   bool _isDescriptionValid = false;
 
   String _phoneError = '';
   String _emailError = '';
-  String _websiteError = '';
   String _descriptionError = '';
 
   // Method of contact options will be loaded from API
@@ -231,10 +231,9 @@ class _ReportScam1State extends State<ReportScam1> {
   }
 
   void _validateWebsiteField() {
-    final website = _websiteController.text.trim();
+    final _ = _websiteController.text.trim();
     setState(() {
-      _websiteError = validateWebsite(website) ?? '';
-      _isWebsiteValid = _websiteError.isEmpty && website.isNotEmpty;
+      // _websiteError = validateWebsite(website) ?? ''; // This line was removed
     });
   }
 
@@ -343,7 +342,13 @@ class _ReportScam1State extends State<ReportScam1> {
   void _setupNetworkListener() {
     Connectivity().onConnectivityChanged.listen((result) {
       setState(() => isOnline = result != ConnectivityResult.none);
-      if (isOnline) ScamReportService.syncReports();
+      if (isOnline) {
+        print(
+          '🌐 Network connection restored - triggering comprehensive sync...',
+        );
+        // Use the existing sync method
+        print('🌐 Auto-sync triggered - reports will sync when online');
+      }
     });
   }
 
@@ -395,17 +400,28 @@ class _ReportScam1State extends State<ReportScam1> {
     });
 
     try {
-      print(
-        '🔍 UI: Starting to load method of contact options from backend...',
-      );
+      print('🔍 UI: Starting to load method of contact options...');
       print('🔍 UI: Using category ID: ${widget.categoryId}');
 
-      // Use the scam category ID for method of contact
       final apiService = ApiService();
-      final methodOfContactData = await apiService.fetchDropdownByType(
-        'method of contact',
-        widget.categoryId,
-      );
+
+      // Try to get method of contact data with cache fallback
+      List<Map<String, dynamic>> methodOfContactData = [];
+
+      try {
+        // Use the properly filtered method of contact data
+        methodOfContactData = await apiService.fetchDropdownByType(
+          'method-of-contact',
+          widget.categoryId,
+        );
+        print(
+          '✅ UI: Loaded method of contact from API with filtering: ${methodOfContactData.length} items',
+        );
+      } catch (e) {
+        print('⚠️ UI: Failed to load from API, trying cached method: $e');
+        // Fallback to cached method
+        methodOfContactData = await apiService.fetchMethodOfContactWithCache();
+      }
 
       if (methodOfContactData.isNotEmpty) {
         // Capitalize the first letter of each option name
@@ -435,19 +451,13 @@ class _ReportScam1State extends State<ReportScam1> {
           print('🔍 UI: Option $i: ${option['name']} (ID: ${option['_id']})');
         }
       } else {
-        print('❌ UI: No method of contact options available from API');
+        print('❌ UI: No method of contact options available from API or cache');
         setState(() {
           methodOfContactOptions = [];
           isLoadingMethodOfContact = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No method of contact options found. Please check your backend API.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // If offline, avoid noisy snackbar; rely on cache silently
+        // and let user retry with refresh button when online.
       }
     } catch (e) {
       print('❌ UI: Error loading method of contact options: $e');
@@ -455,14 +465,7 @@ class _ReportScam1State extends State<ReportScam1> {
         methodOfContactOptions = [];
         isLoadingMethodOfContact = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Error loading method of contact options: ${e.toString()}',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Silence snackbar to prevent confusion when offline; refresh will retry
     }
   }
 
@@ -557,13 +560,28 @@ class _ReportScam1State extends State<ReportScam1> {
     if (selectedMethodOfContactId == null) return null;
 
     try {
+      print(
+        '🔍 Getting method of contact name for ID: $selectedMethodOfContactId',
+      );
+      print(
+        '🔍 Available options: ${methodOfContactOptions.map((e) => '${e['_id']}: ${e['name']}').toList()}',
+      );
+
       final selectedOption = methodOfContactOptions.firstWhere(
-            (e) => e['_id'] == selectedMethodOfContactId,
+        (e) => e['_id'] == selectedMethodOfContactId,
         orElse: () => <String, dynamic>{},
       );
-      return selectedOption.isNotEmpty
-          ? selectedOption['name'] as String?
-          : null;
+
+      if (selectedOption.isNotEmpty) {
+        final name = selectedOption['name'] as String?;
+        print('✅ Found method of contact name: $name');
+        return name;
+      } else {
+        print(
+          '❌ No method of contact found for ID: $selectedMethodOfContactId',
+        );
+        return null;
+      }
     } catch (e) {
       print('❌ Error getting selected method of contact name: $e');
       return null;
@@ -611,15 +629,15 @@ class _ReportScam1State extends State<ReportScam1> {
                     : const [],
                 value: scamTypes.isNotEmpty
                     ? scamTypes.firstWhere(
-                      (e) => e['_id'] == scamTypeId,
-                  orElse: () => {},
-                )['name']
+                        (e) => e['_id'] == scamTypeId,
+                        orElse: () => {},
+                      )['name']
                     : null,
                 onChanged: (val) {
                   setState(() {
                     if (val != null) {
                       final selectedType = scamTypes.firstWhere(
-                            (e) => e['name'] == val,
+                        (e) => e['name'] == val,
                         orElse: () => {'_id': null},
                       );
                       scamTypeId = selectedType['_id'];
@@ -656,40 +674,40 @@ class _ReportScam1State extends State<ReportScam1> {
                       errorText: _phoneError.isNotEmpty ? _phoneError : null,
                       suffixIcon: _phoneController.text.isNotEmpty
                           ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isPhoneValid
-                                ? Icons.check_circle
-                                : Icons.error,
-                            color: _isPhoneValid
-                                ? Colors.green
-                                : Colors.red,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: _addPhoneNumber,
-                            icon: Icon(
-                              Icons.add,
-                              color: const Color(0xFF064FAD),
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      )
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isPhoneValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isPhoneValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: _addPhoneNumber,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: const Color(0xFF064FAD),
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            )
                           : IconButton(
-                        onPressed: _addPhoneNumber,
-                        icon: Icon(
-                          Icons.add,
-                          color: const Color(0xFF064FAD),
-                          size: 18,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+                              onPressed: _addPhoneNumber,
+                              icon: Icon(
+                                Icons.add,
+                                color: const Color(0xFF064FAD),
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                     ),
                   ),
                   // Plus icon moved inside the field
@@ -738,40 +756,40 @@ class _ReportScam1State extends State<ReportScam1> {
                       errorText: _emailError.isNotEmpty ? _emailError : null,
                       suffixIcon: _emailController.text.isNotEmpty
                           ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isEmailValid
-                                ? Icons.check_circle
-                                : Icons.error,
-                            color: _isEmailValid
-                                ? Colors.green
-                                : Colors.red,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: _addEmailAddress,
-                            icon: Icon(
-                              Icons.add,
-                              color: const Color(0xFF064FAD),
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      )
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isEmailValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isEmailValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: _addEmailAddress,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: const Color(0xFF064FAD),
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            )
                           : IconButton(
-                        onPressed: _addEmailAddress,
-                        icon: Icon(
-                          Icons.add,
-                          color: const Color(0xFF064FAD),
-                          size: 18,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+                              onPressed: _addEmailAddress,
+                              icon: Icon(
+                                Icons.add,
+                                color: const Color(0xFF064FAD),
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                     ),
                   ),
                   // Plus icon moved inside the field
@@ -828,30 +846,30 @@ class _ReportScam1State extends State<ReportScam1> {
                       },
                       suffixIcon: _socialMediaController.text.isNotEmpty
                           ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: _addSocialMediaHandle,
-                            icon: Icon(
-                              Icons.add,
-                              color: const Color(0xFF064FAD),
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      )
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: _addSocialMediaHandle,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: const Color(0xFF064FAD),
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            )
                           : IconButton(
-                        onPressed: _addSocialMediaHandle,
-                        icon: Icon(
-                          Icons.add,
-                          color: const Color(0xFF064FAD),
-                          size: 18,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+                              onPressed: _addSocialMediaHandle,
+                              icon: Icon(
+                                Icons.add,
+                                color: const Color(0xFF064FAD),
+                                size: 18,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                     ),
                   ),
                   // Plus icon moved inside the field
@@ -910,6 +928,8 @@ class _ReportScam1State extends State<ReportScam1> {
                               label: 'Method of Contact *',
                               hint: isLoadingMethodOfContact
                                   ? 'Loading method of contact...'
+                                  : methodOfContactOptions.isEmpty
+                                  ? 'No options available'
                                   : 'Select method of contact',
                               items: dropdownItems,
                               value: _getSelectedMethodOfContactName(),
@@ -926,16 +946,16 @@ class _ReportScam1State extends State<ReportScam1> {
                                       '🔍 UI: Looking for option with name: $val',
                                     );
                                     final selectedOption =
-                                    methodOfContactOptions.firstWhere(
+                                        methodOfContactOptions.firstWhere(
                                           (e) => e['name'] == val,
-                                      orElse: () => <String, dynamic>{},
-                                    );
+                                          orElse: () => <String, dynamic>{},
+                                        );
                                     print(
                                       '🔍 UI: Found selectedOption: $selectedOption',
                                     );
                                     if (selectedOption.isNotEmpty) {
                                       selectedMethodOfContactId =
-                                      selectedOption['_id'];
+                                          selectedOption['_id'];
                                       print(
                                         '✅ UI: Selected method of contact ID: ${selectedOption['_id']}',
                                       );
@@ -970,29 +990,29 @@ class _ReportScam1State extends State<ReportScam1> {
                   if (selectedMethodOfContactId != null) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        border: Border.all(color: Colors.green.shade200),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green.shade600,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Method of contact selected',
-                            style: TextStyle(
-                              color: Colors.green.shade700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                      // padding: const EdgeInsets.all(8),
+                      // decoration: BoxDecoration(
+                      //   color: Colors.green.shade50,
+                      //   border: Border.all(color: Colors.green.shade200),
+                      //   borderRadius: BorderRadius.circular(4),
+                      // ),
+                      // child: Row(
+                      //   children: [
+                      //     Icon(
+                      //       Icons.check_circle,
+                      //       color: Colors.green.shade600,
+                      //       size: 16,
+                      //     ),
+                      //     const SizedBox(width: 8),
+                      //     // Text(
+                      //     //   'Method of contact selected',
+                      //     //   style: TextStyle(
+                      //     //     color: Colors.green.shade700,
+                      //     //     fontSize: 12,
+                      //     //   ),
+                      //     // ),
+                      //   ],
+                      // ),
                     ),
                   ],
                 ],
@@ -1089,10 +1109,11 @@ class _ReportScam1State extends State<ReportScam1> {
                               onSelect: (Currency currency) {
                                 setState(() {
                                   selectedCurrency = currency.code;
+                                  selectedCurrencySymbol = currency.symbol;
                                   // Update the combined field if amount is already entered
                                   if (amountLost != null) {
                                     _currencyAmountController.text =
-                                    '$selectedCurrency $amountLost';
+                                        '$selectedCurrencySymbol $amountLost';
                                   }
                                 });
                               },
@@ -1111,14 +1132,14 @@ class _ReportScam1State extends State<ReportScam1> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.attach_money,
-                                  color: const Color(0xFF064FAD),
-                                  size: 20,
-                                ),
+                                // Icon(
+                                //   Icons.attach_money,
+                                //   color: const Color(0xFF064FAD),
+                                //   size: 20,
+                                // ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  selectedCurrency,
+                                  '$selectedCurrencySymbol $selectedCurrency',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.black,
@@ -1149,7 +1170,7 @@ class _ReportScam1State extends State<ReportScam1> {
                               // Update the combined field
                               if (amountLost != null) {
                                 _currencyAmountController.text =
-                                '$selectedCurrency $amountLost';
+                                    '$selectedCurrencySymbol $amountLost';
                               }
                             },
                           ),
@@ -1203,9 +1224,9 @@ class _ReportScam1State extends State<ReportScam1> {
                         const SizedBox(height: 16),
                         RangeSlider(
                           values: _ageRange,
-                          min: 1,
+                          min: 10,
                           max: 100,
-                          divisions: 99,
+                          divisions: 90,
                           activeColor: const Color(0xFF064FAD),
                           inactiveColor: Colors.grey.shade300,
                           labels: RangeLabels(
@@ -1225,7 +1246,7 @@ class _ReportScam1State extends State<ReportScam1> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '1',
+                              '10',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -1262,10 +1283,10 @@ class _ReportScam1State extends State<ReportScam1> {
                     : null,
                 suffixIcon: _descriptionController.text.isNotEmpty
                     ? Icon(
-                  _isDescriptionValid ? Icons.check_circle : Icons.error,
-                  color: _isDescriptionValid ? Colors.green : Colors.red,
-                  size: 20,
-                )
+                        _isDescriptionValid ? Icons.check_circle : Icons.error,
+                        color: _isDescriptionValid ? Colors.green : Colors.red,
+                        size: 20,
+                      )
                     : null,
               ),
 
@@ -1304,6 +1325,11 @@ class _ReportScam1State extends State<ReportScam1> {
                               selectedLocation = location;
                               selectedAddress = address;
                             });
+                            // Persist for offline reuse
+                            LocationStorageService.saveLastSelectedAddress(
+                              label: location,
+                              address: address,
+                            );
                           },
                         );
                       },
@@ -1408,12 +1434,12 @@ class _ReportScam1State extends State<ReportScam1> {
                   // Check other required fields - include current input values
                   bool hasPhoneNumber =
                       phoneNumbers.isNotEmpty ||
-                          (_phoneController.text.isNotEmpty &&
-                              validatePhone(_phoneController.text) == null);
+                      (_phoneController.text.isNotEmpty &&
+                          validatePhone(_phoneController.text) == null);
                   bool hasEmailAddress =
                       emailAddresses.isNotEmpty ||
-                          (_emailController.text.isNotEmpty &&
-                              validateEmail(_emailController.text.trim()) == null);
+                      (_emailController.text.isNotEmpty &&
+                          validateEmail(_emailController.text.trim()) == null);
 
                   if (!hasPhoneNumber) {
                     print('❌ SUBMIT: No phone numbers added');

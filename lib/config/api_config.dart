@@ -31,6 +31,11 @@ class ApiConfig {
   static const String threatHistoryEndpoint = '/api/v1/alerts/history';
   static const String alertLevelsEndpoint = '/api/v1/alert-level';
   static const String dropdownEndpoint = '/api/v1/drop-down?limit=200';
+  static const String threatStatsEndpoint = '/api/v1/reports/count-by-category';
+  static const String threadAnalysisEndpoint =
+      '/api/v1/reports/thread-overview-analysis';
+  static const String percentageCountEndpoint =
+      '/api/v1/reports/percentage-count';
   // File upload endpoints
   static const String fileUploadEndpoint = '/api/v1/file-upload';
   static const String malwareFileUploadEndpoint =

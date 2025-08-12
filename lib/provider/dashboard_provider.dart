@@ -146,23 +146,33 @@ class DashboardProvider with ChangeNotifier {
   String _errorMessage = '';
   DashboardStats? _stats;
   List<SecurityAlert> _alerts = [];
-  String _selectedTab = '1D';
+  List<Map<String, dynamic>> _threadStatistics = [];
+  Map<String, dynamic> _threadAnalysis = {};
+  Map<String, dynamic> _percentageCount = {};
+  String _selectedTab = '1w';
   bool _isOnline = true;
 
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
   DashboardStats? get stats => _stats;
   List<SecurityAlert> get alerts => _alerts;
+  List<Map<String, dynamic>> get threadStatistics => _threadStatistics;
+  Map<String, dynamic> get threadAnalysis => _threadAnalysis;
+  Map<String, dynamic> get percentageCount => _percentageCount;
   String get selectedTab => _selectedTab;
   bool get isOnline => _isOnline;
 
   // Fallback data when API is not available
   Map<String, double> get reportedFeatures {
     if (_stats?.alertsByType != null) {
-      final total = _stats!.alertsByType.values.fold(0, (sum, count) => sum + count);
+      final total = _stats!.alertsByType.values.fold(
+        0,
+        (sum, count) => sum + count,
+      );
       if (total > 0) {
-        return _stats!.alertsByType.map((key, value) =>
-            MapEntry(key, (value / total).toDouble()));
+        return _stats!.alertsByType.map(
+          (key, value) => MapEntry(key, (value / total).toDouble()),
+        );
       }
     }
     return {
@@ -196,19 +206,62 @@ class DashboardProvider with ChangeNotifier {
       if (_isOnline) {
         // Online: fetch from API and cache
         try {
-          // Load dashboard stats
-          final statsData = await _apiService.getDashboardStats();
-          _stats = DashboardStats.fromJson(statsData!);
+          // Load dashboard stats (with error handling)
+          try {
+            final statsData = await _apiService.getDashboardStats();
+            _stats = DashboardStats.fromJson(statsData!);
+            await prefs.setString('dashboard_stats', jsonEncode(statsData));
+          } catch (e) {
+            print('⚠️ Dashboard stats failed: $e');
+            // Continue with other data
+          }
 
-          // Cache the stats data
-          await prefs.setString('dashboard_stats', jsonEncode(statsData));
+          // Load security alerts (with error handling)
+          try {
+            final alertsData = await _apiService.getSecurityAlerts();
+            _alerts = alertsData
+                .map((json) => SecurityAlert.fromJson(json))
+                .toList();
+            await prefs.setString('dashboard_alerts', jsonEncode(alertsData));
+          } catch (e) {
+            print('⚠️ Security alerts failed: $e');
+            // Continue with other data
+          }
 
-          // Load security alerts
-          final alertsData = await _apiService.getSecurityAlerts();
-          _alerts = alertsData.map((json) => SecurityAlert.fromJson(json)).toList();
+          // Load thread statistics (this is the important one!)
+          print('🔄 Loading thread statistics...');
+          try {
+            final threadStatsData = await _apiService.getThreadStatistics();
+            print(
+              '📊 Thread statistics loaded: ${threadStatsData.length} items',
+            );
+            print('📊 Thread statistics data: $threadStatsData');
+            _threadStatistics = threadStatsData;
 
-          // Cache the alerts data
-          await prefs.setString('dashboard_alerts', jsonEncode(alertsData));
+            // Cache the thread statistics data
+            await prefs.setString(
+              'dashboard_thread_stats',
+              jsonEncode(threadStatsData),
+            );
+          } catch (e) {
+            print('❌ Thread statistics failed: $e');
+            // Try to load from cache
+            final cached = prefs.getString('dashboard_thread_stats');
+            if (cached != null) {
+              try {
+                final cachedData = jsonDecode(cached) as List;
+                _threadStatistics = cachedData
+                    .map((json) => Map<String, dynamic>.from(json))
+                    .toList();
+                print(
+                  '📊 Loaded thread statistics from cache: ${_threadStatistics.length} items',
+                );
+              } catch (e) {
+                print('❌ Failed to load from cache: $e');
+                _threadStatistics = [];
+              }
+            }
+          }
 
           _errorMessage = ''; // Clear any previous offline error
         } catch (e) {
@@ -220,12 +273,12 @@ class DashboardProvider with ChangeNotifier {
         // Offline: load from cache
         await _loadFromCache(prefs);
         if (_stats == null && _alerts.isEmpty) {
-          _errorMessage = 'No offline data available. Please connect to the internet.';
+          _errorMessage =
+              'No offline data available. Please connect to the internet.';
         } else {
           _errorMessage = 'You are offline. Showing cached data.';
         }
       }
-
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       // Keep fallback data if everything fails
@@ -247,7 +300,18 @@ class DashboardProvider with ChangeNotifier {
       final cachedAlerts = prefs.getString('dashboard_alerts');
       if (cachedAlerts != null) {
         final alertsList = jsonDecode(cachedAlerts) as List;
-        _alerts = alertsList.map((json) => SecurityAlert.fromJson(json)).toList();
+        _alerts = alertsList
+            .map((json) => SecurityAlert.fromJson(json))
+            .toList();
+      }
+
+      // Load cached thread statistics
+      final cachedThreadStats = prefs.getString('dashboard_thread_stats');
+      if (cachedThreadStats != null) {
+        final threadStatsList = jsonDecode(cachedThreadStats) as List;
+        _threadStatistics = threadStatsList
+            .map((json) => Map<String, dynamic>.from(json))
+            .toList();
       }
     } catch (e) {
       print('Error loading cached data: $e');
@@ -296,6 +360,80 @@ class DashboardProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Load percentage count data for reported features
+  Future<void> loadPercentageCount() async {
+    try {
+      print('🔄 Loading percentage count data...');
+      final percentageData = await _apiService.getPercentageCount();
+      print('📊 Percentage count loaded: $percentageData');
+      _percentageCount = percentageData;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Percentage count failed: $e');
+      _percentageCount = {};
+      notifyListeners();
+    }
+  }
+
+  // Load thread analysis data
+  Future<void> loadThreadAnalysis(String range) async {
+    try {
+      print('🔄 Loading thread analysis for range: $range...');
+      print('🔄 Current selected tab: $_selectedTab');
+      final analysisData = await _apiService.getThreadAnalysis(range);
+      print('📊 Thread analysis loaded: $analysisData');
+      _threadAnalysis = analysisData;
+      _selectedTab = range;
+      print('🔄 Updated selected tab to: $_selectedTab');
+      notifyListeners();
+    } catch (e) {
+      print('❌ Thread analysis failed: $e');
+      _threadAnalysis = {};
+      notifyListeners();
+    }
+  }
+
+  // Dedicated method to load only thread statistics
+  Future<void> loadThreadStatistics() async {
+    try {
+      print('🔄 Loading thread statistics only...');
+      final threadStatsData = await _apiService.getThreadStatistics();
+      print('📊 Thread statistics loaded: ${threadStatsData.length} items');
+      print('📊 Thread statistics data: $threadStatsData');
+      _threadStatistics = threadStatsData;
+
+      // Cache the thread statistics data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'dashboard_thread_stats',
+        jsonEncode(threadStatsData),
+      );
+
+      notifyListeners();
+    } catch (e) {
+      print('❌ Thread statistics failed: $e');
+      // Try to load from cache
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString('dashboard_thread_stats');
+        if (cached != null) {
+          final cachedData = jsonDecode(cached) as List;
+          _threadStatistics = cachedData
+              .map((json) => Map<String, dynamic>.from(json))
+              .toList();
+          print(
+            '📊 Loaded thread statistics from cache: ${_threadStatistics.length} items',
+          );
+          notifyListeners();
+        }
+      } catch (e) {
+        print('❌ Failed to load from cache: $e');
+        _threadStatistics = [];
+        notifyListeners();
+      }
+    }
+  }
+
   // Get alerts by severity
   List<SecurityAlert> getAlertsBySeverity(AlertSeverity severity) {
     return _alerts.where((alert) => alert.severity == severity).toList();
@@ -315,6 +453,8 @@ class DashboardProvider with ChangeNotifier {
   List<SecurityAlert> getRecentAlerts() {
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(days: 1));
-    return _alerts.where((alert) => alert.timestamp.isAfter(yesterday)).toList();
+    return _alerts
+        .where((alert) => alert.timestamp.isAfter(yesterday))
+        .toList();
   }
 }

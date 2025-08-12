@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'package:provider/provider.dart';
+import '../provider/dashboard_provider.dart';
 import 'ReportedFeatureItem.dart';
 
 class ReportedFeaturesPanel extends StatefulWidget {
@@ -10,37 +11,141 @@ class ReportedFeaturesPanel extends StatefulWidget {
 }
 
 class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
-  String selectedPeriod = 'Weekly';
-  final List<String> periods = ['Weekly', 'Monthly', 'Yearly'];
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Report Items
-        ReportedFeatureItem(
-          iconPath: 'assets/icon/scam.png',
-          title: 'Reported Scam',
-          progress: 0.28,
-          percentage: '28%',
-          onAdd: '/scam-report',
-        ),
-        ReportedFeatureItem(
-          iconPath: 'assets/icon/malware.png',
-          title: 'Reported Malware',
-          progress: 0.68,
-          percentage: '68%',
-          onAdd: '/malware-report',
-        ),
-        ReportedFeatureItem(
-          iconPath: 'assets/icon/fraud.png',
-          title: 'Reported Fraud',
-          progress: 0.50,
-          percentage: '50%',
-          onAdd: '/fraud-report',
-        ),
-      ],
+    return Consumer<DashboardProvider>(
+      builder: (context, dashboardProvider, child) {
+        final percentageData = dashboardProvider.percentageCount;
+        final isLoading = dashboardProvider.isLoading;
+
+        // Extract data from API response
+        final totalCount = percentageData['totalCount'] ?? 0;
+        final categories =
+            percentageData['totalCountByCategory'] as List<dynamic>? ?? [];
+
+        // Find specific categories
+        Map<String, dynamic>? scamCategory;
+        Map<String, dynamic>? malwareCategory;
+        Map<String, dynamic>? fraudCategory;
+
+        for (var category in categories) {
+          final categoryName =
+              category['categoryName']?.toString().toLowerCase() ?? '';
+
+          if (categoryName.contains('scam')) {
+            scamCategory = category;
+          } else if (categoryName.contains('malware')) {
+            malwareCategory = category;
+          } else if (categoryName.contains('fraud')) {
+            fraudCategory = category;
+          }
+        }
+
+        // Show loading state
+        if (isLoading && categories.isEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildLoadingItem('Reported Scam'),
+              _buildLoadingItem('Reported Malware'),
+              _buildLoadingItem('Reported Fraud'),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Report Items with dynamic data
+            ReportedFeatureItem(
+              iconPath: 'assets/icon/scam.png',
+              title: 'Reported Scam',
+              progress: (scamCategory?['percentage'] ?? 0) / 100,
+              percentage:
+                  '${scamCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
+              onAdd: '/scam-report',
+            ),
+            ReportedFeatureItem(
+              iconPath: 'assets/icon/malware.png',
+              title: 'Reported Malware',
+              progress: (malwareCategory?['percentage'] ?? 0) / 100,
+              percentage:
+                  '${malwareCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
+              onAdd: '/malware-report',
+            ),
+            ReportedFeatureItem(
+              iconPath: 'assets/icon/fraud.png',
+              title: 'Reported Fraud',
+              progress: (fraudCategory?['percentage'] ?? 0) / 100,
+              percentage:
+                  '${fraudCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
+              onAdd: '/fraud-report',
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLoadingItem(String title) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
