@@ -795,7 +795,7 @@ class _ReportScam2State extends State<ReportScam2> {
               //   ),
               // ],
               CustomButton(
-                text: isUploading ? 'Uploading...' : 'Submit',
+                text: isUploading ? 'Submitting...' : 'Submit',
                 onPressed: isUploading
                     ? null
                     : () async {

@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 20,
                               ),
                               child: Image.asset(
-                                'assets/image/splash.jpg',
+                                'assets/image/Splash1.png',
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -86,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             ),
                           ),
                           Text(
-                            'Security Alert',
+                            'Scam Detect',
                             style: TextStyle(
                               fontSize: ResponsiveHelper.getResponsiveFontSize(
                                 context,

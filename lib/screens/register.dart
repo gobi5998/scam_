@@ -267,7 +267,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   // Top section with back button and title
                   Container(
-                    padding: EdgeInsets.only(top: isSmallScreen ? 4 : 8),
+                    padding: EdgeInsets.only(top: 70),
                     child: Column(
                       children: [
                         // // Back button

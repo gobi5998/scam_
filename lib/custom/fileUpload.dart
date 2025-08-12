@@ -40,7 +40,7 @@ class FileUploadConfig {
     this.allowedAudioExtensions = const ['mp3', 'wav', 'm4a'],
     this.allowedvideoExtensions = const ['mp4'],
     this.maxFileSize =
-        5, // 5MB default (server nginx limit appears to be lower)
+        5, // 5MB default for screenshots (server nginx limit appears to be lower)
     this.customUploadUrl,
     this.additionalHeaders,
   });
@@ -743,13 +743,103 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   // Pick images
   Future<void> _pickImages() async {
     print('📸 Picking images...');
+    
+    // Check if already at limit
+    if (selectedImages.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum 5 screenshots allowed. Please remove some screenshots first.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    // Show current selection status
+    if (selectedImages.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Currently selected: ${selectedImages.length}/5 screenshots. Adding more...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    
     final images = await _picker.pickMultiImage();
     if (images != null) {
       print('📸 Selected ${images.length} images');
+      
+      // Validate file sizes before adding
+      List<File> validImages = [];
+      List<String> oversizedFiles = [];
+      List<String> duplicateFiles = [];
+      
+      for (var image in images) {
+        final file = File(image.path);
+        final fileSize = await file.length();
+        final fileSizeMB = fileSize / (1024 * 1024);
+        
+        // Check if file is already selected
+        bool isDuplicate = selectedImages.any((selectedFile) => 
+          selectedFile.path == file.path || 
+          selectedFile.path.split('/').last == file.path.split('/').last
+        );
+        
+        if (isDuplicate) {
+          duplicateFiles.add(file.path.split('/').last);
+          continue;
+        }
+        
+        if (fileSizeMB > 5.0) {
+          oversizedFiles.add('${image.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+        } else {
+          validImages.add(file);
+        }
+      }
+      
+      // Calculate how many more images can be added
+      int remainingSlots = 5 - selectedImages.length;
+      int imagesToAdd = validImages.length > remainingSlots ? remainingSlots : validImages.length;
+      
       setState(() {
-        selectedImages.addAll(images.map((e) => File(e.path)));
+        selectedImages.addAll(validImages.take(imagesToAdd));
       });
+      
       print('📸 Total images selected: ${selectedImages.length}');
+      
+      // Show warnings for duplicate files
+      if (duplicateFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Show warnings for oversized files
+      if (oversizedFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      
+      // Show warning if some images were not added due to limit
+      if (validImages.length > remainingSlots) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Only ${remainingSlots} more screenshots allowed. ${validImages.length - remainingSlots} images were not added.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
@@ -763,6 +853,30 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   // Pick documents
   Future<void> _pickDocuments() async {
     print('📄 Picking documents...');
+    
+    // Check if already at limit
+    if (selectedDocuments.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum 5 documents allowed. Please remove some documents first.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    // Show current selection status
+    if (selectedDocuments.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Currently selected: ${selectedDocuments.length}/5 documents. Adding more...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -771,10 +885,78 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
     if (result != null) {
       print('📄 Selected ${result.files.length} documents');
+      
+      // Validate file sizes and check for duplicates
+      List<File> validDocuments = [];
+      List<String> oversizedFiles = [];
+      List<String> duplicateFiles = [];
+      
+      for (var filePath in result.paths) {
+        if (filePath != null) {
+          final file = File(filePath);
+          final fileSize = await file.length();
+          final fileSizeMB = fileSize / (1024 * 1024);
+          
+          // Check if file is already selected
+          bool isDuplicate = selectedDocuments.any((selectedFile) => 
+            selectedFile.path == file.path || 
+            selectedFile.path.split('/').last == file.path.split('/').last
+          );
+          
+          if (isDuplicate) {
+            duplicateFiles.add(file.path.split('/').last);
+            continue;
+          }
+          
+          if (fileSizeMB > 5.0) {
+            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+          } else {
+            validDocuments.add(file);
+          }
+        }
+      }
+      
+      // Calculate how many more documents can be added
+      int remainingSlots = 5 - selectedDocuments.length;
+      int documentsToAdd = validDocuments.length > remainingSlots ? remainingSlots : validDocuments.length;
+      
       setState(() {
-        selectedDocuments.addAll(result.paths.map((e) => File(e!)));
+        selectedDocuments.addAll(validDocuments.take(documentsToAdd));
       });
+      
       print('📄 Total documents selected: ${selectedDocuments.length}');
+      
+      // Show warnings for duplicate files
+      if (duplicateFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Show warnings for oversized files
+      if (oversizedFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      
+      // Show warning if some documents were not added due to limit
+      if (validDocuments.length > remainingSlots) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Only ${remainingSlots} more documents allowed. ${validDocuments.length - remainingSlots} documents were not added.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
@@ -788,6 +970,30 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   // Pick voice files
   Future<void> _pickVoiceFiles() async {
     print('🎵 Picking voice files...');
+    
+    // Check if already at limit
+    if (selectedVoiceFiles.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum 5 voice files allowed. Please remove some voice files first.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    // Show current selection status
+    if (selectedVoiceFiles.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Currently selected: ${selectedVoiceFiles.length}/5 voice files. Adding more...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -796,10 +1002,78 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
     if (result != null) {
       print('🎵 Selected ${result.files.length} voice files');
+      
+      // Validate file sizes and check for duplicates
+      List<File> validVoiceFiles = [];
+      List<String> oversizedFiles = [];
+      List<String> duplicateFiles = [];
+      
+      for (var filePath in result.paths) {
+        if (filePath != null) {
+          final file = File(filePath);
+          final fileSize = await file.length();
+          final fileSizeMB = fileSize / (1024 * 1024);
+          
+          // Check if file is already selected
+          bool isDuplicate = selectedVoiceFiles.any((selectedFile) => 
+            selectedFile.path == file.path || 
+            selectedFile.path.split('/').last == file.path.split('/').last
+          );
+          
+          if (isDuplicate) {
+            duplicateFiles.add(file.path.split('/').last);
+            continue;
+          }
+          
+          if (fileSizeMB > 5.0) {
+            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+          } else {
+            validVoiceFiles.add(file);
+          }
+        }
+      }
+      
+      // Calculate how many more voice files can be added
+      int remainingSlots = 5 - selectedVoiceFiles.length;
+      int voiceFilesToAdd = validVoiceFiles.length > remainingSlots ? remainingSlots : validVoiceFiles.length;
+      
       setState(() {
-        selectedVoiceFiles.addAll(result.paths.map((e) => File(e!)));
+        selectedVoiceFiles.addAll(validVoiceFiles.take(voiceFilesToAdd));
       });
+      
       print('🎵 Total voice files selected: ${selectedVoiceFiles.length}');
+      
+      // Show warnings for duplicate files
+      if (duplicateFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Show warnings for oversized files
+      if (oversizedFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      
+      // Show warning if some voice files were not added due to limit
+      if (validVoiceFiles.length > remainingSlots) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Only ${remainingSlots} more voice files allowed. ${validVoiceFiles.length - remainingSlots} voice files were not added.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
@@ -811,7 +1085,31 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   }
 
   Future<void> _pickVideoFiles() async {
-    print('🎵 Picking video files...');
+    print('🎬 Picking video files...');
+    
+    // Check if already at limit
+    if (selectedVideoFiles.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum 5 video files allowed. Please remove some video files first.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    // Show current selection status
+    if (selectedVideoFiles.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Currently selected: ${selectedVideoFiles.length}/5 video files. Adding more...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -819,18 +1117,86 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     );
 
     if (result != null) {
-      print('🎵 Selected ${result.files.length} voice files');
+      print('🎬 Selected ${result.files.length} video files');
+      
+      // Validate file sizes and check for duplicates
+      List<File> validVideoFiles = [];
+      List<String> oversizedFiles = [];
+      List<String> duplicateFiles = [];
+      
+      for (var filePath in result.paths) {
+        if (filePath != null) {
+          final file = File(filePath);
+          final fileSize = await file.length();
+          final fileSizeMB = fileSize / (1024 * 1024);
+          
+          // Check if file is already selected
+          bool isDuplicate = selectedVideoFiles.any((selectedFile) => 
+            selectedFile.path == file.path || 
+            selectedFile.path.split('/').last == file.path.split('/').last
+          );
+          
+          if (isDuplicate) {
+            duplicateFiles.add(file.path.split('/').last);
+            continue;
+          }
+          
+          if (fileSizeMB > 5.0) {
+            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+          } else {
+            validVideoFiles.add(file);
+          }
+        }
+      }
+      
+      // Calculate how many more video files can be added
+      int remainingSlots = 5 - selectedVideoFiles.length;
+      int videoFilesToAdd = validVideoFiles.length > remainingSlots ? remainingSlots : validVideoFiles.length;
+      
       setState(() {
-        selectedVideoFiles.addAll(result.paths.map((e) => File(e!)));
+        selectedVideoFiles.addAll(validVideoFiles.take(videoFilesToAdd));
       });
-      print('🎵 Total video files selected: ${selectedVideoFiles.length}');
+      
+      print('🎬 Total video files selected: ${selectedVideoFiles.length}');
+      
+      // Show warnings for duplicate files
+      if (duplicateFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Show warnings for oversized files
+      if (oversizedFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      
+      // Show warning if some video files were not added due to limit
+      if (validVideoFiles.length > remainingSlots) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Only ${remainingSlots} more video files allowed. ${validVideoFiles.length - remainingSlots} video files were not added.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
       // Auto-upload if enabled
       if (widget.config.autoUpload) {
         _autoUploadFiles();
       }
     } else {
-      print('🎵 No video files selected');
+      print('🎬 No video files selected');
     }
   }
 
@@ -852,6 +1218,9 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     print('🚀 Auto-uploading files...');
     await triggerUpload();
   }
+
+  // Method to check if files are currently being uploaded
+  bool get isCurrentlyUploading => isUploading;
 
   // Remove file from list
   void _removeFile(List<File> fileList, int index) {
@@ -902,6 +1271,282 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     }
 
     return errors;
+  }
+
+  // Validate individual image file
+  Future<bool> _validateImageFile(File file) async {
+    try {
+      final fileSize = await file.length();
+      final fileSizeMB = fileSize / (1024 * 1024);
+      
+      if (fileSizeMB > 5.0) {
+        return false;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Show image detail in full screen
+  void _showImageDetail(File file) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                // Header with file info
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              file.path.split('/').last,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Size: ${_getFileSizeDisplay(file)}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                // Image display
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    child: Image.file(
+                      file,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[200],
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.image_not_supported,
+                                color: Colors.grey[400],
+                                size: 64,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Unable to display image',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show current selection summary
+  void _showCurrentSelection([String? fileType]) {
+    List<File> files;
+    String title;
+    IconData icon;
+    String typeName;
+    
+    switch (fileType) {
+      case 'documents':
+        files = selectedDocuments;
+        title = 'Current Documents';
+        icon = Icons.description;
+        typeName = 'documents';
+        break;
+      case 'voice':
+        files = selectedVoiceFiles;
+        title = 'Current Voice Files';
+        icon = Icons.mic;
+        typeName = 'voice files';
+        break;
+      case 'video':
+        files = selectedVideoFiles;
+        title = 'Current Video Files';
+        icon = Icons.video_file;
+        typeName = 'video files';
+        break;
+      default:
+        files = selectedImages;
+        title = 'Current Screenshots';
+        icon = Icons.image;
+        typeName = 'screenshots';
+    }
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(icon, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(title),
+            ],
+          ),
+          content: Container(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'You have ${files.length}/5 $typeName selected:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                ...files.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final file = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        // File icon or thumbnail
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: fileType == null 
+                              ? Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: Icon(Icons.image_not_supported, size: 20),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    fileType == 'documents' ? Icons.description :
+                                    fileType == 'voice' ? Icons.mic :
+                                    fileType == 'video' ? Icons.video_file :
+                                    Icons.file_present,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // File info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                file.path.split('/').last,
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'Size: ${_getFileSizeDisplay(file)}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Remove button
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              switch (fileType) {
+                                case 'documents':
+                                  selectedDocuments.removeAt(index);
+                                  break;
+                                case 'voice':
+                                  selectedVoiceFiles.removeAt(index);
+                                  break;
+                                case 'video':
+                                  selectedVideoFiles.removeAt(index);
+                                  break;
+                                default:
+                                  selectedImages.removeAt(index);
+                              }
+                            });
+                            Navigator.of(context).pop();
+                            if (files.isNotEmpty) {
+                              _showCurrentSelection(fileType);
+                            }
+                          },
+                          icon: Icon(Icons.remove_circle, color: Colors.red, size: 20),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Continue Adding'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Upload all files
@@ -1031,18 +1676,180 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
               ),
             ],
           ),
-          child: ListTile(
-            leading: Image.asset(
-              'assets/image/screenshot.png',
-              width: 40,
-              height: 40,
-            ),
-            title: const Text('Add Screenshots'),
-            subtitle: Text(
-              'Selected: ${selectedImages.length}'
-              '${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
-            ),
-            onTap: _pickImages,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: Stack(
+                  children: [
+                    Image.asset(
+                      'assets/image/screenshot.png',
+                      width: 40,
+                      height: 40,
+                    ),
+                    if (selectedImages.isNotEmpty)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${selectedImages.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                title: Text(
+                  selectedImages.length >= 5 
+                    ? 'Screenshots (Limit Reached)' 
+                    : 'Add Screenshots',
+                  style: TextStyle(
+                    color: selectedImages.length >= 5 ? Colors.grey[600] : Colors.black,
+                  ),
+                ),
+                subtitle: Text(
+                  selectedImages.length >= 5
+                    ? 'Maximum 5 screenshots selected. Remove some to add more.'
+                    : 'Selected: ${selectedImages.length}/5 (Max 5MB each)'
+                      '${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+                  style: TextStyle(
+                    color: selectedImages.length >= 5 ? Colors.red : Colors.grey[600],
+                  ),
+                ),
+                trailing: selectedImages.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.info_outline, color: Colors.blue),
+                      onPressed: _showCurrentSelection,
+                      tooltip: 'View current selection',
+                    )
+                  : null,
+                onTap: selectedImages.length >= 5 
+                  ? () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Maximum 5 screenshots reached. Please remove some first.'),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  : _pickImages,
+              ),
+              
+              // Show selected images with previews
+              if (selectedImages.isNotEmpty) ...[
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Text(
+                    'Selected Screenshots:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+                Container(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    itemCount: selectedImages.length,
+                    itemBuilder: (context, index) {
+                      final file = selectedImages[index];
+                      return Container(
+                        width: 100,
+                        margin: const EdgeInsets.only(right: 8.0),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Stack(
+                          children: [
+                                                         // Image preview
+                             GestureDetector(
+                               onTap: () => _showImageDetail(file),
+                               child: ClipRRect(
+                                 borderRadius: BorderRadius.circular(8),
+                                 child: Image.file(
+                                   file,
+                                   width: 100,
+                                   height: 120,
+                                   fit: BoxFit.cover,
+                                   errorBuilder: (context, error, stackTrace) {
+                                     return Container(
+                                       width: 100,
+                                       height: 120,
+                                       color: Colors.grey[200],
+                                       child: Icon(
+                                         Icons.image_not_supported,
+                                         color: Colors.grey[400],
+                                       ),
+                                     );
+                                   },
+                                 ),
+                               ),
+                             ),
+                            // Remove button
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => _removeFile(selectedImages, index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // File size indicator
+                            Positioned(
+                              bottom: 4,
+                              left: 4,
+                              right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.7),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  _getFileSizeDisplay(file),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
 
@@ -1063,16 +1870,70 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
             ],
           ),
           child: ListTile(
-            leading: Image.asset(
-              'assets/image/doc.png',
-              width: 40,
-              height: 40,
+            leading: Stack(
+              children: [
+                Image.asset(
+                  'assets/image/doc.png',
+                  width: 40,
+                  height: 40,
+                ),
+                if (selectedDocuments.isNotEmpty)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${selectedDocuments.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            title: const Text('Add Documents'),
+            title: Text(
+              selectedDocuments.length >= 5 
+                ? 'Documents (Limit Reached)' 
+                : 'Add Documents',
+              style: TextStyle(
+                color: selectedDocuments.length >= 5 ? Colors.grey[600] : Colors.black,
+              ),
+            ),
             subtitle: Text(
-              'Selected: ${selectedDocuments.length}${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              selectedDocuments.length >= 5
+                ? 'Maximum 5 documents selected. Remove some to add more.'
+                : 'Selected: ${selectedDocuments.length}/5 (Max 5MB each)'
+                  '${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              style: TextStyle(
+                color: selectedDocuments.length >= 5 ? Colors.red : Colors.grey[600],
+              ),
             ),
-            onTap: _pickDocuments,
+            trailing: selectedDocuments.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.info_outline, color: Colors.blue),
+                  onPressed: () => _showCurrentSelection('documents'),
+                  tooltip: 'View current selection',
+                )
+              : null,
+            onTap: selectedDocuments.length >= 5 
+              ? () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Maximum 5 documents reached. Please remove some first.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              : _pickDocuments,
           ),
         ),
 
@@ -1093,16 +1954,70 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
             ],
           ),
           child: ListTile(
-            leading: Image.asset(
-              'assets/image/voice.png',
-              width: 40,
-              height: 40,
+            leading: Stack(
+              children: [
+                Image.asset(
+                  'assets/image/voice.png',
+                  width: 40,
+                  height: 40,
+                ),
+                if (selectedVoiceFiles.isNotEmpty)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${selectedVoiceFiles.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            title: const Text('Add Voice Messages'),
+            title: Text(
+              selectedVoiceFiles.length >= 5 
+                ? 'Voice Messages (Limit Reached)' 
+                : 'Add Voice Messages',
+              style: TextStyle(
+                color: selectedVoiceFiles.length >= 5 ? Colors.grey[600] : Colors.black,
+              ),
+            ),
             subtitle: Text(
-              'Selected: ${selectedVoiceFiles.length}${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              selectedVoiceFiles.length >= 5
+                ? 'Maximum 5 voice files selected. Remove some to add more.'
+                : 'Selected: ${selectedVoiceFiles.length}/5 (Max 5MB each)'
+                  '${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              style: TextStyle(
+                color: selectedVoiceFiles.length >= 5 ? Colors.red : Colors.grey[600],
+              ),
             ),
-            onTap: _pickVoiceFiles,
+            trailing: selectedVoiceFiles.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.info_outline, color: Colors.blue),
+                  onPressed: () => _showCurrentSelection('voice'),
+                  tooltip: 'View current selection',
+                )
+              : null,
+            onTap: selectedVoiceFiles.length >= 5 
+              ? () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Maximum 5 voice files reached. Please remove some first.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              : _pickVoiceFiles,
           ),
         ),
 
@@ -1122,16 +2037,70 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
             ],
           ),
           child: ListTile(
-            leading: Image.asset(
-              'assets/image/video.png',
-              width: 40,
-              height: 40,
+            leading: Stack(
+              children: [
+                Image.asset(
+                  'assets/image/video.png',
+                  width: 40,
+                  height: 40,
+                ),
+                if (selectedVideoFiles.isNotEmpty)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${selectedVideoFiles.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            title: const Text('Add Videos'),
+            title: Text(
+              selectedVideoFiles.length >= 5 
+                ? 'Videos (Limit Reached)' 
+                : 'Add Videos',
+              style: TextStyle(
+                color: selectedVideoFiles.length >= 5 ? Colors.grey[600] : Colors.black,
+              ),
+            ),
             subtitle: Text(
-              'Selected: ${selectedVideoFiles.length}${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              selectedVideoFiles.length >= 5
+                ? 'Maximum 5 video files selected. Remove some to add more.'
+                : 'Selected: ${selectedVideoFiles.length}/5 (Max 5MB each)'
+                  '${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+              style: TextStyle(
+                color: selectedVideoFiles.length >= 5 ? Colors.red : Colors.grey[600],
+              ),
             ),
-            onTap: _pickVideoFiles,
+            trailing: selectedVideoFiles.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.info_outline, color: Colors.blue),
+                  onPressed: () => _showCurrentSelection('video'),
+                  tooltip: 'View current selection',
+                )
+              : null,
+            onTap: selectedVideoFiles.length >= 5 
+              ? () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Maximum 5 video files reached. Please remove some first.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              : _pickVideoFiles,
           ),
         ),
 

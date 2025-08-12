@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
-                top: 10,
+                top: 60,
                 bottom: isKeyboardOpen
                     ? MediaQuery.of(context).viewInsets.bottom + 10
                     : 10,
@@ -229,6 +229,7 @@ class _LoginPageState extends State<LoginPage> {
                               hintStyle: const TextStyle(
                                 color: Colors.grey,
                                 fontFamily: 'Poppins',
+                                fontSize: 14
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),

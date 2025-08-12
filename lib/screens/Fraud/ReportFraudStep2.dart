@@ -189,7 +189,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
 
     setState(() {
       isUploading = true;
-      uploadStatus = 'Preparing report submission...';
+      uploadStatus = 'Preparing report submission (using already uploaded files)...';
     });
 
     try {
@@ -209,15 +209,38 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
         final state = _fileUploadKey.currentState!;
         print('🚀 File upload state found');
         
-        // Get the already uploaded files from the widget
+        // Check if files are currently being uploaded
+        if (state.isCurrentlyUploading) {
+          print('⚠️ Files are currently being uploaded, waiting for completion...');
+          setState(() {
+            uploadStatus = 'Waiting for file uploads to complete...';
+          });
+          
+          // Wait a bit for upload to complete
+          await Future.delayed(Duration(seconds: 2));
+        }
+        
+        // Get the already uploaded files from the widget (NO UPLOAD TRIGGER)
         uploadedFiles = state.getCurrentUploadedFiles();
         
-        print('🚀 Using already uploaded files from auto-upload');
+        print('🚀 Using already uploaded files from auto-upload (NO NEW UPLOAD)');
         print('🚀 Uploaded files: $uploadedFiles');
         print('🚀 Screenshots: ${uploadedFiles['screenshots']?.length ?? 0}');
         print('🚀 Documents: ${uploadedFiles['documents']?.length ?? 0}');
         print('🚀 Voice messages: ${uploadedFiles['voiceMessages']?.length ?? 0}');
         print('🚀 Video files: ${uploadedFiles['videofiles']?.length ?? 0}');
+        
+        // Check if files are actually uploaded
+        final totalUploadedFiles = (uploadedFiles['screenshots']?.length ?? 0) +
+                                 (uploadedFiles['documents']?.length ?? 0) +
+                                 (uploadedFiles['voiceMessages']?.length ?? 0) +
+                                 (uploadedFiles['videofiles']?.length ?? 0);
+        
+        if (totalUploadedFiles == 0) {
+          print('⚠️ No files found in uploaded files. This might indicate files were not auto-uploaded properly.');
+        } else {
+          print('✅ Found $totalUploadedFiles uploaded files ready for submission');
+        }
       } else {
         print('🚀 File upload state not found');
       }
@@ -457,7 +480,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           }
 
           setState(() {
-            uploadStatus = 'Successfully saved to backend and local database!';
+            uploadStatus = 'Report submitted successfully! (Files were auto-uploaded when selected)';
           });
         } catch (e) {
           print('❌ Error syncing with backend: $e');
@@ -492,7 +515,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
           SnackBar(
             content: Text(
               isOnline
-                  ? 'Fraud report successfully submitted and saved locally!'
+                  ? 'Fraud report submitted successfully! (Files were auto-uploaded when selected)'
                   : 'Fraud report saved locally. Will sync when online.',
             ),
             duration: Duration(seconds: 3),
@@ -722,14 +745,9 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
                   allowMultipleFiles: true,
                 ),
                 onFilesUploaded: (files) {
-                  print('🚀 Files uploaded successfully: ${files.length} files');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Files uploaded successfully!'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  print('🚀 Files auto-uploaded successfully: ${files.length} files');
+                  // Don't show success message for auto-upload to avoid confusion
+                  // The success message will be shown only during final submission
                 },
                 onError: (error) {
                   ScaffoldMessenger.of(context).showSnackBar(

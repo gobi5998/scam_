@@ -230,7 +230,7 @@ class _DashboardPageState extends State<DashboardPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          "Security Alert",
+          "Scam Detect",
           style: TextStyle(
             color: Colors.white,
             fontFamily: 'Poppins',

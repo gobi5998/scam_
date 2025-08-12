@@ -40,15 +40,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     final saved = await LocationStorageService.getSavedAddresses();
     setState(() {
       _savedAddresses =
-          (widget.savedAddresses ??
+      (widget.savedAddresses ??
           saved
               .map(
                 (e) => SavedAddress(
-                  id: e['savedAt'] ?? e['label'] ?? DateTime.now().toString(),
-                  label: e['label'] ?? 'Saved',
-                  address: e['address'] ?? '',
-                ),
-              )
+              id: e['savedAt'] ?? e['label'] ?? DateTime.now().toString(),
+              label: e['label'] ?? 'Saved',
+              address: e['address'] ?? '',
+            ),
+          )
               .toList());
     });
   }
@@ -519,10 +519,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 // Static method to show location picker as bottom sheet
 class LocationPickerBottomSheet {
   static void show(
-    BuildContext context, {
-    Function(String, String)? onLocationSelected,
-    List<SavedAddress>? savedAddresses,
-  }) {
+      BuildContext context, {
+        Function(String, String)? onLocationSelected,
+        List<SavedAddress>? savedAddresses,
+      }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -554,7 +554,7 @@ class AddNewAddressScreen extends StatefulWidget {
   final Function(String, String) onAddressAdded;
 
   const AddNewAddressScreen({Key? key, required this.onAddressAdded})
-    : super(key: key);
+      : super(key: key);
 
   @override
   State<AddNewAddressScreen> createState() => _AddNewAddressScreenState();

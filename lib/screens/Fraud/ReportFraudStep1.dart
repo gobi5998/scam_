@@ -22,9 +22,9 @@ import '../../custom/location_picker_screen.dart';
 class PhoneInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
     // Remove any non-digit characters
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
 
@@ -44,9 +44,9 @@ class PhoneInputFormatter extends TextInputFormatter {
 class EmailInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
     // Allow only valid email characters
     final validEmailRegex = RegExp(r'^[a-zA-Z0-9@._%+-]*$');
     if (!validEmailRegex.hasMatch(newValue.text)) {
@@ -184,11 +184,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _fraudsterNameController =
-      TextEditingController();
+  TextEditingController();
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _socialMediaController = TextEditingController();
   final TextEditingController _amountInvolvedController =
-      TextEditingController();
+  TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
@@ -441,12 +441,12 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       final categories = await FraudReportService.fetchReportCategories();
       // Find the fraud category
       final fraudCategory = categories.firstWhere(
-        (category) =>
-            category['name']?.toString().toLowerCase().contains('fraud') ==
-                true ||
+            (category) =>
+        category['name']?.toString().toLowerCase().contains('fraud') ==
+            true ||
             category['categoryName']?.toString().toLowerCase().contains(
-                  'fraud',
-                ) ==
+              'fraud',
+            ) ==
                 true ||
             category['title']?.toString().toLowerCase().contains('fraud') ==
                 true,
@@ -457,7 +457,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
         setState(() {
           actualCategoryId =
               fraudCategory['_id']?.toString() ??
-              fraudCategory['id']?.toString();
+                  fraudCategory['id']?.toString();
         });
         print('Found fraud category ID: $actualCategoryId');
       } else {
@@ -594,14 +594,14 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 hint: 'Select a Fraud Type',
                 items: fraudTypes.map((e) => e['name'] as String).toList(),
                 value: fraudTypes.firstWhere(
-                  (e) => e['_id'] == fraudTypeId,
+                      (e) => e['_id'] == fraudTypeId,
                   orElse: () => {},
                 )['name'],
                 onChanged: (val) {
                   setState(() {
                     if (val != null) {
                       final selectedType = fraudTypes.firstWhere(
-                        (e) => e['name'] == val,
+                            (e) => e['name'] == val,
                         orElse: () => {'_id': null},
                       );
                       fraudTypeId = selectedType['_id'];
@@ -635,36 +635,36 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 errorText: _phoneError.isNotEmpty ? _phoneError : null,
                 suffixIcon: _phoneController.text.isNotEmpty
                     ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isPhoneValid ? Icons.check_circle : Icons.error,
-                            color: _isPhoneValid ? Colors.green : Colors.red,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: _addPhoneNumber,
-                            icon: Icon(
-                              Icons.add,
-                              color: const Color(0xFF064FAD),
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      )
-                    : IconButton(
-                        onPressed: _addPhoneNumber,
-                        icon: Icon(
-                          Icons.add,
-                          color: const Color(0xFF064FAD),
-                          size: 18,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isPhoneValid ? Icons.check_circle : Icons.error,
+                      color: _isPhoneValid ? Colors.green : Colors.red,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: _addPhoneNumber,
+                      icon: Icon(
+                        Icons.add,
+                        color: const Color(0xFF064FAD),
+                        size: 18,
                       ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                )
+                    : IconButton(
+                  onPressed: _addPhoneNumber,
+                  icon: Icon(
+                    Icons.add,
+                    color: const Color(0xFF064FAD),
+                    size: 18,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ),
               if (phoneNumbers.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -706,36 +706,36 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 errorText: _emailError.isNotEmpty ? _emailError : null,
                 suffixIcon: _emailController.text.isNotEmpty
                     ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isEmailValid ? Icons.check_circle : Icons.error,
-                            color: _isEmailValid ? Colors.green : Colors.red,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: _addEmailAddress,
-                            icon: Icon(
-                              Icons.add,
-                              color: const Color(0xFF064FAD),
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      )
-                    : IconButton(
-                        onPressed: _addEmailAddress,
-                        icon: Icon(
-                          Icons.add,
-                          color: const Color(0xFF064FAD),
-                          size: 18,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isEmailValid ? Icons.check_circle : Icons.error,
+                      color: _isEmailValid ? Colors.green : Colors.red,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: _addEmailAddress,
+                      icon: Icon(
+                        Icons.add,
+                        color: const Color(0xFF064FAD),
+                        size: 18,
                       ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                )
+                    : IconButton(
+                  onPressed: _addEmailAddress,
+                  icon: Icon(
+                    Icons.add,
+                    color: const Color(0xFF064FAD),
+                    size: 18,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ),
               if (emailAddresses.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -1006,10 +1006,10 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                 errorText: _nameError.isNotEmpty ? _nameError : null,
                 suffixIcon: _nameController.text.isNotEmpty
                     ? Icon(
-                        _isNameValid ? Icons.check_circle : Icons.error,
-                        color: _isNameValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
+                  _isNameValid ? Icons.check_circle : Icons.error,
+                  color: _isNameValid ? Colors.green : Colors.red,
+                  size: 20,
+                )
                     : null,
               ),
 
@@ -1030,10 +1030,10 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                     : null,
                 suffixIcon: _descriptionController.text.isNotEmpty
                     ? Icon(
-                        _isDescriptionValid ? Icons.check_circle : Icons.error,
-                        color: _isDescriptionValid ? Colors.green : Colors.red,
-                        size: 20,
-                      )
+                  _isDescriptionValid ? Icons.check_circle : Icons.error,
+                  color: _isDescriptionValid ? Colors.green : Colors.red,
+                  size: 20,
+                )
                     : null,
               ),
 
