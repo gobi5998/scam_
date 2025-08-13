@@ -1,5 +1,4 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 
 class TokenStorage {

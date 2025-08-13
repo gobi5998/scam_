@@ -26,13 +26,12 @@ import 'dart:async';
 import 'models/scam_report_model.dart'; // ✅ Make sure this file contains: part 'scam_report_model.g.dart';
 import 'models/fraud_report_model.dart'; // at the top, if not already present
 import 'models/malware_report_model.dart';
-import 'models/report_model.dart';
 import 'screens/Fraud/fraud_report_service.dart';
 import 'screens/malware/malware_report_service.dart';
 import 'services/report_update_service.dart';
 import 'services/app_version_service.dart';
 import 'services/api_service.dart';
-import 'services/auth_api_service.dart';
+
 import 'services/dio_service.dart';
 import 'services/token_storage.dart';
 

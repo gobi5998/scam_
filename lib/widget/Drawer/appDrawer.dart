@@ -41,7 +41,7 @@ class DashboardDrawer extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'Security Alert',
+                        'Scam Detect',
                         style: TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.bold,

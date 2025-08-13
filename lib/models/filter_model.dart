@@ -30,8 +30,9 @@ class ReportsFilter {
     if (detectTypeId != null) params['detectTypeId'] = detectTypeId;
     if (operatingSystemName != null)
       params['operatingSystemName'] = operatingSystemName;
-    if (search != null && search!.isNotEmpty) params['search'] = search;
-
+    if (search != null && search!.isNotEmpty) {
+      params['search'] = search;
+    }
     return params;
   }
 
