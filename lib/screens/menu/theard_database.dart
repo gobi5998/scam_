@@ -1308,22 +1308,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                             ? alertLevels
                                   .map(
                                     (level) => {
-                                      'id': level['_id'] ?? level['id'],
-                                      'name':
-                                          (level['name'] ?? 'Unknown')
-                                              .toString()
-                                              .substring(0, 1)
-                                              .toUpperCase() +
-                                          (level['name'] ?? 'Unknown')
-                                              .toString()
-                                              .substring(1)
-                                              .toLowerCase(),
+                                      '_id': level['_id'] ?? level['id'],
+                                      'name': level['name'] ?? 'Unknown',
                                     },
                                   )
                                   .toList()
-                            : [
-
-                              ],
+                            : [],
                         selectedAlertLevels,
                         (values) {
                           print(
@@ -1331,7 +1321,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           );
                           setState(() => selectedAlertLevels = values);
                         },
-                        (item) => item['id']?.toString(),
+                        (item) => item['_id']?.toString(),
                         (item) => item['name']?.toString() ?? 'Unknown',
                       ),
                       const SizedBox(height: 16),
@@ -1395,7 +1385,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         selectedCategoryIds.isNotEmpty ||
                         selectedTypeIds.isNotEmpty ||
                         selectedAlertLevels.isNotEmpty;
-                    
+
                     print('🔍 Next button pressed - Filters: $hasAnyFilters');
                     if (hasAnyFilters) {
                       print('🔍 Search: "${searchQuery}", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}');

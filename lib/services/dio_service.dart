@@ -450,7 +450,6 @@ Future<void> uploadImage(String imagePath) async {
 
 
 
-
 // import 'package:dio/dio.dart';
 // import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
@@ -896,3 +895,4 @@ Future<void> uploadImage(String imagePath) async {
 //     print("Error uploading image: $e");
 //   }
 // }
+

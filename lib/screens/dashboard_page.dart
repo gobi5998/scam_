@@ -20,6 +20,7 @@ import 'ReportedFeatureItem.dart';
 import 'alert.dart';
 import 'malware/report_malware_1.dart';
 import 'menu/theard_database.dart';
+import 'menu/thread_database_listpage.dart';
 import 'server_reports_page.dart';
 import 'menu/profile_page.dart';
 
@@ -104,17 +105,17 @@ class _DashboardPageState extends State<DashboardPage> {
       print('🧪 Direct percentage count result: $directPercentageCount');
 
       // Show a snackbar with the results for debugging
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'API Test: ${categories.length} categories loaded successfully',
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 5),
-          ),
-        );
-      }
+      // if (mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text(
+      //         'API Test: ${categories.length} categories loaded successfully',
+      //       ),
+      //       backgroundColor: Colors.green,
+      //       duration: Duration(seconds: 5),
+      //     ),
+      //   );
+      // }
     } catch (e) {
       print('❌ API test failed: $e');
       if (mounted) {
@@ -543,7 +544,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ThreadDatabaseFilterPage(),
+                      builder: (context) => ThreadDatabaseListPage(searchQuery: '',),
                     ),
                   );
                 } else if (index == 2) {

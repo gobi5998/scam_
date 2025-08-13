@@ -531,18 +531,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           print('🔍 Using type ID: ${widget.selectedTypes.first}');
         }
 
-        // Add severity level if selected (use first selected severity)
+        // Add severity level if selected (support multiple selections)
         if (widget.hasSelectedSeverity &&
             widget.selectedSeverities.isNotEmpty) {
+          // For backward compatibility, use first selected severity in queryParams
           queryParams['alertLevels'] = widget.selectedSeverities.first;
-          print('🔍 Using severity ID: ${widget.selectedSeverities.first}');
+          print('🔍 Using severity IDs: ${widget.selectedSeverities}');
           
-          // Debug: Show what alert level is being sent
-          final selectedSeverityLevel = widget.severityLevels.firstWhere(
-            (level) => (level['_id'] ?? level['id']) == widget.selectedSeverities.first,
-            orElse: () => {'name': 'Unknown', 'id': widget.selectedSeverities.first},
-          );
-          print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+          // Debug: Show what alert levels are being sent
+          for (String severityId in widget.selectedSeverities) {
+            final selectedSeverityLevel = widget.severityLevels.firstWhere(
+              (level) => (level['_id'] ?? level['id']) == severityId,
+              orElse: () => {'name': 'Unknown', 'id': severityId},
+            );
+            print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+          }
         }
 
         // Add empty parameters to match the URL structure
@@ -565,15 +568,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             categoryIds:
                 widget.hasSelectedCategory &&
                     widget.selectedCategories.isNotEmpty
-                ? [widget.selectedCategories.first]
+                ? widget.selectedCategories
                 : null,
             typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                ? [widget.selectedTypes.first]
+                ? widget.selectedTypes
                 : null,
             severityLevels:
                 widget.hasSelectedSeverity &&
                     widget.selectedSeverities.isNotEmpty
-                ? [widget.selectedSeverities.first]
+                ? widget.selectedSeverities
                 : null,
             page: _currentPage,
             limit: _pageSize,
@@ -581,9 +584,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           print(
             '🔍 Complex filter returned ${newReports.length} reports',
           );
-          print(
-            '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}',
-          );
+                        print(
+                '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
+              );
         } else {
           // Use ReportsFilter for other filters
         try {
@@ -612,15 +615,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             categoryIds:
                 widget.hasSelectedCategory &&
                     widget.selectedCategories.isNotEmpty
-                ? [widget.selectedCategories.first]
+                ? widget.selectedCategories
                 : null,
             typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                ? [widget.selectedTypes.first]
+                ? widget.selectedTypes
                 : null,
             severityLevels:
                 widget.hasSelectedSeverity &&
                     widget.selectedSeverities.isNotEmpty
-                ? [widget.selectedSeverities.first]
+                ? widget.selectedSeverities
                 : null,
             page: _currentPage,
             limit: _pageSize,
@@ -1193,18 +1196,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
               print('🔍 Using type ID: ${widget.selectedTypes.first}');
             }
 
-            // Add severity level if selected (use first selected severity)
+            // Add severity level if selected (support multiple selections)
             if (widget.hasSelectedSeverity &&
                 widget.selectedSeverities.isNotEmpty) {
+              // For backward compatibility, use first selected severity in queryParams
               queryParams['alertLevels'] = widget.selectedSeverities.first;
-              print('🔍 Using severity ID: ${widget.selectedSeverities.first}');
+              print('🔍 Using severity IDs: ${widget.selectedSeverities}');
               
-              // Debug: Show what alert level is being sent
-              final selectedSeverityLevel = widget.severityLevels.firstWhere(
-                (level) => (level['_id'] ?? level['id']) == widget.selectedSeverities.first,
-                orElse: () => {'name': 'Unknown', 'id': widget.selectedSeverities.first},
-              );
-              print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+              // Debug: Show what alert levels are being sent
+              for (String severityId in widget.selectedSeverities) {
+                final selectedSeverityLevel = widget.severityLevels.firstWhere(
+                  (level) => (level['_id'] ?? level['id']) == severityId,
+                  orElse: () => {'name': 'Unknown', 'id': severityId},
+                );
+                print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+              }
             }
 
             // Add empty parameters to match the URL structure
@@ -1227,16 +1233,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 categoryIds:
                     widget.hasSelectedCategory &&
                         widget.selectedCategories.isNotEmpty
-                    ? [widget.selectedCategories.first]
+                    ? widget.selectedCategories
                     : null,
                 typeIds:
                     widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                    ? [widget.selectedTypes.first]
+                    ? widget.selectedTypes
                     : null,
                 severityLevels:
                     widget.hasSelectedSeverity &&
                         widget.selectedSeverities.isNotEmpty
-                    ? [widget.selectedSeverities.first]
+                    ? widget.selectedSeverities
                     : null,
                 page: _currentPage,
                 limit: _pageSize,
@@ -1245,7 +1251,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 '🔍 Complex filter returned ${reports.length} reports',
               );
               print(
-                '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}',
+                '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
               );
             } else {
               // Use ReportsFilter for other filters
@@ -1277,16 +1283,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 categoryIds:
                     widget.hasSelectedCategory &&
                         widget.selectedCategories.isNotEmpty
-                    ? [widget.selectedCategories.first]
+                    ? widget.selectedCategories
                     : null,
                 typeIds:
                     widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                    ? [widget.selectedTypes.first]
+                    ? widget.selectedTypes
                     : null,
                 severityLevels:
                     widget.hasSelectedSeverity &&
                         widget.selectedSeverities.isNotEmpty
-                    ? [widget.selectedSeverities.first]
+                    ? widget.selectedSeverities
                     : null,
                 page: _currentPage,
                 limit: _pageSize,
@@ -1555,7 +1561,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         final name = severityLevel['name']?.toString().toLowerCase();
         if (name != null) selectedSeverityNames.add(name);
       }
-      
+
       filtered = filtered.where((report) {
         final reportSeverity = _getNormalizedAlertLevel(report);
         final reportSeverityId = _getNormalizedAlertLevelId(report);
@@ -1590,7 +1596,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
         return false;
       }).toList();
-      
+
       print('🔍 Severity results: ${filtered.length} reports');
     }
 
@@ -2406,53 +2412,53 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'All Reported Records:',
+                        'All Reported Records',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      if (widget.hasSearchQuery ||
-                          widget.hasSelectedCategory ||
-                          widget.hasSelectedType ||
-                          widget.hasSelectedSeverity)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (widget.hasSearchQuery)
-                              Text(
-                                'Search: "${widget.searchQuery}"',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            if (widget.hasSelectedCategory)
-                              Text(
-                                'Category: ${widget.selectedCategories.map((id) => _categoryIdToName[id] ?? id).join(', ')}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            if (widget.hasSelectedType)
-                              Text(
-                                'Type: ${widget.selectedTypes.map((id) => _typeIdToName[id] ?? id).join(', ')}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            if (widget.hasSelectedSeverity)
-                              Text(
-                                'Severity: ${widget.selectedSeverities.map((id) {
-                                  final level = widget.severityLevels.firstWhere((level) => (level['_id'] ?? level['id']) == id, orElse: () => {'name': id});
-                                  return level['name'] ?? id;
-                                }).join(', ')}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                          ],
-                        ),
+                    //   if (widget.hasSearchQuery ||
+                    //       widget.hasSelectedCategory ||
+                    //       widget.hasSelectedType ||
+                    //       widget.hasSelectedSeverity)
+                    //     Column(
+                    //       crossAxisAlignment: CrossAxisAlignment.start,
+                    //       children: [
+                    //         if (widget.hasSearchQuery)
+                    //           Text(
+                    //             'Search: "${widget.searchQuery}"',
+                    //             style: TextStyle(
+                    //               fontSize: 12,
+                    //               color: Colors.blue[700],
+                    //             ),
+                    //           ),
+                    //         if (widget.hasSelectedCategory)
+                    //           Text(
+                    //             'Category: ${widget.selectedCategories.map((id) => _categoryIdToName[id] ?? id).join(', ')}',
+                    //             style: TextStyle(
+                    //               fontSize: 12,
+                    //               color: Colors.blue[700],
+                    //             ),
+                    //           ),
+                    //         if (widget.hasSelectedType)
+                    //           Text(
+                    //             'Type: ${widget.selectedTypes.map((id) => _typeIdToName[id] ?? id).join(', ')}',
+                    //             style: TextStyle(
+                    //               fontSize: 12,
+                    //               color: Colors.blue[700],
+                    //             ),
+                    //           ),
+                    //         if (widget.hasSelectedSeverity)
+                    //           Text(
+                    //             'Severity: ${widget.selectedSeverities.map((id) {
+                    //               final level = widget.severityLevels.firstWhere((level) => (level['_id'] ?? level['id']) == id, orElse: () => {'name': id});
+                    //               return level['name'] ?? id;
+                    //             }).join(', ')}',
+                    //             style: TextStyle(
+                    //               fontSize: 12,
+                    //               color: Colors.blue[700],
+                    //             ),
+                    //           ),
+                    //       ],
+                    //     ),
                     ],
                   ),
                 ),

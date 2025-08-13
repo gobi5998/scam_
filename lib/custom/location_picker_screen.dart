@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'dart:async';
 import '../services/location_storage_service.dart';
+import '../services/google_places_service.dart';
 
 class LocationPickerScreen extends StatefulWidget {
   final Function(String, String)? onLocationSelected;
@@ -21,19 +23,58 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  List<Placemark> _searchResults = [];
+  List<PlaceResult> _searchResults = [];
   bool _isSearching = false;
   bool _showResults = false;
   String? _currentLocationAddress;
   bool _isLoadingCurrentLocation = false;
+  Position? _currentPosition;
 
   List<SavedAddress> _savedAddresses = [];
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
     _loadSavedAddresses();
-    _getCurrentLocation();
+    _getCurrentLocationWithFallback();
+  }
+
+  Future<void> _getCurrentLocationWithFallback() async {
+    try {
+      await _getCurrentLocation();
+    } catch (e) {
+      print('Primary location method failed, trying last known location...');
+      await _getLastKnownLocation();
+    }
+  }
+
+  Future<void> _getLastKnownLocation() async {
+    try {
+      final lastKnownPosition = await Geolocator.getLastKnownPosition();
+      if (lastKnownPosition != null) {
+        setState(() {
+          _currentPosition = lastKnownPosition;
+        });
+
+        print('📍 Using last known position: ${lastKnownPosition.latitude}, ${lastKnownPosition.longitude}');
+
+        // Get address for last known position
+        final placeDetails = await GooglePlacesService.getAddressFromCoordinates(
+          lastKnownPosition.latitude,
+          lastKnownPosition.longitude,
+        );
+
+        if (placeDetails != null) {
+          setState(() {
+            _currentLocationAddress = placeDetails.formattedAddress;
+          });
+          print('✅ Last known location obtained: ${placeDetails.formattedAddress}');
+        }
+      }
+    } catch (e) {
+      print('Error getting last known location: $e');
+    }
   }
 
   void _loadSavedAddresses() async {
@@ -68,22 +109,70 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         }
       }
 
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled');
+      }
+
+      // Get current position with high accuracy
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 15),
       );
 
-      List<Placemark> placemarks = await placemarkFromCoordinates(
+      setState(() {
+        _currentPosition = position;
+      });
+
+      print('📍 GPS Coordinates obtained: ${position.latitude}, ${position.longitude}');
+      print('📍 Accuracy: ${position.accuracy} meters');
+
+      // Use Google Geocoding API for more accurate address
+      final placeDetails = await GooglePlacesService.getAddressFromCoordinates(
         position.latitude,
         position.longitude,
       );
 
-      if (placemarks.isNotEmpty) {
+      if (placeDetails != null) {
         setState(() {
-          _currentLocationAddress = _formatAddress(placemarks[0]);
+          _currentLocationAddress = placeDetails.formattedAddress;
         });
+        print('✅ Current location obtained via Google API: ${placeDetails.formattedAddress}');
+      } else {
+        // Fallback to basic geocoding if Google API fails
+        print('⚠️ Google API failed, trying fallback geocoding...');
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          setState(() {
+            _currentLocationAddress = _formatAddress(placemarks[0]);
+          });
+          print('⚠️ Using fallback geocoding: ${_currentLocationAddress}');
+        } else {
+          throw Exception('Could not get address from coordinates');
+        }
       }
     } catch (e) {
       print('Error getting current location: $e');
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error getting current location: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _getCurrentLocation,
+            ),
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoadingCurrentLocation = false;
@@ -106,22 +195,21 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     });
 
     try {
-      List<Location> locations = await locationFromAddress(query);
-      List<Placemark> placemarks = [];
-
-      for (Location location in locations.take(5)) {
-        List<Placemark> placemarkList = await placemarkFromCoordinates(
-          location.latitude,
-          location.longitude,
+      List<PlaceResult> results;
+      
+      // If we have current position, search nearby for better results
+      if (_currentPosition != null) {
+        results = await GooglePlacesService.searchPlacesNearby(
+          query,
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
         );
-
-        if (placemarkList.isNotEmpty) {
-          placemarks.add(placemarkList.first);
-        }
+      } else {
+        results = await GooglePlacesService.searchPlaces(query);
       }
 
       setState(() {
-        _searchResults = placemarks;
+        _searchResults = results;
         _isSearching = false;
       });
     } catch (e) {
@@ -160,41 +248,85 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     return addressParts.join(', ');
   }
 
-  void _onPlaceSelected(Placemark placemark) {
-    String address = _formatAddress(placemark);
-    String locationName =
-        placemark.name ?? placemark.locality ?? 'Selected Location';
+  void _onPlaceSelected(PlaceResult placeResult) async {
+    try {
+      // Get detailed place information
+      final placeDetails = await GooglePlacesService.getPlaceDetails(placeResult.placeId);
+      
+      String locationName = placeResult.mainText.isNotEmpty 
+          ? placeResult.mainText 
+          : placeResult.description.split(',').first;
+      String address = placeDetails?.formattedAddress ?? placeResult.description;
 
-    if (widget.onLocationSelected != null) {
-      widget.onLocationSelected!(locationName, address);
+      if (widget.onLocationSelected != null) {
+        widget.onLocationSelected!(locationName, address);
+      }
+
+      // Persist for offline reuse
+      LocationStorageService.addSavedAddress(
+        label: locationName,
+        address: address,
+      );
+      LocationStorageService.saveLastSelectedAddress(
+        label: locationName,
+        address: address,
+      );
+
+      Navigator.of(context).pop();
+    } catch (e) {
+      print('Error getting place details: $e');
+      // Fallback to using the description
+      String locationName = placeResult.mainText.isNotEmpty 
+          ? placeResult.mainText 
+          : placeResult.description.split(',').first;
+      String address = placeResult.description;
+
+      if (widget.onLocationSelected != null) {
+        widget.onLocationSelected!(locationName, address);
+      }
+
+      Navigator.of(context).pop();
     }
-
-    // Persist for offline reuse
-    LocationStorageService.addSavedAddress(
-      label: locationName,
-      address: address,
-    );
-    LocationStorageService.saveLastSelectedAddress(
-      label: locationName,
-      address: address,
-    );
-
-    Navigator.of(context).pop();
   }
 
   void _onCurrentLocationSelected() {
-    if (_currentLocationAddress != null) {
+    if (_currentLocationAddress != null && _currentPosition != null) {
+      // Create a more descriptive location name
+      String locationName = 'Current Location';
+      
+      // Try to extract a meaningful name from the address
+      if (_currentLocationAddress!.contains(',')) {
+        locationName = _currentLocationAddress!.split(',').first.trim();
+        if (locationName.isEmpty) {
+          locationName = 'Current Location';
+        }
+      }
+
       if (widget.onLocationSelected != null) {
         widget.onLocationSelected!(
-          'Current Location',
+          locationName,
           _currentLocationAddress!,
         );
       }
+      
+      // Save with coordinates for better accuracy
       LocationStorageService.saveLastSelectedAddress(
-        label: 'Current Location',
+        label: locationName,
         address: _currentLocationAddress!,
       );
+      
+      print('📍 Current location selected: $locationName - ${_currentLocationAddress}');
+      print('📍 Coordinates: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
+      
       Navigator.of(context).pop();
+    } else {
+      // Show error if location is not available
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Current location not available. Please try again.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
@@ -285,8 +417,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         ),
                       ),
                       onChanged: (value) {
+                        // Cancel previous timer
+                        _debounceTimer?.cancel();
+                        
                         if (value.isNotEmpty) {
-                          _searchPlaces(value);
+                          // Set a new timer for debouncing
+                          _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                            _searchPlaces(value);
+                          });
                         } else {
                           setState(() {
                             _searchResults = [];
@@ -298,7 +436,41 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   ),
 
                   // Search Results
-                  if (_showResults && _searchResults.isNotEmpty)
+                  if (_showResults)
+                    if (_isSearching)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Searching for locations...',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_searchResults.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.only(top: 8),
                       decoration: BoxDecoration(
@@ -316,32 +488,76 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         shrinkWrap: true,
                         itemCount: _searchResults.length,
                         itemBuilder: (context, index) {
-                          Placemark placemark = _searchResults[index];
-                          String address = _formatAddress(placemark);
+                          PlaceResult placeResult = _searchResults[index];
 
                           return ListTile(
                             leading: const Icon(
                               Icons.location_on,
                               color: Colors.red,
                             ),
-                            title: Text(
-                              placemark.name ??
-                                  placemark.locality ??
-                                  'Unknown Location',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                            title: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                children: _buildHighlightedText(
+                                  placeResult.mainText.isNotEmpty 
+                                      ? placeResult.mainText 
+                                      : placeResult.description.split(',').first,
+                                  _searchController.text,
+                                ),
                               ),
                             ),
                             subtitle: Text(
-                              address,
+                              placeResult.secondaryText.isNotEmpty 
+                                  ? placeResult.secondaryText 
+                                  : placeResult.description,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
                             ),
-                            onTap: () => _onPlaceSelected(placemark),
+                            onTap: () => _onPlaceSelected(placeResult),
                           );
                         },
                       ),
-                    ),
+                    )
+                    else if (_searchController.text.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              color: Colors.grey[400],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'No locations found for "${_searchController.text}"',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
                   const SizedBox(height: 24),
 
@@ -354,16 +570,31 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Row(
                         children: [
-                          Icon(Icons.send, color: Colors.orange[600], size: 20),
+                          Icon(Icons.my_location, color: Colors.blue[600], size: 20),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              'Use my current location',
-                              style: TextStyle(
-                                color: Colors.orange[600],
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Use my current location',
+                                  style: TextStyle(
+                                    color: Colors.blue[600],
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (_currentLocationAddress != null)
+                                  Text(
+                                    _currentLocationAddress!,
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
                             ),
                           ),
                           if (_isLoadingCurrentLocation)
@@ -372,8 +603,13 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
+                          else if (_currentLocationAddress != null)
+                            const Icon(Icons.arrow_forward_ios, size: 16)
                           else
-                            const Icon(Icons.arrow_forward_ios, size: 16),
+                            IconButton(
+                              icon: Icon(Icons.refresh, color: Colors.blue[600], size: 20),
+                              onPressed: _getCurrentLocation,
+                            ),
                         ],
                       ),
                     ),
@@ -508,10 +744,51 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
+  List<TextSpan> _buildHighlightedText(String text, String query) {
+    if (query.isEmpty) {
+      return [TextSpan(text: text)];
+    }
+
+    final List<TextSpan> spans = [];
+    final String lowerText = text.toLowerCase();
+    final String lowerQuery = query.toLowerCase();
+    int start = 0;
+
+    while (true) {
+      final int index = lowerText.indexOf(lowerQuery, start);
+      if (index == -1) {
+        // Add remaining text
+        if (start < text.length) {
+          spans.add(TextSpan(text: text.substring(start)));
+        }
+        break;
+      }
+
+      // Add text before match
+      if (index > start) {
+        spans.add(TextSpan(text: text.substring(start, index)));
+      }
+
+      // Add highlighted match
+      spans.add(TextSpan(
+        text: text.substring(index, index + query.length),
+        style: const TextStyle(
+          color: Colors.blue,
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+
+      start = index + query.length;
+    }
+
+    return spans;
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 }

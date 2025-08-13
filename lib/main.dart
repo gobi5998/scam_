@@ -6,6 +6,7 @@ import 'package:security_alert/screens/menu/profile_page.dart';
 import 'package:security_alert/screens/menu/ratepage.dart';
 import 'package:security_alert/screens/menu/shareApp.dart';
 import 'package:security_alert/screens/menu/theard_database.dart';
+import 'package:security_alert/screens/menu/thread_database_listpage.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
 import 'package:security_alert/screens/scam/report_scam_1.dart';
 import 'package:security_alert/screens/malware/report_malware_1.dart';
@@ -242,7 +243,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const AuthWrapper(), // Use AuthWrapper for auto-login
         '/profile': (context) => ProfilePage(),
-        '/thread': (context) => ThreadDatabaseFilterPage(),
+        '/thread': (context) => ThreadDatabaseListPage(searchQuery: '',),
         '/subscription': (context) => SubscriptionPlansPage(),
         '/rate': (context) => Ratepage(),
         '/share': (context) => Shareapp(),

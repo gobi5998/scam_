@@ -318,6 +318,10 @@ class _ReportScam2State extends State<ReportScam2> {
             widget.report.incidentDateTime?.toUtc().toIso8601String() ??
             DateTime.now().toUtc().toIso8601String(),
         'scammerName': widget.report.scammerName ?? '',
+        'age': {
+          'min': widget.report.minAge,
+          'max': widget.report.maxAge,
+        },
         'screenshots': screenshotsForBackend,
         'voiceMessages': voiceMessagesForBackend,
         'documents': documentsForBackend,
@@ -335,6 +339,8 @@ class _ReportScam2State extends State<ReportScam2> {
       print('🚀 Alert Levels: ${formData['alertLevels']}');
       print('🚀 Keycloak User ID: ${formData['keycloackUserId']}');
       print('🚀 Created By: ${formData['createdBy']}');
+      print('🚀 Age Data: ${formData['age']}');
+      print('🚀 Age from report: min=${widget.report.minAge}, max=${widget.report.maxAge}');
       print(
         '🚀 Phone Numbers: ${formData['phoneNumbers']} (type: ${formData['phoneNumbers'].runtimeType})',
       );

@@ -333,6 +333,10 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
             DateTime.now().toUtc().toIso8601String(),
         'fraudsterName': widget.report.fraudsterName ?? '',
         'companyName': widget.report.companyName ?? '',
+        'age': {
+          'min': widget.report.minAge,
+          'max': widget.report.maxAge,
+        },
         'screenshots': screenshots,
         'voiceMessages': voiceMessages,
         'documents': documents,
@@ -350,6 +354,8 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       print('🚀 Alert Levels: ${formData['alertLevels']}');
       print('🚀 Keycloak User ID: ${formData['keycloackUserId']}');
       print('🚀 Created By: ${formData['createdBy']}');
+      print('🚀 Age Data: ${formData['age']}');
+      print('🚀 Age from report: min=${widget.report.minAge}, max=${widget.report.maxAge}');
       print(
         '🚀 Phone Numbers: ${formData['phoneNumbers']} (type: ${formData['phoneNumbers'].runtimeType})',
       );
