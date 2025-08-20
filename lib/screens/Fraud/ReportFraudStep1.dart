@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
@@ -17,14 +18,166 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:currency_picker/currency_picker.dart';
 import '../../custom/location_picker_screen.dart';
+import '../../services/location_storage_service.dart';
 
-// Phone input formatter to limit to 10 digits only
+// Get allowed phone number lengths for current country
+List<int> getAllowedPhoneLengths(String? countryCode) {
+  final Map<String, List<int>> countryPhoneLengths = {
+    'IN': [10], // India
+    'US': [10], // United States
+    'CA': [10], // Canada
+    'GB': [10, 11], // United Kingdom
+    'AU': [9], // Australia
+    'DE': [10, 11, 12], // Germany
+    'FR': [10], // France
+    'IT': [10], // Italy
+    'ES': [9], // Spain
+    'BR': [10, 11], // Brazil
+    'MX': [10], // Mexico
+    'JP': [10, 11], // Japan
+    'KR': [10, 11], // South Korea
+    'CN': [11], // China
+    'RU': [10, 11], // Russia
+    'ZA': [9], // South Africa
+    'NG': [11], // Nigeria
+    'EG': [10, 11], // Egypt
+    'SA': [9], // Saudi Arabia
+    'AE': [9], // UAE
+    'TR': [10], // Turkey
+    'PL': [9], // Poland
+    'NL': [9], // Netherlands
+    'BE': [9], // Belgium
+    'SE': [9], // Sweden
+    'NO': [8], // Norway
+    'DK': [8], // Denmark
+    'FI': [9], // Finland
+    'CH': [9], // Switzerland
+    'AT': [10, 11, 12], // Austria
+    'PT': [9], // Portugal
+    'GR': [10], // Greece
+    'HU': [9], // Hungary
+    'CZ': [9], // Czech Republic
+    'RO': [9], // Romania
+    'BG': [9], // Bulgaria
+    'HR': [9], // Croatia
+    'SI': [8], // Slovenia
+    'SK': [9], // Slovakia
+    'LT': [8], // Lithuania
+    'LV': [8], // Latvia
+    'EE': [8], // Estonia
+    'IE': [9], // Ireland
+    'IS': [7], // Iceland
+    'MT': [8], // Malta
+    'CY': [8], // Cyprus
+    'LU': [9], // Luxembourg
+    'MC': [8], // Monaco
+    'LI': [7], // Liechtenstein
+    'AD': [6], // Andorra
+    'SM': [8], // San Marino
+    'VA': [8], // Vatican City
+    'HK': [8], // Hong Kong
+    'SG': [8], // Singapore
+    'MY': [9, 10], // Malaysia
+    'TH': [9], // Thailand
+    'VN': [9, 10], // Vietnam
+    'PH': [10], // Philippines
+    'ID': [9, 10, 11], // Indonesia
+    'PK': [10], // Pakistan
+    'BD': [10, 11], // Bangladesh
+    'LK': [9], // Sri Lanka
+    'NP': [10], // Nepal
+    'MM': [9, 10], // Myanmar
+    'KH': [8, 9], // Cambodia
+    'LA': [8, 9], // Laos
+    'MN': [8], // Mongolia
+    'KZ': [10], // Kazakhstan
+    'UZ': [9], // Uzbekistan
+    'KG': [9], // Kyrgyzstan
+    'TJ': [9], // Tajikistan
+    'TM': [8], // Turkmenistan
+    'AF': [9], // Afghanistan
+    'IR': [10], // Iran
+    'IQ': [10], // Iraq
+    'SY': [9], // Syria
+    'LB': [8], // Lebanon
+    'JO': [9], // Jordan
+    'IL': [9], // Israel
+    'PS': [9], // Palestine
+    'KW': [8], // Kuwait
+    'QA': [8], // Qatar
+    'BH': [8], // Bahrain
+    'OM': [8], // Oman
+    'YE': [9], // Yemen
+    'DZ': [9], // Algeria
+    'MA': [9], // Morocco
+    'TN': [8], // Tunisia
+    'LY': [9], // Libya
+    'SD': [9], // Sudan
+    'ET': [9], // Ethiopia
+    'KE': [9], // Kenya
+    'TZ': [9], // Tanzania
+    'UG': [9], // Uganda
+    'RW': [9], // Rwanda
+    'BI': [8], // Burundi
+    'MZ': [9], // Mozambique
+    'ZW': [9], // Zimbabwe
+    'BW': [8], // Botswana
+    'NA': [9], // Namibia
+    'SZ': [8], // Eswatini
+    'LS': [8], // Lesotho
+    'MG': [9], // Madagascar
+    'MU': [8], // Mauritius
+    'SC': [7], // Seychelles
+    'KM': [7], // Comoros
+    'DJ': [8], // Djibouti
+    'SO': [8], // Somalia
+    'ER': [7], // Eritrea
+    'SS': [9], // South Sudan
+    'CF': [8], // Central African Republic
+    'TD': [8], // Chad
+    'CM': [9], // Cameroon
+    'GQ': [9], // Equatorial Guinea
+    'GA': [8], // Gabon
+    'CG': [9], // Republic of the Congo
+    'CD': [9], // Democratic Republic of the Congo
+    'AO': [9], // Angola
+    'GW': [7], // Guinea-Bissau
+    'GN': [9], // Guinea
+    'SL': [8], // Sierra Leone
+    'LR': [8], // Liberia
+    'CI': [10], // Ivory Coast
+    'GH': [9], // Ghana
+    'TG': [8], // Togo
+    'BJ': [8], // Benin
+    'NE': [8], // Niger
+    'BF': [8], // Burkina Faso
+    'ML': [8], // Mali
+    'SN': [9], // Senegal
+    'GM': [7], // Gambia
+    'CV': [7], // Cape Verde
+    'MR': [8], // Mauritania
+    'EH': [8], // Western Sahara
+  };
+
+  return countryPhoneLengths[countryCode] ??
+      [7, 8, 9, 10, 11, 12, 13, 14, 15]; // Default range for unknown countries
+}
+
+// Get maximum allowed length for current country (for backward compatibility)
+int getMaxPhoneLength(String? countryCode) {
+  final allowedLengths = getAllowedPhoneLengths(countryCode);
+  return allowedLengths.isNotEmpty
+      ? allowedLengths.reduce((a, b) => a > b ? a : b)
+      : 15;
+}
+
+// Phone input formatter to limit to 10 digits only (legacy)
 class PhoneInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     // Remove any non-digit characters
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
 
@@ -44,9 +197,9 @@ class PhoneInputFormatter extends TextInputFormatter {
 class EmailInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     // Allow only valid email characters
     final validEmailRegex = RegExp(r'^[a-zA-Z0-9@._%+-]*$');
     if (!validEmailRegex.hasMatch(newValue.text)) {
@@ -57,23 +210,163 @@ class EmailInputFormatter extends TextInputFormatter {
 }
 
 // Validation functions
-String? validatePhone(String? value) {
+String? validatePhone(String? value, {String? countryCode}) {
   if (value == null || value.isEmpty) {
     return 'Phone number is required';
   }
 
-  // Reject if any non-digit (alphabets/symbols) are entered
-  if (!RegExp(r'^\d+$').hasMatch(value)) {
-    return 'Only numeric digits are allowed';
-  }
+  // Remove any non-digit characters for validation
+  final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
 
-  if (value.length != 10) {
-    return 'Phone number must be exactly 10 digits';
-  }
+  // Define country-specific phone number lengths
+  final Map<String, List<int>> countryPhoneLengths = {
+    'IN': [10], // India
+    'US': [10], // United States
+    'CA': [10], // Canada
+    'GB': [10, 11], // United Kingdom
+    'AU': [9], // Australia
+    'DE': [10, 11, 12], // Germany
+    'FR': [10], // France
+    'IT': [10], // Italy
+    'ES': [9], // Spain
+    'BR': [10, 11], // Brazil
+    'MX': [10], // Mexico
+    'JP': [10, 11], // Japan
+    'KR': [10, 11], // South Korea
+    'CN': [11], // China
+    'RU': [10, 11], // Russia
+    'ZA': [9], // South Africa
+    'NG': [11], // Nigeria
+    'EG': [10, 11], // Egypt
+    'SA': [9], // Saudi Arabia
+    'AE': [9], // UAE
+    'TR': [10], // Turkey
+    'PL': [9], // Poland
+    'NL': [9], // Netherlands
+    'BE': [9], // Belgium
+    'SE': [9], // Sweden
+    'NO': [8], // Norway
+    'DK': [8], // Denmark
+    'FI': [9], // Finland
+    'CH': [9], // Switzerland
+    'AT': [10, 11, 12], // Austria
+    'PT': [9], // Portugal
+    'GR': [10], // Greece
+    'HU': [9], // Hungary
+    'CZ': [9], // Czech Republic
+    'RO': [9], // Romania
+    'BG': [9], // Bulgaria
+    'HR': [9], // Croatia
+    'SI': [8], // Slovenia
+    'SK': [9], // Slovakia
+    'LT': [8], // Lithuania
+    'LV': [8], // Latvia
+    'EE': [8], // Estonia
+    'IE': [9], // Ireland
+    'IS': [7], // Iceland
+    'MT': [8], // Malta
+    'CY': [8], // Cyprus
+    'LU': [9], // Luxembourg
+    'MC': [8], // Monaco
+    'LI': [7], // Liechtenstein
+    'AD': [6], // Andorra
+    'SM': [8], // San Marino
+    'VA': [8], // Vatican City
+    'HK': [8], // Hong Kong
+    'SG': [8], // Singapore
+    'MY': [9, 10], // Malaysia
+    'TH': [9], // Thailand
+    'VN': [9, 10], // Vietnam
+    'PH': [10], // Philippines
+    'ID': [9, 10, 11], // Indonesia
+    'PK': [10], // Pakistan
+    'BD': [10, 11], // Bangladesh
+    'LK': [9], // Sri Lanka
+    'NP': [10], // Nepal
+    'MM': [9, 10], // Myanmar
+    'KH': [8, 9], // Cambodia
+    'LA': [8, 9], // Laos
+    'MN': [8], // Mongolia
+    'KZ': [10], // Kazakhstan
+    'UZ': [9], // Uzbekistan
+    'KG': [9], // Kyrgyzstan
+    'TJ': [9], // Tajikistan
+    'TM': [8], // Turkmenistan
+    'AF': [9], // Afghanistan
+    'IR': [10], // Iran
+    'IQ': [10], // Iraq
+    'SY': [9], // Syria
+    'LB': [8], // Lebanon
+    'JO': [9], // Jordan
+    'IL': [9], // Israel
+    'PS': [9], // Palestine
+    'KW': [8], // Kuwait
+    'QA': [8], // Qatar
+    'BH': [8], // Bahrain
+    'OM': [8], // Oman
+    'YE': [9], // Yemen
+    'DZ': [9], // Algeria
+    'MA': [9], // Morocco
+    'TN': [8], // Tunisia
+    'LY': [9], // Libya
+    'SD': [9], // Sudan
+    'ET': [9], // Ethiopia
+    'KE': [9], // Kenya
+    'TZ': [9], // Tanzania
+    'UG': [9], // Uganda
+    'RW': [9], // Rwanda
+    'BI': [8], // Burundi
+    'MZ': [9], // Mozambique
+    'ZW': [9], // Zimbabwe
+    'BW': [8], // Botswana
+    'NA': [9], // Namibia
+    'SZ': [8], // Eswatini
+    'LS': [8], // Lesotho
+    'MG': [9], // Madagascar
+    'MU': [8], // Mauritius
+    'SC': [7], // Seychelles
+    'KM': [7], // Comoros
+    'DJ': [8], // Djibouti
+    'SO': [8], // Somalia
+    'ER': [7], // Eritrea
+    'SS': [9], // South Sudan
+    'CF': [8], // Central African Republic
+    'TD': [8], // Chad
+    'CM': [9], // Cameroon
+    'GQ': [9], // Equatorial Guinea
+    'GA': [8], // Gabon
+    'CG': [9], // Republic of the Congo
+    'CD': [9], // Democratic Republic of the Congo
+    'AO': [9], // Angola
+    'GW': [7], // Guinea-Bissau
+    'GN': [9], // Guinea
+    'SL': [8], // Sierra Leone
+    'LR': [8], // Liberia
+    'CI': [10], // Ivory Coast
+    'GH': [9], // Ghana
+    'TG': [8], // Togo
+    'BJ': [8], // Benin
+    'NE': [8], // Niger
+    'BF': [8], // Burkina Faso
+    'ML': [8], // Mali
+    'SN': [9], // Senegal
+    'GM': [7], // Gambia
+    'CV': [7], // Cape Verde
+    'MR': [8], // Mauritania
+    'EH': [8], // Western Sahara
+  };
 
-  // Starts with 6–9
-  if (!RegExp(r'^[6-9]\d{9}$').hasMatch(value)) {
-    return 'Enter a valid mobile number';
+  // If country code is provided, validate against specific country rules
+  if (countryCode != null && countryPhoneLengths.containsKey(countryCode)) {
+    final allowedLengths = countryPhoneLengths[countryCode]!;
+    if (!allowedLengths.contains(digitsOnly.length)) {
+      return 'Phone number must be ${allowedLengths.join(' or ')} digits for ${countryCode}';
+    }
+  } else {
+    // Fallback validation for unknown countries (7-15 digits)
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      return 'Enter a valid phone number (7-15 digits)';
+    }
   }
 
   return null; // ✅ valid
@@ -160,6 +453,8 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   String selectedCurrency = 'INR'; // Default currency
   String selectedCurrencySymbol = '₹'; // Default currency symbol
   List<String> phoneNumbers = [];
+  List<String> phoneNumbersWithCountryCode = [];
+  PhoneNumber currentPhoneNumber = PhoneNumber(isoCode: 'IN', phoneNumber: '');
   List<String> emailAddresses = [];
   List<String> socialMediaHandles = [];
   List<Map<String, dynamic>> fraudTypes = [];
@@ -184,11 +479,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _fraudsterNameController =
-  TextEditingController();
+      TextEditingController();
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _socialMediaController = TextEditingController();
   final TextEditingController _amountInvolvedController =
-  TextEditingController();
+      TextEditingController();
 
   // Validation states
   bool _isPhoneValid = false;
@@ -249,9 +544,10 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   }
 
   void _validatePhoneField() {
-    final phone = _phoneController.text;
+    final phone = currentPhoneNumber.phoneNumber ?? '';
+    final countryCode = currentPhoneNumber.isoCode;
     setState(() {
-      _phoneError = validatePhone(phone) ?? '';
+      _phoneError = validatePhone(phone, countryCode: countryCode) ?? '';
       _isPhoneValid = _phoneError.isEmpty && phone.isNotEmpty;
     });
   }
@@ -289,28 +585,37 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   }
 
   void _addPhoneNumber() {
-    final phone = _phoneController.text.trim();
-    print('📱 Attempting to add phone number: $phone');
-    print('📱 Current phone numbers: $phoneNumbers');
+    final phone = currentPhoneNumber.phoneNumber?.trim() ?? '';
+    final countryCode = currentPhoneNumber.isoCode;
 
-    if (phone.isNotEmpty && validatePhone(phone) == null) {
-      setState(() {
-        if (!phoneNumbers.contains(phone)) {
-          phoneNumbers.add(phone);
-          print('📱 Added phone number: $phone');
-          print('📱 Total phone numbers: ${phoneNumbers.length}');
-          print('📱 All phone numbers: $phoneNumbers');
-          _phoneController.clear();
+    // Validate phone number with country-specific rules
+    final validationError = validatePhone(phone, countryCode: countryCode);
+
+    if (phone.isNotEmpty && validationError == null) {
+      final fullPhoneNumber = '${currentPhoneNumber.dialCode}${phone}';
+      if (!phoneNumbersWithCountryCode.contains(fullPhoneNumber)) {
+        setState(() {
+          phoneNumbersWithCountryCode.add(fullPhoneNumber);
+          phoneNumbers.add(
+            phone,
+          ); // Keep the original list for backward compatibility
+          // Reset the phone number input
+          currentPhoneNumber = PhoneNumber(
+            isoCode: currentPhoneNumber.isoCode,
+            phoneNumber: '',
+          );
           _phoneError = '';
           _isPhoneValid = false;
-        } else {
-          print('📱 Phone number already exists: $phone');
+        });
+      } else {
+        setState(() {
           _phoneError = 'This phone number is already added';
-        }
-      });
+        });
+      }
     } else {
       setState(() {
-        _phoneError = validatePhone(phone) ?? 'Invalid phone number';
+        _phoneError = validationError ?? 'Invalid phone number';
+        _isPhoneValid = false;
       });
     }
   }
@@ -318,26 +623,24 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   void _removePhoneNumber(int index) {
     setState(() {
       phoneNumbers.removeAt(index);
+      if (index < phoneNumbersWithCountryCode.length) {
+        phoneNumbersWithCountryCode.removeAt(index);
+      }
     });
   }
 
   void _addEmailAddress() {
     final email = _emailController.text.trim();
-    print('📧 Attempting to add email: $email');
-    print('📧 Current emails: $emailAddresses');
 
     if (email.isNotEmpty && validateEmail(email) == null) {
       setState(() {
         if (!emailAddresses.contains(email)) {
           emailAddresses.add(email);
-          print('📧 Added email: $email');
-          print('📧 Total emails: ${emailAddresses.length}');
-          print('📧 All emails: $emailAddresses');
+
           _emailController.clear();
           _emailError = '';
           _isEmailValid = false;
         } else {
-          print('📧 Email already exists: $email');
           _emailError = 'This email address is already added';
         }
       });
@@ -356,20 +659,14 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
 
   void _addSocialMediaHandle() {
     final handle = _socialMediaController.text.trim();
-    print('📱 Attempting to add social media handle: $handle');
-    print('📱 Current social media handles: $socialMediaHandles');
 
     if (handle.isNotEmpty) {
       setState(() {
         if (!socialMediaHandles.contains(handle)) {
           socialMediaHandles.add(handle);
-          print('📱 Added social media handle: $handle');
-          print('📱 Total social media handles: ${socialMediaHandles.length}');
-          print('📱 All social media handles: $socialMediaHandles');
+
           _socialMediaController.clear();
-        } else {
-          print('📱 Social media handle already exists: $handle');
-        }
+        } else {}
       });
     }
   }
@@ -393,13 +690,8 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     Connectivity().onConnectivityChanged.listen((result) {
       setState(() => isOnline = result != ConnectivityResult.none);
       if (isOnline) {
-        print(
-          '🌐 Network connection restored - triggering comprehensive sync...',
-        );
         // Use the new comprehensive sync method
-        FraudReportService.syncOfflineReports().catchError((error) {
-          print('❌ Auto-sync failed: $error');
-        });
+        FraudReportService.syncOfflineReports().catchError((error) {});
       }
     });
   }
@@ -432,7 +724,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       }
     } catch (e) {
       // If offline or error, just use cached
-      print('Failed to fetch latest scam types: $e');
     }
   }
 
@@ -441,12 +732,12 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       final categories = await FraudReportService.fetchReportCategories();
       // Find the fraud category
       final fraudCategory = categories.firstWhere(
-            (category) =>
-        category['name']?.toString().toLowerCase().contains('fraud') ==
-            true ||
+        (category) =>
+            category['name']?.toString().toLowerCase().contains('fraud') ==
+                true ||
             category['categoryName']?.toString().toLowerCase().contains(
-              'fraud',
-            ) ==
+                  'fraud',
+                ) ==
                 true ||
             category['title']?.toString().toLowerCase().contains('fraud') ==
                 true,
@@ -457,17 +748,14 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
         setState(() {
           actualCategoryId =
               fraudCategory['_id']?.toString() ??
-                  fraudCategory['id']?.toString();
+              fraudCategory['id']?.toString();
         });
-        print('Found fraud category ID: $actualCategoryId');
       } else {
-        print('No fraud category found, using default');
         setState(() {
           actualCategoryId = widget.categoryId;
         });
       }
     } catch (e) {
-      print('Error loading category ID: $e');
       setState(() {
         actualCategoryId = widget.categoryId;
       });
@@ -475,8 +763,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   }
 
   Future<void> _submitForm() async {
-    print('Submit button pressed');
-
     // Check if location is selected
     if (selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -493,10 +779,16 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
         final id = DateTime.now().millisecondsSinceEpoch.toString();
         final now = DateTime.now();
         // Prepare phone numbers list - include both added numbers and current input
-        List<String> finalPhoneNumbers = List<String>.from(phoneNumbers);
-        if (_phoneController.text.isNotEmpty &&
-            validatePhone(_phoneController.text) == null) {
-          finalPhoneNumbers.add(_phoneController.text.trim());
+        List<String> finalPhoneNumbers = List<String>.from(
+          phoneNumbersWithCountryCode,
+        );
+        if (currentPhoneNumber.phoneNumber?.isNotEmpty == true &&
+            _isPhoneValid) {
+          final fullPhoneNumber =
+              '${currentPhoneNumber.dialCode}${currentPhoneNumber.phoneNumber}';
+          if (!finalPhoneNumbers.contains(fullPhoneNumber)) {
+            finalPhoneNumbers.add(fullPhoneNumber);
+          }
         }
 
         // Prepare email addresses list - include both added emails and current input
@@ -535,21 +827,11 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           minAge: minAge,
           maxAge: maxAge,
         );
-        print('🔍 Age Range: $minAge - $maxAge');
-        print(
-          '🔍 Age Range Type: ${minAge.runtimeType} - ${maxAge.runtimeType}',
-        );
-        print('🔍 Age Range Null Check: ${minAge == null} - ${maxAge == null}');
-        print(
-          '🔍 Age Range Values: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
-        );
-        print('Saving report...');
+
         try {
           await FraudReportService.saveReport(fraudReport);
-        } catch (e) {
-          print('Save failed but continuing: $e');
-        }
-        print('Navigating to next page...');
+        } catch (e) {}
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -559,12 +841,8 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           // Refresh the thread database list when returning
           setState(() {});
         });
-      } catch (e, stack) {
-        print('Error in _submitForm: $e\n$stack');
-      }
-    } else {
-      print('Form validation failed');
-    }
+      } catch (e, stack) {}
+    } else {}
   }
 
   @override
@@ -582,689 +860,903 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           ),
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CustomDropdown(
-                label: 'Fraud Type*',
-                hint: 'Select a Fraud Type',
-                items: fraudTypes.map((e) => e['name'] as String).toList(),
-                value: fraudTypes.firstWhere(
-                      (e) => e['_id'] == fraudTypeId,
-                  orElse: () => {},
-                )['name'],
-                onChanged: (val) {
-                  setState(() {
-                    if (val != null) {
-                      final selectedType = fraudTypes.firstWhere(
-                            (e) => e['name'] == val,
-                        orElse: () => {'_id': null},
-                      );
-                      fraudTypeId = selectedType['_id'];
-                      print('Selected fraud type: $val with ID: $fraudTypeId');
-                    }
-                  });
-                },
-              ),
-
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Fraudster Name',
-                hintText: 'Enter fraudster name',
-                controller: _fraudsterNameController,
-                onChanged: (val) {
-                  fraudsterName = val;
-                },
-              ),
-
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Phone Number',
-                hintText: 'Enter phone number',
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [PhoneInputFormatter()],
-                onChanged: (val) {
-                  _validatePhoneField();
-                },
-                validator: validatePhone,
-                errorText: _phoneError.isNotEmpty ? _phoneError : null,
-                suffixIcon: _phoneController.text.isNotEmpty
-                    ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isPhoneValid ? Icons.check_circle : Icons.error,
-                      color: _isPhoneValid ? Colors.green : Colors.red,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      onPressed: _addPhoneNumber,
-                      icon: Icon(
-                        Icons.add,
-                        color: const Color(0xFF064FAD),
-                        size: 18,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                )
-                    : IconButton(
-                  onPressed: _addPhoneNumber,
-                  icon: Icon(
-                    Icons.add,
-                    color: const Color(0xFF064FAD),
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ),
-              if (phoneNumbers.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ...phoneNumbers.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final phone = entry.value;
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 4),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Scrollable content area
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: Text(phone)),
-                        IconButton(
-                          onPressed: () => _removePhoneNumber(index),
-                          icon: Icon(Icons.remove_circle, color: Colors.red),
-                          iconSize: 20,
+                        CustomDropdown(
+                          label: 'Fraud Type*',
+                          hint: 'Select a Fraud Type',
+                          items: fraudTypes
+                              .map((e) => e['name'] as String)
+                              .toList(),
+                          value: fraudTypes.firstWhere(
+                            (e) => e['_id'] == fraudTypeId,
+                            orElse: () => {},
+                          )['name'],
+                          onChanged: (val) {
+                            setState(() {
+                              if (val != null) {
+                                final selectedType = fraudTypes.firstWhere(
+                                  (e) => e['name'] == val,
+                                  orElse: () => {'_id': null},
+                                );
+                                fraudTypeId = selectedType['_id'];
+                              }
+                            });
+                          },
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
 
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Email Address *',
-                hintText: 'Enter email address',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                inputFormatters: [EmailInputFormatter()],
-                onChanged: (val) {
-                  _validateEmailField();
-                },
-                validator: validateEmail,
-                errorText: _emailError.isNotEmpty ? _emailError : null,
-                suffixIcon: _emailController.text.isNotEmpty
-                    ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isEmailValid ? Icons.check_circle : Icons.error,
-                      color: _isEmailValid ? Colors.green : Colors.red,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      onPressed: _addEmailAddress,
-                      icon: Icon(
-                        Icons.add,
-                        color: const Color(0xFF064FAD),
-                        size: 18,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                )
-                    : IconButton(
-                  onPressed: _addEmailAddress,
-                  icon: Icon(
-                    Icons.add,
-                    color: const Color(0xFF064FAD),
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ),
-              if (emailAddresses.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ...emailAddresses.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final email = entry.value;
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 4),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(email)),
-                        IconButton(
-                          onPressed: () => _removeEmailAddress(index),
-                          icon: Icon(Icons.remove_circle, color: Colors.red),
-                          iconSize: 20,
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Fraudster Name',
+                          hintText: 'Enter fraudster name',
+                          controller: _fraudsterNameController,
+                          onChanged: (val) {
+                            fraudsterName = val;
+                          },
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
 
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Website',
-                hintText: 'Enter website URL',
-                controller: _websiteController,
-                keyboardType: TextInputType.url,
-                onChanged: (val) {
-                  website = val;
-                },
-              ),
+                        const SizedBox(height: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Phone Number',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _phoneError.isNotEmpty
+                                      ? Colors.red
+                                      : Colors.black,
+                                  width: 1,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: InternationalPhoneNumberInput(
+                                      onInputChanged: (PhoneNumber number) {
+                                        // Get allowed lengths for current country
+                                        final allowedLengths =
+                                            getAllowedPhoneLengths(
+                                              number.isoCode,
+                                            );
 
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Company Name',
-                hintText: 'Enter company name',
-                controller: _companyNameController,
-                onChanged: (val) {
-                  companyName = val;
-                },
-              ),
+                                        // Extract only the phone number digits (without country code)
+                                        String phoneDigits =
+                                            number.phoneNumber ?? '';
 
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Social Media Handle',
-                hintText: 'Enter social media handle',
-                controller: _socialMediaController,
-                onChanged: (val) {
-                  // Handle social media input
-                },
-                suffixIcon: IconButton(
-                  onPressed: _addSocialMediaHandle,
-                  icon: Icon(
-                    Icons.add,
-                    color: const Color(0xFF064FAD),
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ),
-              if (socialMediaHandles.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ...socialMediaHandles.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final handle = entry.value;
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 4),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(handle)),
-                        IconButton(
-                          onPressed: () => _removeSocialMediaHandle(index),
-                          icon: Icon(Icons.remove_circle, color: Colors.red),
-                          iconSize: 20,
+                                        // Remove the country code from the phone number if it's included
+                                        if (number.dialCode != null &&
+                                            phoneDigits.startsWith(
+                                              number.dialCode!,
+                                            )) {
+                                          phoneDigits = phoneDigits.substring(
+                                            number.dialCode!.length,
+                                          );
+                                        }
+
+                                        // Remove any non-digit characters
+                                        final digitsOnly = phoneDigits
+                                            .replaceAll(RegExp(r'[^\d]'), '');
+
+                                        // Check if the current length is valid for this country
+                                        if (allowedLengths.contains(
+                                          digitsOnly.length,
+                                        )) {
+                                          // Valid length - accept the input
+                                          currentPhoneNumber = PhoneNumber(
+                                            isoCode: number.isoCode,
+                                            dialCode: number.dialCode,
+                                            phoneNumber: digitsOnly,
+                                          );
+                                          _validatePhoneField();
+                                        } else if (digitsOnly.length <
+                                            allowedLengths.first) {
+                                          // Still typing - allow input if it's shorter than minimum
+                                          currentPhoneNumber = PhoneNumber(
+                                            isoCode: number.isoCode,
+                                            dialCode: number.dialCode,
+                                            phoneNumber: digitsOnly,
+                                          );
+                                          _validatePhoneField();
+                                        } else {
+                                          // Invalid length - truncate to the maximum allowed length
+                                          final maxAllowedLength =
+                                              allowedLengths.reduce(
+                                                (a, b) => a > b ? a : b,
+                                              );
+                                          final truncatedDigits =
+                                              digitsOnly.length >
+                                                  maxAllowedLength
+                                              ? digitsOnly.substring(
+                                                  0,
+                                                  maxAllowedLength,
+                                                )
+                                              : digitsOnly;
+
+                                          currentPhoneNumber = PhoneNumber(
+                                            isoCode: number.isoCode,
+                                            dialCode: number.dialCode,
+                                            phoneNumber: truncatedDigits,
+                                          );
+                                          _validatePhoneField();
+                                        }
+                                      },
+                                      onInputValidated: (bool value) {
+                                        setState(() {
+                                          _isPhoneValid = value;
+                                        });
+                                      },
+                                      selectorConfig: const SelectorConfig(
+                                        selectorType:
+                                            PhoneInputSelectorType.DROPDOWN,
+                                        showFlags: true,
+                                        useEmoji: true,
+                                        setSelectorButtonAsPrefixIcon: false,
+                                        leadingPadding: 4,
+                                      ),
+                                      ignoreBlank: false,
+                                      autoValidateMode:
+                                          AutovalidateMode.disabled,
+                                      selectorTextStyle: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 12,
+                                      ),
+                                      initialValue: currentPhoneNumber,
+                                      formatInput: true,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            signed: true,
+                                            decimal: true,
+                                          ),
+                                      inputDecoration: InputDecoration(
+                                        hintText: 'Enter phone number',
+                                        border: InputBorder.none,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 16,
+                                            ),
+                                        suffixIcon: null,
+                                        isDense: false,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_phoneController.text.isNotEmpty)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isPhoneValid
+                                              ? Icons.check_circle
+                                              : Icons.error,
+                                          color: _isPhoneValid
+                                              ? Colors.green
+                                              : Colors.red,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          onPressed: _addPhoneNumber,
+                                          icon: Icon(
+                                            Icons.add,
+                                            color: const Color(0xFF064FAD),
+                                            size: 18,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    IconButton(
+                                      onPressed: _addPhoneNumber,
+                                      icon: Icon(
+                                        Icons.add,
+                                        color: const Color(0xFF064FAD),
+                                        size: 18,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            if (_phoneError.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  _phoneError,
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
+                        if (phoneNumbersWithCountryCode.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ...phoneNumbersWithCountryCode.asMap().entries.map((
+                            entry,
+                          ) {
+                            final index = entry.key;
+                            final phone = entry.value;
+                            return Container(
+                              margin: EdgeInsets.only(bottom: 4),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      phone,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removePhoneNumber(index),
+                                    icon: Icon(
+                                      Icons.remove_circle,
+                                      color: Colors.red,
+                                    ),
+                                    iconSize: 20,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
 
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  final DateTime? pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: incidentDateTime ?? DateTime.now(),
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                  );
-                  if (pickedDate != null) {
-                    final TimeOfDay? pickedTime = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.now(),
-                    );
-                    if (pickedTime != null) {
-                      setState(() {
-                        incidentDateTime = DateTime(
-                          pickedDate.year,
-                          pickedDate.month,
-                          pickedDate.day,
-                          pickedTime.hour,
-                          pickedTime.minute,
-                        );
-                      });
-                    }
-                  }
-                },
-                child: Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text(
-                        incidentDateTime != null
-                            ? '${incidentDateTime!.day}/${incidentDateTime!.month}/${incidentDateTime!.year} ${incidentDateTime!.hour}:${incidentDateTime!.minute.toString().padLeft(2, '0')}'
-                            : 'Select date and time',
-                        style: TextStyle(
-                          color: incidentDateTime != null
-                              ? Colors.black
-                              : Colors.grey,
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Email Address *',
+                          hintText: 'Enter email address',
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          inputFormatters: [EmailInputFormatter()],
+                          onChanged: (val) {
+                            _validateEmailField();
+                          },
+                          validator: validateEmail,
+                          errorText: _emailError.isNotEmpty
+                              ? _emailError
+                              : null,
+                          suffixIcon: _emailController.text.isNotEmpty
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _isEmailValid
+                                          ? Icons.check_circle
+                                          : Icons.error,
+                                      color: _isEmailValid
+                                          ? Colors.green
+                                          : Colors.red,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      onPressed: _addEmailAddress,
+                                      icon: Icon(
+                                        Icons.add,
+                                        color: const Color(0xFF064FAD),
+                                        size: 18,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                )
+                              : IconButton(
+                                  onPressed: _addEmailAddress,
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: const Color(0xFF064FAD),
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                        if (emailAddresses.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ...emailAddresses.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final email = entry.value;
+                            return Container(
+                              margin: EdgeInsets.only(bottom: 4),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(email)),
+                                  IconButton(
+                                    onPressed: () => _removeEmailAddress(index),
+                                    icon: Icon(
+                                      Icons.remove_circle,
+                                      color: Colors.red,
+                                    ),
+                                    iconSize: 20,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
 
-              const SizedBox(height: 12),
-              // Combined Currency and Amount Field
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Currency and Amount Involved',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        // Currency Picker Button (Left Side)
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Website',
+                          hintText: 'Enter website URL',
+                          controller: _websiteController,
+                          keyboardType: TextInputType.url,
+                          onChanged: (val) {
+                            website = val;
+                          },
+                        ),
+
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Company Name',
+                          hintText: 'Enter company name',
+                          controller: _companyNameController,
+                          onChanged: (val) {
+                            companyName = val;
+                          },
+                        ),
+
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Social Media Handle',
+                          hintText: 'Enter social media handle',
+                          controller: _socialMediaController,
+                          onChanged: (val) {
+                            // Handle social media input
+                          },
+                          suffixIcon: IconButton(
+                            onPressed: _addSocialMediaHandle,
+                            icon: Icon(
+                              Icons.add,
+                              color: const Color(0xFF064FAD),
+                              size: 18,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ),
+                        if (socialMediaHandles.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ...socialMediaHandles.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final handle = entry.value;
+                            return Container(
+                              margin: EdgeInsets.only(bottom: 4),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(handle)),
+                                  IconButton(
+                                    onPressed: () =>
+                                        _removeSocialMediaHandle(index),
+                                    icon: Icon(
+                                      Icons.remove_circle,
+                                      color: Colors.red,
+                                    ),
+                                    iconSize: 20,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+
+                        const SizedBox(height: 12),
                         InkWell(
                           onTap: () async {
-                            print('🪙 Currency picker tapped');
-                            try {
-                              showCurrencyPicker(
-                                context: context,
-                                showFlag: true,
-                                showSearchField: true,
-                                showCurrencyName: true,
-                                showCurrencyCode: true,
-                                favorite: ['INR', 'USD', 'EUR'],
-                                onSelect: (Currency currency) {
-                                  print(
-                                    '🪙 Currency selected: ${currency.code} (${currency.symbol})',
+                            final DateTime? pickedDate = await showDatePicker(
+                              context: context,
+                              initialDate: incidentDateTime ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now(),
+                            );
+                            if (pickedDate != null) {
+                              final TimeOfDay? pickedTime =
+                                  await showTimePicker(
+                                    context: context,
+                                    initialTime: TimeOfDay.now(),
                                   );
-                                  setState(() {
-                                    selectedCurrency = currency.code;
-                                    selectedCurrencySymbol = currency.symbol;
-                                  });
-                                },
-                              );
-                            } catch (e) {
-                              print('❌ Error showing currency picker: $e');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Error opening currency picker: $e',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              if (pickedTime != null) {
+                                setState(() {
+                                  incidentDateTime = DateTime(
+                                    pickedDate.year,
+                                    pickedDate.month,
+                                    pickedDate.day,
+                                    pickedTime.hour,
+                                    pickedTime.minute,
+                                  );
+                                });
+                              }
                             }
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 16,
-                            ),
+                            padding: EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              border: Border(
-                                right: BorderSide(color: Colors.grey.shade300),
-                              ),
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Icon(
-                                //   Icons.attach_money,
-                                //   color: const Color(0xFF064FAD),
-                                //   size: 20,
-                                // ),
+                                Icon(Icons.calendar_today, color: Colors.grey),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '$selectedCurrencySymbol $selectedCurrency',
+                                  incidentDateTime != null
+                                      ? '${incidentDateTime!.day}/${incidentDateTime!.month}/${incidentDateTime!.year} ${incidentDateTime!.hour}:${incidentDateTime!.minute.toString().padLeft(2, '0')}'
+                                      : 'Select date and time',
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w500,
+                                    color: incidentDateTime != null
+                                        ? Colors.black
+                                        : Colors.grey,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                Icon(Icons.arrow_drop_down, color: Colors.grey),
                               ],
                             ),
                           ),
                         ),
-                        // Amount Input Field (Right Side)
-                        Expanded(
-                          child: TextField(
-                            controller: _amountInvolvedController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Enter amount involved',
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 16,
-                              ),
-                            ),
-                            onChanged: (val) {
-                              amountInvolved = double.tryParse(val);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Name',
-                hintText: 'Enter name',
-                controller: _nameController,
-                onChanged: (val) {
-                  name = val;
-                  _validateNameField();
-                },
-                validator: validateName,
-                errorText: _nameError.isNotEmpty ? _nameError : null,
-                suffixIcon: _nameController.text.isNotEmpty
-                    ? Icon(
-                  _isNameValid ? Icons.check_circle : Icons.error,
-                  color: _isNameValid ? Colors.green : Colors.red,
-                  size: 20,
-                )
-                    : null,
-              ),
-
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Description *',
-                hintText: 'Describe the fraud in detail',
-                controller: _descriptionController,
-                maxLines: 5,
-                minLines: 3,
-                onChanged: (val) {
-                  description = val;
-                  _validateDescriptionField();
-                },
-                validator: validateDescription,
-                errorText: _descriptionError.isNotEmpty
-                    ? _descriptionError
-                    : null,
-                suffixIcon: _descriptionController.text.isNotEmpty
-                    ? Icon(
-                  _isDescriptionValid ? Icons.check_circle : Icons.error,
-                  color: _isDescriptionValid ? Colors.green : Colors.red,
-                  size: 20,
-                )
-                    : null,
-              ),
-
-              const SizedBox(height: 12),
-              // Age Range Field
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Age Range (if known)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        const SizedBox(height: 12),
+                        // Combined Currency and Amount Field
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Age: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+                              'Currency and Amount Involved',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.black,
                               ),
                             ),
-                            Icon(
-                              Icons.person,
-                              color: const Color(0xFF064FAD),
-                              size: 20,
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Currency Picker Button (Left Side)
+                                  InkWell(
+                                    onTap: () async {
+                                      try {
+                                        showCurrencyPicker(
+                                          context: context,
+                                          showFlag: true,
+                                          showSearchField: true,
+                                          showCurrencyName: true,
+                                          showCurrencyCode: true,
+                                          favorite: ['INR', 'USD', 'EUR'],
+                                          onSelect: (Currency currency) {
+                                            print(
+                                              '🪙 Currency selected: ${currency.code} (${currency.symbol})',
+                                            );
+                                            setState(() {
+                                              selectedCurrency = currency.code;
+                                              selectedCurrencySymbol =
+                                                  currency.symbol;
+                                            });
+                                          },
+                                        );
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Error opening currency picker: $e',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          right: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // Icon(
+                                          //   Icons.attach_money,
+                                          //   color: const Color(0xFF064FAD),
+                                          //   size: 20,
+                                          // ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '$selectedCurrencySymbol $selectedCurrency',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.black,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Icon(
+                                            Icons.arrow_drop_down,
+                                            color: Colors.grey,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // Amount Input Field (Right Side)
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _amountInvolvedController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        hintText: 'Enter amount involved',
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                      onChanged: (val) {
+                                        amountInvolved = double.tryParse(val);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        RangeSlider(
-                          values: _ageRange,
-                          min: 10,
-                          max: 100,
-                          divisions: 90,
-                          activeColor: const Color(0xFF064FAD),
-                          inactiveColor: Colors.grey.shade300,
-                          labels: RangeLabels(
-                            _ageRange.start.round().toString(),
-                            _ageRange.end.round().toString(),
-                          ),
-                          onChanged: (RangeValues values) {
-                            setState(() {
-                              _ageRange = values;
-                              minAge = values.start.round();
-                              maxAge = values.end.round();
-                            });
+
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Name',
+                          hintText: 'Enter name',
+                          controller: _nameController,
+                          onChanged: (val) {
+                            name = val;
+                            _validateNameField();
                           },
+                          validator: validateName,
+                          errorText: _nameError.isNotEmpty ? _nameError : null,
+                          suffixIcon: _nameController.text.isNotEmpty
+                              ? Icon(
+                                  _isNameValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isNameValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                )
+                              : null,
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Description *',
+                          hintText: 'Describe the fraud in detail',
+                          controller: _descriptionController,
+                          maxLines: 5,
+                          minLines: 3,
+                          onChanged: (val) {
+                            description = val;
+                            _validateDescriptionField();
+                          },
+                          validator: validateDescription,
+                          errorText: _descriptionError.isNotEmpty
+                              ? _descriptionError
+                              : null,
+                          suffixIcon: _descriptionController.text.isNotEmpty
+                              ? Icon(
+                                  _isDescriptionValid
+                                      ? Icons.check_circle
+                                      : Icons.error,
+                                  color: _isDescriptionValid
+                                      ? Colors.green
+                                      : Colors.red,
+                                  size: 20,
+                                )
+                              : null,
+                        ),
+
+                        const SizedBox(height: 12),
+                        // Age Range Field
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '10',
+                              'Age Range (if known)',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
                               ),
                             ),
-                            Text(
-                              '100',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Age: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.person,
+                                        color: const Color(0xFF064FAD),
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  RangeSlider(
+                                    values: _ageRange,
+                                    min: 10,
+                                    max: 100,
+                                    divisions: 90,
+                                    activeColor: const Color(0xFF064FAD),
+                                    inactiveColor: Colors.grey.shade300,
+                                    labels: RangeLabels(
+                                      _ageRange.start.round().toString(),
+                                      _ageRange.end.round().toString(),
+                                    ),
+                                    onChanged: (RangeValues values) {
+                                      setState(() {
+                                        _ageRange = values;
+                                        minAge = values.start.round();
+                                        maxAge = values.end.round();
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '10',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      Text(
+                                        '100',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ],
+                        ),
+
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            // color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  // Icon(Icons.location_on, color: Colors.black),
+                                  // const SizedBox(width: 8),
+                                  Text(
+                                    'Location',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              InkWell(
+                                onTap: () {
+                                  LocationPickerBottomSheet.show(
+                                    context,
+                                    onLocationSelected: (location, address) {
+                                      setState(() {
+                                        selectedLocation = location;
+                                        selectedAddress = address;
+                                      });
+                                      // Persist for offline reuse
+                                      LocationStorageService.saveLastSelectedAddress(
+                                        label: location,
+                                        address: address,
+                                      );
+                                    },
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    // color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.black),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.search,
+                                        color: Colors.black,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          selectedLocation != null
+                                              ? selectedLocation!
+                                              : 'Select location',
+                                          style: TextStyle(
+                                            color: selectedLocation != null
+                                                ? Colors.grey[600]
+                                                : Colors.black,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        color: Colors.black,
+                                        size: 16,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (selectedAddress != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.black),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.location_on,
+                                        color: const Color(0xFF064FAD),
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          selectedAddress!,
+                                          style: TextStyle(
+                                            color: const Color(0xFF064FAD),
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-              // Location
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  // color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.black),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.location_on, color: Colors.grey[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Location',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
+
+                // Fixed Next button at bottom
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: CustomButton(
+                    text: 'Next',
+                    onPressed: () async {
+                      // Check if location is selected
+                      if (selectedLocation == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Please select a location'),
+                            backgroundColor: Colors.red,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () {
-                        LocationPickerBottomSheet.show(
-                          context,
-                          onLocationSelected: (location, address) {
-                            setState(() {
-                              selectedLocation = location;
-                              selectedAddress = address;
-                            });
-                          },
                         );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          // color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.search,
-                              color: Colors.grey[600],
-                              size: 20,
+                        return;
+                      }
+
+                      // Trigger validation manually to show errors
+                      if (_formKey.currentState!.validate()) {
+                        await _submitForm();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please fill all required fields correctly',
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                selectedLocation != null
-                                    ? selectedLocation!
-                                    : 'Select location',
-                                style: TextStyle(
-                                  color: selectedLocation != null
-                                      ? Colors.black87
-                                      : Colors.grey[600],
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              color: Colors.grey[600],
-                              size: 16,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (selectedAddress != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          // color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              color: const Color(0xFF064FAD),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                selectedAddress!,
-                                style: TextStyle(
-                                  color: const Color(0xFF064FAD),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
-              ),
-
-              SizedBox(height: 24),
-              CustomButton(
-                text: 'Next',
-                onPressed: () async {
-                  // Check if location is selected
-                  if (selectedLocation == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Please select a location'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  // Trigger validation manually to show errors
-                  if (_formKey.currentState!.validate()) {
-                    await _submitForm();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Please fill all required fields correctly',
-                        ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
-                fontWeight: FontWeight.normal,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

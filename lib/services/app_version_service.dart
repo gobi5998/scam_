@@ -15,7 +15,7 @@ class AppVersionService {
       _isInitialized = true;
       print('📱 App Version: $_version (Build: $_buildNumber)');
     } catch (e) {
-      print('❌ Error getting app version: $e');
+
       _version = 'Unknown';
       _buildNumber = '0';
       _isInitialized = true;

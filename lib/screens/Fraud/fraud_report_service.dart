@@ -19,7 +19,6 @@ class FraudReportService {
 
     // Run diagnostics if no user ID found (device-specific issue)
     if (keycloakUserId == null) {
-      print('⚠️ No user ID found - running token storage diagnostics...');
       await JwtService.diagnoseTokenStorage();
     }
 
@@ -27,7 +26,7 @@ class FraudReportService {
       report = report.copyWith(keycloakUserId: keycloakUserId);
     } else {
       // Fallback for device-specific issues
-      print('⚠️ Using fallback user ID for device compatibility');
+
       report = report.copyWith(
         keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
       );
@@ -43,7 +42,6 @@ class FraudReportService {
 
     // Always save to local storage first (offline-first approach)
     await _box.add(report);
-    print('✅ Fraud report saved locally with type ID: ${report.reportTypeId}');
 
     // AUTOMATIC DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving new fraud report...');
@@ -52,7 +50,6 @@ class FraudReportService {
     // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
-      print('🌐 Online - attempting to sync report...');
       try {
         // Initialize reference service before syncing
         await ReportReferenceService.initialize();
@@ -64,20 +61,13 @@ class FraudReportService {
           ); // Get the key of the last added item
           final updated = report.copyWith(isSynced: true);
           await _box.put(key, updated);
-          print('✅ Fraud report synced successfully!');
 
           // AUTOMATIC BACKEND DUPLICATE CLEANUP after syncing
-          print('🧹 Auto-cleaning backend duplicates after syncing...');
+
           await _apiService.removeDuplicateScamFraudReports();
-        } else {
-          print('⚠️ Failed to sync report - will retry later');
-        }
-      } catch (e) {
-        print('❌ Error syncing report: $e - will retry later');
-      }
-    } else {
-      print('📱 Offline - report saved locally for later sync');
-    }
+        } else {}
+      } catch (e) {}
+    } else {}
   }
 
   static Future<void> saveReportOffline(FraudReportModel report) async {
@@ -90,7 +80,6 @@ class FraudReportService {
     // Save the new report first
     print('Saving fraud report to local storage: ${report.toSyncJson()}');
     await _box.add(report);
-    print('Fraud report saved successfully. Box length: ${_box.length}');
 
     // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving offline fraud report...');
@@ -102,9 +91,6 @@ class FraudReportService {
     final allReports = box.values.toList();
     final uniqueReports = <FraudReportModel>[];
     final seenKeys = <String>{};
-
-    print('🧹 Starting fraud report duplicate cleanup...');
-    print('🔍 Total reports before cleanup: ${allReports.length}');
 
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
@@ -132,21 +118,17 @@ class FraudReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-      print('✅ Duplicates removed. Box length: ${box.length}');
-    } else {
-      print('✅ No duplicates found in fraud reports');
-    }
+    } else {}
   }
 
   static Future<void> syncReports() async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity == ConnectivityResult.none) {
-      print('📱 No internet connection - cannot sync');
       return;
     }
 
     // Initialize reference service before syncing
-    print('🔄 Initializing report reference service for sync...');
+
     await ReportReferenceService.initialize();
 
     final box = Hive.box<FraudReportModel>('fraud_reports');
@@ -154,11 +136,8 @@ class FraudReportService {
         .where((r) => r.isSynced != true)
         .toList();
 
-    print('🔄 Syncing ${unsyncedReports.length} unsynced fraud reports...');
-
     for (var report in unsyncedReports) {
       try {
-        print('📤 Syncing report with type ID: ${report.reportTypeId}');
         final success = await FraudReportService.sendToBackend(report);
         if (success) {
           // Mark as synced
@@ -168,15 +147,9 @@ class FraudReportService {
           print(
             '✅ Successfully synced report with type ID: ${report.reportTypeId}',
           );
-        } else {
-          print('❌ Failed to sync report with type ID: ${report.reportTypeId}');
-        }
-      } catch (e) {
-        print('❌ Error syncing report with type ID ${report.reportTypeId}: $e');
-      }
+        } else {}
+      } catch (e) {}
     }
-
-    print('✅ Sync completed for fraud reports');
   }
 
   static Future<bool> sendToBackend(FraudReportModel report) async {
@@ -186,8 +159,6 @@ class FraudReportService {
         'fraud',
       );
 
-      print('🔄 Using ObjectId values for fraud report:');
-      print('  - reportCategoryId: $reportCategoryId');
       print(
         '  - reportTypeId: ${report.reportTypeId} (from selected dropdown)',
       );
@@ -241,24 +212,13 @@ class FraudReportService {
             [], // Fraud reports don't typically have voice files
       };
 
-      // Debug age values
-      print('🔍 DEBUG - Age in reportData: ${reportData['age']}');
-      final ageData = reportData['age'] as Map<String, dynamic>?;
-      print('🔍 DEBUG - Age min: ${ageData?['min']}');
-      print('🔍 DEBUG - Age max: ${ageData?['max']}');
-
       // Remove age field if it's null to avoid sending null values to backend
       if (reportData['age'] == null) {
         reportData.remove('age');
-        print('🔍 DEBUG - Removed null age field from reportData');
       }
 
-      print('📤 Sending fraud report to backend...');
       print('📤 Report data: ${jsonEncode(reportData)}');
-      print('🔍 Final alert level being sent: ${reportData['alertLevels']}');
-      print('🔍 Original report alert level: ${report.alertLevels}');
-      print('🔍 Report ID: ${report.id}');
-      print('🔍 Alert level in reportData: "${reportData['alertLevels']}"');
+
       print(
         '🔍 Alert level in reportData type: ${reportData['alertLevels'].runtimeType}',
       );
@@ -273,18 +233,16 @@ class FraudReportService {
       );
       print('🔍 Full reportData keys: ${reportData.keys.toList()}');
       print('🔍 Full reportData values: ${reportData.values.toList()}');
-      print('🔍 Alert level in report object: ${report.alertLevels}');
-      print('🔍 Alert level type in report: ${report.alertLevels.runtimeType}');
-      print('🔍 Alert level is null in report: ${report.alertLevels == null}');
+
       print(
         '🔍 Alert level is empty in report: ${report.alertLevels?.isEmpty}',
       );
 
       // ADDITIONAL DEBUGGING
       print('🔍 DEBUG - Raw report object: ${report.toJson()}');
-      print('🔍 DEBUG - reportData before JSON encoding: $reportData');
+
       print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
-      print('🔍 DEBUG - Content-Type header: application/json');
+
       print(
         '🔍 DEBUG - URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
       );
@@ -296,8 +254,6 @@ class FraudReportService {
       print(
         '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
       );
-      print('🔍 DEBUG - Request body length: ${requestBody.length}');
-      print('🔍 DEBUG - Request body: $requestBody');
 
       final response = await http.post(
         Uri.parse(
@@ -310,9 +266,6 @@ class FraudReportService {
         body: requestBody,
       );
 
-      print('📥 Send to backend response status: ${response.statusCode}');
-      print('📥 Send to backend response headers: ${response.headers}');
-      print('📥 Send to backend response body: ${response.body}');
       print(
         '🔍 DEBUG - Response content-type: ${response.headers['content-type']}',
       );
@@ -321,14 +274,11 @@ class FraudReportService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Fraud report sent successfully!');
         return true;
       } else {
-        print('❌ Fraud report failed with status: ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      print('❌ Error sending fraud report to backend: $e');
       return false;
     }
   }
@@ -344,7 +294,6 @@ class FraudReportService {
       await ReportReferenceService.initialize();
       return ReportReferenceService.getReportCategoryId(categoryName);
     } catch (e) {
-      print('❌ Error getting dynamic report category ID: $e');
       return '';
     }
   }
@@ -354,7 +303,6 @@ class FraudReportService {
       await ReportReferenceService.initialize();
       return ReportReferenceService.getReportTypeId(typeName);
     } catch (e) {
-      print('❌ Error getting dynamic report type ID: $e');
       return '';
     }
   }
@@ -386,9 +334,6 @@ class FraudReportService {
     final uniqueReports = <FraudReportModel>[];
     final seenKeys = <String>{};
 
-    print('🧹 Starting fraud report duplicate removal...');
-    print('🔍 Total reports before removal: ${allReports.length}');
-
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
       final key =
@@ -415,10 +360,7 @@ class FraudReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-      print('✅ Duplicates removed. Box length: ${box.length}');
-    } else {
-      print('✅ No duplicates found in fraud reports');
-    }
+    } else {}
   }
 
   static Future<List<Map<String, dynamic>>> fetchReportTypes() async {
@@ -439,18 +381,13 @@ class FraudReportService {
 
   // NUCLEAR OPTION - Clear all data and start fresh
   static Future<void> clearAllData() async {
-    print('☢️ NUCLEAR OPTION - Clearing ALL fraud report data...');
     await _box.clear();
-    print('✅ All fraud report data cleared');
   }
 
   // TARGETED DUPLICATE REMOVAL - Only removes exact duplicates
   static Future<void> removeDuplicateFraudReports() async {
     try {
-      print('🔍 Starting targeted duplicate removal for fraud reports...');
-
       final allReports = _box.values.toList();
-      print('📊 Found ${allReports.length} fraud reports in local storage');
 
       // Group by unique identifiers to find duplicates
       final Map<String, List<FraudReportModel>> groupedReports = {};
@@ -471,12 +408,9 @@ class FraudReportService {
       }
 
       // Find and remove duplicates (keep the oldest one)
-      int duplicatesRemoved = 0;
       for (var entry in groupedReports.entries) {
         final reports = entry.value;
         if (reports.length > 1) {
-          print('🔍 Found ${reports.length} duplicates for key: ${entry.key}');
-
           // Sort by creation date (oldest first)
           reports.sort((a, b) {
             final aDate = a.createdAt ?? DateTime.now();
@@ -488,35 +422,23 @@ class FraudReportService {
           for (int i = 1; i < reports.length; i++) {
             final key = _box.keyAt(_box.values.toList().indexOf(reports[i]));
             await _box.delete(key);
-            duplicatesRemoved++;
-            print('🗑️ Removed duplicate fraud report: ${reports[i].id}');
           }
         }
       }
-
-      print('✅ TARGETED FRAUD DUPLICATE REMOVAL COMPLETED');
-      print('📊 Summary:');
-      print('  - Total fraud reports: ${allReports.length}');
-      print('  - Duplicates removed: $duplicatesRemoved');
-    } catch (e) {
-      print('❌ Error during targeted fraud duplicate removal: $e');
-    }
+    } catch (e) {}
   }
 
   // Comprehensive offline sync method with retry mechanism
   static Future<void> syncOfflineReports() async {
-    print('🔄 FRAUD-SYNC: Starting comprehensive offline sync...');
-
     try {
       // Step 1: Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity == ConnectivityResult.none) {
-        print('❌ FRAUD-SYNC: No internet connection available');
         throw Exception('No internet connection available');
       }
 
       // Step 2: Initialize reference service
-      print('🔄 FRAUD-SYNC: Initializing reference service...');
+
       await ReportReferenceService.initialize();
       await ReportReferenceService.refresh();
 
@@ -532,7 +454,6 @@ class FraudReportService {
       );
 
       if (offlineReports.isEmpty) {
-        print('✅ FRAUD-SYNC: No offline reports to sync');
         return;
       }
 
@@ -542,8 +463,6 @@ class FraudReportService {
       List<String> failedReports = [];
 
       for (final report in offlineReports) {
-        print('📤 FRAUD-SYNC: Syncing report ${report.id} - ${report.name}');
-
         bool reportSynced = false;
         int retryCount = 0;
         const maxRetries = 3;
@@ -566,7 +485,6 @@ class FraudReportService {
               await box.put(key, updated);
               successCount++;
               reportSynced = true;
-              print('✅ FRAUD-SYNC: Successfully synced report ${report.id}');
             } else {
               retryCount++;
               print(
@@ -603,11 +521,7 @@ class FraudReportService {
           'Some reports failed to sync: $failureCount failed, $successCount succeeded',
         );
       }
-
-      print('✅ FRAUD-SYNC: Comprehensive offline sync completed successfully');
     } catch (e) {
-      print('❌ FRAUD-SYNC: Error during comprehensive offline sync: $e');
-      print('🔍 FRAUD-SYNC: Stack trace: ${StackTrace.current}');
       rethrow;
     }
   }

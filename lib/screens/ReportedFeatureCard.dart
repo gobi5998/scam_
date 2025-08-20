@@ -4,7 +4,9 @@ import '../provider/dashboard_provider.dart';
 import 'ReportedFeatureItem.dart';
 
 class ReportedFeaturesPanel extends StatefulWidget {
-  const ReportedFeaturesPanel({super.key});
+  final List<Map<String, dynamic>> reportCategories;
+
+  const ReportedFeaturesPanel({super.key, required this.reportCategories});
 
   @override
   State<ReportedFeaturesPanel> createState() => _ReportedFeaturesPanelState();
@@ -23,7 +25,7 @@ class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
         final categories =
             percentageData['totalCountByCategory'] as List<dynamic>? ?? [];
 
-        // Find specific categories
+        // Find specific categories from percentage data
         Map<String, dynamic>? scamCategory;
         Map<String, dynamic>? malwareCategory;
         Map<String, dynamic>? fraudCategory;
@@ -38,6 +40,23 @@ class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
             malwareCategory = category;
           } else if (categoryName.contains('fraud')) {
             fraudCategory = category;
+          }
+        }
+
+        // Find category IDs from reportCategories (passed from dashboard)
+        String? scamCategoryId;
+        String? malwareCategoryId;
+        String? fraudCategoryId;
+
+        for (var category in widget.reportCategories) {
+          final categoryName = category['name']?.toString().toLowerCase() ?? '';
+
+          if (categoryName.contains('scam')) {
+            scamCategoryId = category['_id']?.toString();
+          } else if (categoryName.contains('malware')) {
+            malwareCategoryId = category['_id']?.toString();
+          } else if (categoryName.contains('fraud')) {
+            fraudCategoryId = category['_id']?.toString();
           }
         }
 
@@ -64,6 +83,9 @@ class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
               percentage:
                   '${scamCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
               onAdd: '/scam-report',
+              scamCategoryId: scamCategoryId,
+              malwareCategoryId: malwareCategoryId,
+              fraudCategoryId: fraudCategoryId,
             ),
             ReportedFeatureItem(
               iconPath: 'assets/icon/malware.png',
@@ -72,6 +94,9 @@ class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
               percentage:
                   '${malwareCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
               onAdd: '/malware-report',
+              scamCategoryId: scamCategoryId,
+              malwareCategoryId: malwareCategoryId,
+              fraudCategoryId: fraudCategoryId,
             ),
             ReportedFeatureItem(
               iconPath: 'assets/icon/fraud.png',
@@ -80,6 +105,9 @@ class _ReportedFeaturesPanelState extends State<ReportedFeaturesPanel> {
               percentage:
                   '${fraudCategory?['percentage']?.toStringAsFixed(1) ?? '0'}%',
               onAdd: '/fraud-report',
+              scamCategoryId: scamCategoryId,
+              malwareCategoryId: malwareCategoryId,
+              fraudCategoryId: fraudCategoryId,
             ),
           ],
         );

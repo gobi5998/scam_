@@ -161,22 +161,16 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
   }
 
   void _onRangeSelected(String range, DashboardProvider provider) {
-    print('🔄 Range selected: $range');
     provider.loadThreadAnalysis(range);
   }
 
   Map<String, dynamic> _generateChartData(Map<String, dynamic> analysisData) {
     try {
-      print('🔍 Generating chart data from: $analysisData');
-
       // Extract data from API response - handle multiple possible formats
       final data = analysisData['data'] ?? analysisData;
-      print('🔍 Extracted data: $data');
 
       // Handle the actual API response format: array of date-based objects
       if (data is List && data.isNotEmpty) {
-        print('🔍 Processing array data format');
-
         // Sort by date (_id field contains date)
         final sortedData = List<Map<String, dynamic>>.from(data);
         sortedData.sort(
@@ -218,9 +212,6 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
           );
         }
 
-        print('🔍 Generated spots: $spots');
-        print('🔍 Generated bar groups: $barGroups');
-
         return {
           'lineSpots': spots,
           'barGroups': barGroups,
@@ -242,9 +233,6 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
           data['barData'] ??
           data['bars'] ??
           data['barValues'];
-
-      print('🔍 Time series data: $timeSeriesData');
-      print('🔍 Bar chart data: $barChartData');
 
       if (timeSeriesData != null && timeSeriesData.isNotEmpty) {
         // Generate line chart spots
@@ -268,11 +256,8 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
             value = double.tryParse(item.toString()) ?? 0.0;
           }
 
-          print('🔍 Creating spot: index=$index, value=$value');
           return FlSpot(index, value);
         }).toList();
-
-        print('🔍 Generated spots: $spots');
 
         // Generate bar chart groups
         final barGroups =
@@ -331,7 +316,6 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
               : <VerticalLine>[],
         };
       } else {
-        print('⚠️ No time series data found, generating dynamic fallback data');
         // Generate dynamic fallback data based on current time
         final now = DateTime.now();
         final spots = List.generate(7, (index) {
@@ -364,7 +348,7 @@ class _ThreadAnalysisCardState extends State<ThreadAnalysisCard> {
         };
       }
     } catch (e) {
-      print('❌ Error generating chart data: $e');
+      // Error generating chart data
     }
 
     return {};

@@ -10,10 +10,11 @@ class EmailVerifyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.grey[800]),
+          icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -75,7 +76,11 @@ class EmailVerifyScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade600,
+                          size: 20,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'What to do next:',
@@ -109,10 +114,18 @@ class EmailVerifyScreen extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF185ABC),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => LoginPage())),
-                  child: Text('Back to Login', style: TextStyle(fontSize: 16, color: Colors.white)),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => LoginPage()),
+                  ),
+                  child: Text(
+                    'Back to Login',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
                 ),
               ),
               SizedBox(height: 16),
@@ -169,10 +182,7 @@ class _InstructionItem extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: Colors.blue.shade800,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.blue.shade800, fontSize: 14),
             ),
           ),
         ],

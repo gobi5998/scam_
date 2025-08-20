@@ -21,7 +21,7 @@ class JwtService {
 
       return payloadMap;
     } catch (e) {
-      print('Error decoding JWT token: $e');
+
       return null;
     }
   }
@@ -55,12 +55,12 @@ class JwtService {
       final token = await getTokenWithFallback();
       if (token != null) {
         final email = getUserEmailFromToken(token);
-        print('JWT Service - User email from token: $email');
+
         return email;
       }
       return null;
     } catch (e) {
-      print('JWT Service - Error getting current user email: $e');
+
       return null;
     }
   }
@@ -69,19 +69,19 @@ class JwtService {
     try {
       final token = await getTokenWithFallback();
 
-      print('JWT Service - Token exists: ${token != null}');
-      print('JWT Service - Device: ${defaultTargetPlatform}');
+
+
 
       if (token != null) {
         final userId = getUserIdFromToken(token);
-        print('JWT Service - User ID from token: $userId');
+
         return userId;
       }
 
-      print('JWT Service - No auth token found');
+
       return null;
     } catch (e) {
-      print('JWT Service - Error getting current user ID: $e');
+
       return null;
     }
   }
@@ -94,23 +94,23 @@ class JwtService {
       String? token = prefs.getString(_tokenKey);
 
       if (token != null && token.isNotEmpty) {
-        print('JWT Service - Found token in primary storage');
+
         return token;
       }
 
       // Try backup token storage
       token = prefs.getString(_backupTokenKey);
       if (token != null && token.isNotEmpty) {
-        print('JWT Service - Found token in backup storage');
+
         // Restore to primary storage
         await prefs.setString(_tokenKey, token);
         return token;
       }
 
-      print('JWT Service - No token found in any storage');
+
       return null;
     } catch (e) {
-      print('JWT Service - Error accessing SharedPreferences: $e');
+
       return null;
     }
   }
@@ -125,10 +125,10 @@ class JwtService {
       // Also save to backup storage for device compatibility
       await prefs.setString(_backupTokenKey, token);
 
-      print('JWT Service - Token saved successfully to both storages');
+
       return true;
     } catch (e) {
-      print('JWT Service - Error saving token: $e');
+
       return false;
     }
   }
@@ -141,10 +141,10 @@ class JwtService {
       await prefs.remove(_tokenKey);
       await prefs.remove(_backupTokenKey);
 
-      print('JWT Service - Token cleared from both storages');
+
       return true;
     } catch (e) {
-      print('JWT Service - Error clearing token: $e');
+
       return false;
     }
   }
@@ -166,7 +166,7 @@ class JwtService {
 
       return true; // If no expiration, assume valid
     } catch (e) {
-      print('JWT Service - Error checking token validity: $e');
+
       return false;
     }
   }
@@ -230,7 +230,7 @@ class JwtService {
       diagnostics['errors'].add('General error: $e');
     }
 
-    print('JWT Service - Token storage diagnostics: $diagnostics');
+
     return diagnostics;
   }
 }

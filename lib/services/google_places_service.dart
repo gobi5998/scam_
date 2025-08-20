@@ -12,11 +12,12 @@ class GooglePlacesService {
         '$_baseUrl/place/autocomplete/json?input=$query&key=$_apiKey&types=geocode'
       );
 
+
       final response = await http.get(url);
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK') {
           final predictions = data['predictions'] as List;
           return predictions.map((prediction) => PlaceResult.fromJson(prediction)).toList();
@@ -42,10 +43,10 @@ class GooglePlacesService {
       );
 
       final response = await http.get(url);
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK') {
           return PlaceDetails.fromJson(data['result']);
         } else {
@@ -64,8 +65,8 @@ class GooglePlacesService {
 
   /// Search for places with location bias (near current location)
   static Future<List<PlaceResult>> searchPlacesNearby(
-    String query, 
-    double latitude, 
+    String query,
+    double latitude,
     double longitude,
     {int radius = 50000} // 50km radius
   ) async {
@@ -76,10 +77,10 @@ class GooglePlacesService {
       );
 
       final response = await http.get(url);
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK') {
           final predictions = data['predictions'] as List;
           return predictions.map((prediction) => PlaceResult.fromJson(prediction)).toList();
@@ -99,7 +100,7 @@ class GooglePlacesService {
 
   /// Get exact address from coordinates using Google Geocoding API
   static Future<PlaceDetails?> getAddressFromCoordinates(
-    double latitude, 
+    double latitude,
     double longitude
   ) async {
     try {
@@ -108,10 +109,10 @@ class GooglePlacesService {
       );
 
       final response = await http.get(url);
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['status'] == 'OK' && data['results'] != null && data['results'].isNotEmpty) {
           final result = data['results'][0];
           return PlaceDetails.fromGeocodingResult(result);
@@ -147,7 +148,7 @@ class PlaceResult {
 
   factory PlaceResult.fromJson(Map<String, dynamic> json) {
     final structuredFormatting = json['structured_formatting'] ?? {};
-    
+
     return PlaceResult(
       placeId: json['place_id'] ?? '',
       description: json['description'] ?? '',
@@ -181,7 +182,7 @@ class PlaceDetails {
   factory PlaceDetails.fromJson(Map<String, dynamic> json) {
     final geometry = json['geometry'] ?? {};
     final location = geometry['location'] ?? {};
-    
+
     return PlaceDetails(
       placeId: json['place_id'] ?? '',
       name: json['name'] ?? '',
@@ -194,7 +195,7 @@ class PlaceDetails {
   factory PlaceDetails.fromGeocodingResult(Map<String, dynamic> json) {
     final geometry = json['geometry'] ?? {};
     final location = geometry['location'] ?? {};
-    
+
     return PlaceDetails(
       placeId: json['place_id'] ?? '',
       name: json['formatted_address']?.split(',').first ?? 'Current Location',

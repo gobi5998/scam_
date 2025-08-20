@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:security_alert/screens/menu/profile_page.dart';
-import 'package:security_alert/screens/subscriptionPage/subscription_plans_page.dart';
-import 'package:security_alert/screens/menu/theard_database.dart';
 import 'package:security_alert/provider/auth_provider.dart';
 import 'package:security_alert/screens/login.dart';
-import 'package:security_alert/services/api_service.dart';
 
 import '../../custom/Image/image.dart';
 import 'drawer_menu_item.dart';
@@ -15,109 +11,166 @@ class DashboardDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get screen dimensions for responsive design
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
+    // Calculate responsive sizes
+    final profileImageRadius = screenHeight * 0.04; // 4% of screen height
+    final titleFontSize = screenWidth * 0.04; // 4% of screen width
+    final subtitleFontSize = screenWidth * 0.03; // 3% of screen width
+    final profileSectionHeight =
+        screenHeight * 0.18; // Reduced from 25% to 18% of screen height
+
     return Drawer(
       backgroundColor: Colors.white,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+      width: screenWidth * 0.75, // 75% of screen width
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile Section - Centered at top with background color
+          Container(
+            width: double.infinity,
+            height: profileSectionHeight + statusBarHeight,
+            decoration: const BoxDecoration(color: Color(0xFF064FAD)),
+            child: Stack(
+              children: [
+                // Back button positioned at top-left
+                Positioned(
+                  top: statusBarHeight + 8,
+                  left: 8,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                // Profile content centered
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.black),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const SizedBox(width: 8),
-                      const CircleAvatar(
-                        radius: 18,
-                        backgroundImage: AssetImage(
+                      // Profile Image - Centered
+                      CircleAvatar(
+                        radius: profileImageRadius,
+                        backgroundColor: Colors.white,
+                        backgroundImage: const AssetImage(
                           'assets/image/security1.jpg',
-                        ), // Use your logo asset
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Scam Detect',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
                         ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Profile Details - Centered
+                      Text(
+                        'Security Alert',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: titleFontSize,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Protect & Report',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: subtitleFontSize,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
-                  // IconButton(
-                  //   icon: const Icon(Icons.settings, color: Colors.white),
-                  //   onPressed: () {},
-                  // ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Menu Items Section
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  DrawerMenuItem(
+                    ImagePath: ImagePath.profile,
+                    label: 'Profile',
+                    routeName: '/profile',
+                    textColor: Colors.grey[800],
+                    iconColor: const Color(0xFF064FAD),
+                  ),
+                  DrawerMenuItem(
+                    ImagePath: ImagePath.thread,
+                    label: 'Threads',
+                    routeName: '/thread',
+                    textColor: Colors.grey[800],
+                    iconColor: const Color(0xFF064FAD),
+                  ),
+                  DrawerMenuItem(
+                    ImagePath: ImagePath.feedback,
+                    label: 'Filter',
+                    routeName: '/filter',
+                    textColor: Colors.grey[800],
+                    iconColor: const Color(0xFF064FAD),
+                  ),
+                  const Spacer(),
+                  // Logout Section - Positioned at bottom of menu area
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.logout,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    onTap: () async {
+                      // Close drawer first
+                      Navigator.pop(context);
+
+                      // Call backend logout through AuthProvider
+                      await Provider.of<AuthProvider>(
+                        context,
+                        listen: false,
+                      ).logout();
+
+                      // Navigate to login page
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            DrawerMenuItem(
-              ImagePath: ImagePath.profile,
-              label: 'Profile',
-              routeName: '/profile',
-              textColor: Colors.black,
-              iconColor: Colors.black,
-            ),
-            DrawerMenuItem(
-              ImagePath: ImagePath.thread,
-              label: 'Thread',
-              routeName: '/thread',
-              textColor: Colors.black,
-              iconColor: Colors.black,
-            ),
-            // DrawerMenuItem(
-            //   ImagePath: ImagePath.subscription,
-            //   label: 'Subscription',
-            //   routeName: '/subscription',
-            // ),
-            // DrawerMenuItem(
-            //   ImagePath: ImagePath.rate,
-            //   label: 'Rate App',
-            //   routeName: '/rate',
-            // ),
-            // DrawerMenuItem(
-            //   ImagePath: ImagePath.share,
-            //   label: 'Share App',
-            //   routeName: '/share',
-            // ),
-            // DrawerMenuItem(
-            //   ImagePath: ImagePath.feedback,
-            //   label: 'Feedback',
-            //   routeName: '/feedback',
-            // ),
-            const SizedBox(height: 16),
-            const Divider(color: Colors.white54),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                'Logout',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onTap: () async {
-                await Provider.of<AuthProvider>(
-                  context,
-                  listen: false,
-                ).logout();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (route) => false,
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

@@ -6,7 +6,7 @@ class CustomButton extends StatelessWidget {
   final Future<void> Function()? onPressed;
   final double? width;
   final double? height;
-  final double? fontSize; // ✅ FIXED: Use camelCase for variables
+  final double? fontSize;
   final FontWeight fontWeight;
   final double? borderCircular;
   final bool isLoading;

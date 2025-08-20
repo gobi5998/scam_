@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../screens/dashboard_page.dart';
 import '../screens/menu/thread_database_listpage.dart';
 
 class ReportSuccess extends StatefulWidget {
@@ -64,9 +63,8 @@ class _ReportSuccessState extends State<ReportSuccess> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ThreadDatabaseListPage(
-                                  searchQuery: '',
-                                ),
+                                builder: (_) =>
+                                    ThreadDatabaseListPage(searchQuery: ''),
                               ),
                             );
                           },

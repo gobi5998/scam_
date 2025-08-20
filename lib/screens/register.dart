@@ -6,8 +6,6 @@ import 'package:security_alert/screens/signup_verify.dart';
 
 import '../custom/customTextfield.dart';
 import '../provider/auth_provider.dart';
-import '../utils/responsive_helper.dart';
-import '../widgets/responsive_widget.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -162,8 +160,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     return null;
   }
-
-
 
   void _validateEmailField() {
     final email = _emailController.text.trim();
@@ -359,14 +355,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             : null,
                         suffixIcon: _firstnameController.text.isNotEmpty
                             ? Icon(
-                          _isFirstNameValid
-                              ? Icons.check_circle
-                              : Icons.error,
-                          color: _isFirstNameValid
-                              ? Colors.green
-                              : Colors.red,
-                          size: 16,
-                        )
+                                _isFirstNameValid
+                                    ? Icons.check_circle
+                                    : Icons.error,
+                                color: _isFirstNameValid
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 16,
+                              )
                             : null,
                       ),
                       SizedBox(height: verticalSpacing),
@@ -382,14 +378,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             : null,
                         suffixIcon: _lastnameController.text.isNotEmpty
                             ? Icon(
-                          _isLastNameValid
-                              ? Icons.check_circle
-                              : Icons.error,
-                          color: _isLastNameValid
-                              ? Colors.green
-                              : Colors.red,
-                          size: 16,
-                        )
+                                _isLastNameValid
+                                    ? Icons.check_circle
+                                    : Icons.error,
+                                color: _isLastNameValid
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 16,
+                              )
                             : null,
                       ),
                       SizedBox(height: verticalSpacing),
@@ -403,14 +399,14 @@ class _RegisterPageState extends State<RegisterPage> {
                         errorText: _emailError.isNotEmpty ? _emailError : null,
                         suffixIcon: _emailController.text.isNotEmpty
                             ? Icon(
-                          _isEmailValid
-                              ? Icons.check_circle
-                              : Icons.error,
-                          color: _isEmailValid
-                              ? Colors.green
-                              : Colors.red,
-                          size: 16,
-                        )
+                                _isEmailValid
+                                    ? Icons.check_circle
+                                    : Icons.error,
+                                color: _isEmailValid
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 16,
+                              )
                             : null,
                       ),
 
@@ -445,7 +441,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                     : Icons.visibility,
                               ),
                               onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
+                                () => _obscurePassword = !_obscurePassword,
                               ),
                             ),
                           ],
@@ -521,64 +517,71 @@ class _RegisterPageState extends State<RegisterPage> {
                         onPressed: (authProvider.isLoading || !_isFormValid())
                             ? null
                             : () async {
-                          if (!_formKey.currentState!.validate()) {
-                            return;
-                          }
+                                if (!_formKey.currentState!.validate()) {
+                                  return;
+                                }
 
-                          final firstname = _firstnameController.text
-                              .trim();
-                          final lastname = _lastnameController.text
-                              .trim();
-                          final username = _emailController.text.trim();
-                          final password = _passwordController.text
-                              .trim();
-                          final role = 'user'; // Hardcoded role value
+                                final firstname = _firstnameController.text
+                                    .trim();
+                                final lastname = _lastnameController.text
+                                    .trim();
+                                final username = _emailController.text.trim();
+                                final password = _passwordController.text
+                                    .trim();
+                                final role = 'user'; // Hardcoded role value
 
-                          final success = await authProvider.register(
-                            firstname,
-                            lastname,
-                            username,
-                            password,
-                            role,
-                          );
+                                final success = await authProvider.register(
+                                  firstname,
+                                  lastname,
+                                  username,
+                                  password,
+                                  role,
+                                );
 
-                          if (success) {
-                            // Check if there's an error message from the auth provider
-                            if (authProvider.errorMessage.isNotEmpty) {
-                              // Show error message instead of success
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(authProvider.errorMessage),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            } else {
-                              // Only show success if there's no error message
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Registered Successfully"),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>  EmailVerifyScreen(email: username),
-                                ),
-                              );
-                            }
-                          } else {
-                            // Show error message if registration failed
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(authProvider.errorMessage.isNotEmpty
-                                    ? authProvider.errorMessage
-                                    : "Registration failed. Please try again."),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
+                                if (success) {
+                                  // Check if there's an error message from the auth provider
+                                  if (authProvider.errorMessage.isNotEmpty) {
+                                    // Show error message instead of success
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          authProvider.errorMessage,
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  } else {
+                                    // Only show success if there's no error message
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Registered Successfully",
+                                        ),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EmailVerifyScreen(email: username),
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  // Show error message if registration failed
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        authProvider.errorMessage.isNotEmpty
+                                            ? authProvider.errorMessage
+                                            : "Registration failed. Please try again.",
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
                         isLoading: authProvider.isLoading,
                         width: screenSize.width * 0.9, // 90% of screen width
                         height: buttonHeight,

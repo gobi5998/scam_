@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:security_alert/screens/scam/report_scam_1.dart';
+import 'package:security_alert/screens/malware/report_malware_1.dart';
+import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
 
 class ReportedFeatureItem extends StatelessWidget {
   final String iconPath;
@@ -6,6 +9,9 @@ class ReportedFeatureItem extends StatelessWidget {
   final double progress; // From 0.0 to 1.0
   final String percentage;
   final String onAdd;
+  final String? scamCategoryId;
+  final String? malwareCategoryId;
+  final String? fraudCategoryId;
 
   const ReportedFeatureItem({
     super.key,
@@ -14,6 +20,9 @@ class ReportedFeatureItem extends StatelessWidget {
     required this.progress,
     required this.percentage,
     required this.onAdd,
+    this.scamCategoryId,
+    this.malwareCategoryId,
+    this.fraudCategoryId,
   });
 
   @override
@@ -85,14 +94,57 @@ class ReportedFeatureItem extends StatelessWidget {
               const SizedBox(width: 6),
               GestureDetector(
                 onTap: () {
-                  // Navigate to specific pages based on the title
+                  // Navigate to specific pages based on the title with proper category IDs
                   if (title == 'Reported Scam') {
-                    Navigator.pushNamed(context, '/scam-report');
+                    if (scamCategoryId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReportScam1(categoryId: scamCategoryId!),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Scam category not available'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   } else if (title == 'Reported Malware') {
-                    Navigator.pushNamed(context, '/malware-report');
+                    if (malwareCategoryId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReportMalware1(categoryId: malwareCategoryId!),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Malware category not available'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   } else if (title == 'Reported Fraud') {
-                    Navigator.pushNamed(context, '/fraud-report');
+                    if (fraudCategoryId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReportFraudStep1(categoryId: fraudCategoryId!),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Fraud category not available'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   } else {
+                    // Fallback to named route if title doesn't match
                     Navigator.pushNamed(context, onAdd);
                   }
                 },

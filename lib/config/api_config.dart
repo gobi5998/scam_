@@ -3,19 +3,20 @@ class ApiConfig {
   // static const String baseUrl =
   //     'https://6694dcc2db28.ngrok-free.app'; // Main server (working)
   static const String authBaseUrl =
-      'https://mvp.edetectives.co.bw/auth/'; // Auth server
+      'https://mvp.edetectives.co.bw/auth'; // Auth server
   static const String mainBaseUrl =
-      'https://mvp.edetectives.co.bw/reports/'; // Main server - UPDATE THIS URL
+      'https://mvp.edetectives.co.bw/reports'; // Main server - UPDATE THIS URL
   static const String fileUploadBaseUrl =
-      'https://mvp.edetectives.co.bw/external/'; // File upload server (using same as main server)
+      'https://mvp.edetectives.co.bw/external'; // File upload server (using same as main server)
   static const String reportsBaseUrl =
-      'https://mvp.edetectives.co.bw/reports/'; // Reports server - UPDATE THIS URL
+      'https://mvp.edetectives.co.bw/reports'; // Reports server - UPDATE THIS URL
 
   // API Endpoints
   // Authentication endpoints
   static const String loginEndpoint = '/api/v1/auth/login-user';
   static const String registerEndpoint = '/api/v1/auth/create-user';
   static const String logoutEndpoint = '/api/v1/auth/logout';
+  static const String refreshTokenEndpoint = '/api/v1/auth/refresh-token';
   static const String userProfileEndpoint = '/api/v1/auth/profile';
   static const String updateProfileEndpoint = '/api/v1/auth/profile';
   static const String forgotPasswordEndpoint = '/api/v1/auth/forget-password';
@@ -25,7 +26,7 @@ class ApiConfig {
   static const String reportTypeEndpoint = '/api/v1/report-type';
   static const String reportCategoryEndpoint = '/api/v1/report-category';
   static const String securityAlertsEndpoint = '/api/v1/alerts';
-  static const String dashboardStatsEndpoint = '/api/v1/dashboard/stats';
+  // Removed non-existent dashboard stats endpoint
   static const String reportSecurityIssueEndpoint = '/api/v1/reports';
   static const String malwareDropsEndpoint = '/api/v1/reports';
   static const String threatHistoryEndpoint = '/api/v1/alerts/history';
@@ -80,11 +81,6 @@ class ApiConfig {
 
   // For development/testing purposes
   static const bool enableLogging = true;
-
-  // Get full URL for an endpoint
-  // static String getUrl(String endpoint) {
-  //   return '$baseUrl$endpoint';
-  // }
 
   static String getAuthUrl(String endpoint) {
     return '$authBaseUrl$endpoint';

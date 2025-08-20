@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:async';
 import '../dashboard_page.dart';
 import 'theard_database.dart';
+import 'filter_page.dart';
 import '../../models/filter_model.dart';
 import '../../models/scam_report_model.dart';
 import '../../models/fraud_report_model.dart';
@@ -457,23 +458,26 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   }
 
   Future<void> _loadMoreData() async {
-    print('🔍 _loadMoreData called - Current page: $_currentPage, Has more data: $_hasMoreData, Is loading: $_isLoadingMore');
-    
+    print(
+      '🔍 _loadMoreData called - Current page: $_currentPage, Has more data: $_hasMoreData, Is loading: $_isLoadingMore',
+    );
+
     if (_isLoadingMore || !_hasMoreData) {
-      print('🔍 _loadMoreData skipped - Loading: $_isLoadingMore, Has more: $_hasMoreData');
+      print(
+        '🔍 _loadMoreData skipped - Loading: $_isLoadingMore, Has more: $_hasMoreData',
+      );
       return;
     }
 
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
-      _handleError(
-        'No internet connection. Cannot load more data.',
-        isWarning: true,
-      );
+      // Removed snackbar - silently handle no internet connection
       return;
     }
 
-    print('🔍 _loadMoreData starting - Incrementing page from $_currentPage to ${_currentPage + 1}');
+    print(
+      '🔍 _loadMoreData starting - Incrementing page from $_currentPage to ${_currentPage + 1}',
+    );
     setState(() => _isLoadingMore = true);
 
     try {
@@ -513,9 +517,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         // Add search query if present
         if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
           queryParams['search'] = widget.searchQuery;
-          print('🔍 SEARCH DEBUG - Adding search parameter: "${widget.searchQuery}"');
+          print(
+            '🔍 SEARCH DEBUG - Adding search parameter: "${widget.searchQuery}"',
+          );
         } else {
-          print('🔍 SEARCH DEBUG - No search query present (hasSearchQuery: ${widget.hasSearchQuery}, searchQuery: "${widget.searchQuery}")');
+          print(
+            '🔍 SEARCH DEBUG - No search query present (hasSearchQuery: ${widget.hasSearchQuery}, searchQuery: "${widget.searchQuery}")',
+          );
         }
 
         // Add category ID if selected (use first selected category)
@@ -537,14 +545,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           // For backward compatibility, use first selected severity in queryParams
           queryParams['alertLevels'] = widget.selectedSeverities.first;
           print('🔍 Using severity IDs: ${widget.selectedSeverities}');
-          
+
           // Debug: Show what alert levels are being sent
           for (String severityId in widget.selectedSeverities) {
             final selectedSeverityLevel = widget.severityLevels.firstWhere(
               (level) => (level['_id'] ?? level['id']) == severityId,
               orElse: () => {'name': 'Unknown', 'id': severityId},
             );
-            print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+            print(
+              '🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})',
+            );
           }
         }
 
@@ -557,9 +567,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         print('🔍 Constructed query parameters: $queryParams');
 
         // Check if we need to use complex filter (when alert levels are selected)
-        bool needsComplexFilter = widget.hasSelectedSeverity && 
-            widget.selectedSeverities.isNotEmpty;
-            
+        bool needsComplexFilter =
+            widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty;
+
         if (needsComplexFilter) {
           // Use complex filter method directly for alert levels
           print('🔍 Using complex filter method for alert levels');
@@ -581,56 +591,56 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             page: _currentPage,
             limit: _pageSize,
           );
+          print('🔍 Complex filter returned ${newReports.length} reports');
           print(
-            '🔍 Complex filter returned ${newReports.length} reports',
+            '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
           );
-                        print(
-                '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
-              );
         } else {
           // Use ReportsFilter for other filters
-        try {
-          final filter = ReportsFilter(
-            page: _currentPage,
-            limit: _pageSize,
-            search: widget.hasSearchQuery ? widget.searchQuery : null,
-            reportCategoryId:
-                widget.hasSelectedCategory &&
-                    widget.selectedCategories.isNotEmpty
-                ? widget.selectedCategories.first
-                : null,
-            reportTypeId:
-                widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                ? widget.selectedTypes.first
-                : null,
-          );
+          try {
+            final filter = ReportsFilter(
+              page: _currentPage,
+              limit: _pageSize,
+              search: widget.hasSearchQuery ? widget.searchQuery : null,
+              reportCategoryId:
+                  widget.hasSelectedCategory &&
+                      widget.selectedCategories.isNotEmpty
+                  ? widget.selectedCategories.first
+                  : null,
+              reportTypeId:
+                  widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                  ? widget.selectedTypes.first
+                  : null,
+            );
 
-          newReports = await _apiService.fetchReportsWithFilter(filter);
-          print('Direct filter API call returned ${newReports.length} reports');
-        } catch (apiError) {
-          print('❌ Direct API call failed: $apiError');
-          // Fallback to complex filter method
-          newReports = await _apiService.getReportsWithComplexFilter(
-            searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-            categoryIds:
-                widget.hasSelectedCategory &&
-                    widget.selectedCategories.isNotEmpty
-                ? widget.selectedCategories
-                : null,
-            typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                ? widget.selectedTypes
-                : null,
-            severityLevels:
-                widget.hasSelectedSeverity &&
-                    widget.selectedSeverities.isNotEmpty
-                ? widget.selectedSeverities
-                : null,
-            page: _currentPage,
-            limit: _pageSize,
-          );
-          print(
-            '🔍 Fallback complex filter returned ${newReports.length} reports',
-          );
+            newReports = await _apiService.fetchReportsWithFilter(filter);
+            print(
+              'Direct filter API call returned ${newReports.length} reports',
+            );
+          } catch (apiError) {
+            print('❌ Direct API call failed: $apiError');
+            // Fallback to complex filter method
+            newReports = await _apiService.getReportsWithComplexFilter(
+              searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+              categoryIds:
+                  widget.hasSelectedCategory &&
+                      widget.selectedCategories.isNotEmpty
+                  ? widget.selectedCategories
+                  : null,
+              typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                  ? widget.selectedTypes
+                  : null,
+              severityLevels:
+                  widget.hasSelectedSeverity &&
+                      widget.selectedSeverities.isNotEmpty
+                  ? widget.selectedSeverities
+                  : null,
+              page: _currentPage,
+              limit: _pageSize,
+            );
+            print(
+              '🔍 Fallback complex filter returned ${newReports.length} reports',
+            );
           }
         }
       } else {
@@ -667,7 +677,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       }
     } catch (e) {
       _currentPage--;
-      _handleError('Failed to load more data: $e');
+      // Removed snackbar - silently handle loading errors
+      print('❌ Failed to load more data: $e');
     } finally {
       if (mounted) setState(() => _isLoadingMore = false);
     }
@@ -865,16 +876,20 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         normalized['emails'] = (normalized['emails'] as List)
             .map((e) => e.toString())
             .join(', ');
-        normalized['emailAddresses'] = normalized['emails']; // Keep for backward compatibility
+        normalized['emailAddresses'] =
+            normalized['emails']; // Keep for backward compatibility
       } else if (normalized['emails'] is String) {
-        normalized['emailAddresses'] = normalized['emails'].toString(); // Keep for backward compatibility
+        normalized['emailAddresses'] = normalized['emails']
+            .toString(); // Keep for backward compatibility
       } else if (normalized['emailAddresses'] is List) {
         normalized['emails'] = (normalized['emailAddresses'] as List)
             .map((e) => e.toString())
             .join(', ');
-        normalized['emailAddresses'] = normalized['emails']; // Keep for backward compatibility
+        normalized['emailAddresses'] =
+            normalized['emails']; // Keep for backward compatibility
       } else if (normalized['emailAddresses'] is String) {
-        normalized['emails'] = normalized['emailAddresses'].toString(); // Ensure emails field exists
+        normalized['emails'] = normalized['emailAddresses']
+            .toString(); // Ensure emails field exists
       } else {
         normalized['emails'] = '';
         normalized['emailAddresses'] = '';
@@ -1178,9 +1193,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             // Add search query if present
             if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
               queryParams['search'] = widget.searchQuery;
-              print('🔍 SEARCH DEBUG - Adding search parameter: "${widget.searchQuery}"');
+              print(
+                '🔍 SEARCH DEBUG - Adding search parameter: "${widget.searchQuery}"',
+              );
             } else {
-              print('🔍 SEARCH DEBUG - No search query present (hasSearchQuery: ${widget.hasSearchQuery}, searchQuery: "${widget.searchQuery}")');
+              print(
+                '🔍 SEARCH DEBUG - No search query present (hasSearchQuery: ${widget.hasSearchQuery}, searchQuery: "${widget.searchQuery}")',
+              );
             }
 
             // Add category ID if selected (use first selected category)
@@ -1202,14 +1221,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
               // For backward compatibility, use first selected severity in queryParams
               queryParams['alertLevels'] = widget.selectedSeverities.first;
               print('🔍 Using severity IDs: ${widget.selectedSeverities}');
-              
+
               // Debug: Show what alert levels are being sent
               for (String severityId in widget.selectedSeverities) {
                 final selectedSeverityLevel = widget.severityLevels.firstWhere(
                   (level) => (level['_id'] ?? level['id']) == severityId,
                   orElse: () => {'name': 'Unknown', 'id': severityId},
                 );
-                print('🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})');
+                print(
+                  '🔍 Alert level being sent to API: ${selectedSeverityLevel['name']} (ID: ${selectedSeverityLevel['_id']})',
+                );
               }
             }
 
@@ -1222,9 +1243,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             print('🔍 Constructed query parameters: $queryParams');
 
             // Check if we need to use complex filter (when alert levels are selected)
-            bool needsComplexFilter = widget.hasSelectedSeverity && 
+            bool needsComplexFilter =
+                widget.hasSelectedSeverity &&
                 widget.selectedSeverities.isNotEmpty;
-                
+
             if (needsComplexFilter) {
               // Use complex filter method directly for alert levels
               print('🔍 Using complex filter method for alert levels');
@@ -1247,59 +1269,59 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 page: _currentPage,
                 limit: _pageSize,
               );
-              print(
-                '🔍 Complex filter returned ${reports.length} reports',
-              );
+              print('🔍 Complex filter returned ${reports.length} reports');
               print(
                 '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
               );
             } else {
               // Use ReportsFilter for other filters
-            try {
-              final filter = ReportsFilter(
-                page: _currentPage,
-                limit: _pageSize,
-                search: widget.hasSearchQuery ? widget.searchQuery : null,
-                reportCategoryId:
-                    widget.hasSelectedCategory &&
-                        widget.selectedCategories.isNotEmpty
-                    ? widget.selectedCategories.first
-                    : null,
-                reportTypeId:
-                    widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                    ? widget.selectedTypes.first
-                    : null,
-              );
+              try {
+                final filter = ReportsFilter(
+                  page: _currentPage,
+                  limit: _pageSize,
+                  search: widget.hasSearchQuery ? widget.searchQuery : null,
+                  reportCategoryId:
+                      widget.hasSelectedCategory &&
+                          widget.selectedCategories.isNotEmpty
+                      ? widget.selectedCategories.first
+                      : null,
+                  reportTypeId:
+                      widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                      ? widget.selectedTypes.first
+                      : null,
+                );
 
-              reports = await _apiService.fetchReportsWithFilter(filter);
-              print(
-                '🔍 Direct filter API call returned ${reports.length} reports',
-              );
-            } catch (apiError) {
-              print('❌ Direct API call failed: $apiError');
-              // Fallback to complex filter method
-              reports = await _apiService.getReportsWithComplexFilter(
-                searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-                categoryIds:
-                    widget.hasSelectedCategory &&
-                        widget.selectedCategories.isNotEmpty
-                    ? widget.selectedCategories
-                    : null,
-                typeIds:
-                    widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-                    ? widget.selectedTypes
-                    : null,
-                severityLevels:
-                    widget.hasSelectedSeverity &&
-                        widget.selectedSeverities.isNotEmpty
-                    ? widget.selectedSeverities
-                    : null,
-                page: _currentPage,
-                limit: _pageSize,
-              );
-              print(
-                '🔍 Fallback complex filter returned ${reports.length} reports',
-              );
+                reports = await _apiService.fetchReportsWithFilter(filter);
+                print(
+                  '🔍 Direct filter API call returned ${reports.length} reports',
+                );
+              } catch (apiError) {
+                print('❌ Direct API call failed: $apiError');
+                // Fallback to complex filter method
+                reports = await _apiService.getReportsWithComplexFilter(
+                  searchQuery: widget.hasSearchQuery
+                      ? widget.searchQuery
+                      : null,
+                  categoryIds:
+                      widget.hasSelectedCategory &&
+                          widget.selectedCategories.isNotEmpty
+                      ? widget.selectedCategories
+                      : null,
+                  typeIds:
+                      widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+                      ? widget.selectedTypes
+                      : null,
+                  severityLevels:
+                      widget.hasSelectedSeverity &&
+                          widget.selectedSeverities.isNotEmpty
+                      ? widget.selectedSeverities
+                      : null,
+                  page: _currentPage,
+                  limit: _pageSize,
+                );
+                print(
+                  '🔍 Fallback complex filter returned ${reports.length} reports',
+                );
               }
             }
           } else {
@@ -1397,53 +1419,61 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
       final searchTerm = widget.searchQuery.toLowerCase();
       print('🔍 Search filter: "${searchTerm}" on ${filtered.length} reports');
-      
+
       filtered = filtered.where((report) {
         // Optimized search - check fields in order of likelihood
         final scammerName = report['scammerName']?.toString().toLowerCase();
-        if (scammerName != null && scammerName.contains(searchTerm)) return true;
-        
+        if (scammerName != null && scammerName.contains(searchTerm))
+          return true;
+
         final emails = report['emails']?.toString().toLowerCase();
         if (emails != null && emails.contains(searchTerm)) return true;
-        
+
         final attackName = report['attackName']?.toString().toLowerCase();
         if (attackName != null && attackName.contains(searchTerm)) return true;
-        
+
         // Fallback fields
         final name = report['name']?.toString().toLowerCase();
         if (name != null && name.contains(searchTerm)) return true;
-        
+
         final email = report['email']?.toString().toLowerCase();
         if (email != null && email.contains(searchTerm)) return true;
-        
-        final emailAddresses = report['emailAddresses']?.toString().toLowerCase();
-        if (emailAddresses != null && emailAddresses.contains(searchTerm)) return true;
-        
+
+        final emailAddresses = report['emailAddresses']
+            ?.toString()
+            .toLowerCase();
+        if (emailAddresses != null && emailAddresses.contains(searchTerm))
+          return true;
+
         final website = report['website']?.toString().toLowerCase();
         if (website != null && website.contains(searchTerm)) return true;
-        
+
         final description = report['description']?.toString().toLowerCase();
-        if (description != null && description.contains(searchTerm)) return true;
-        
+        if (description != null && description.contains(searchTerm))
+          return true;
+
         final attackSystem = report['attackSystem']?.toString().toLowerCase();
-        if (attackSystem != null && attackSystem.contains(searchTerm)) return true;
-        
+        if (attackSystem != null && attackSystem.contains(searchTerm))
+          return true;
+
         return false;
       }).toList();
-      
+
       print('🔍 Search results: ${filtered.length} reports');
     }
 
     if (widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty) {
-      print('🔍 Category filter: ${widget.selectedCategories} on ${filtered.length} reports');
-      
+      print(
+        '🔍 Category filter: ${widget.selectedCategories} on ${filtered.length} reports',
+      );
+
       // Pre-compute selected category names for faster lookup
       final selectedCategoryNames = <String>[];
       for (String catId in widget.selectedCategories) {
         final name = _categoryIdToName[catId]?.toLowerCase();
         if (name != null) selectedCategoryNames.add(name);
       }
-      
+
       filtered = filtered.where((report) {
         // Optimized category matching
         final cat = report['reportCategoryId'];
@@ -1478,29 +1508,36 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
         // Direct category ID matching for offline data
         if (catId != null) {
-          if ((catId == 'scam_category' && widget.selectedCategories.any((c) => c.contains('scam'))) ||
-              (catId == 'fraud_category' && widget.selectedCategories.any((c) => c.contains('fraud'))) ||
-              (catId == 'malware_category' && widget.selectedCategories.any((c) => c.contains('malware')))) {
+          if ((catId == 'scam_category' &&
+                  widget.selectedCategories.any((c) => c.contains('scam'))) ||
+              (catId == 'fraud_category' &&
+                  widget.selectedCategories.any((c) => c.contains('fraud'))) ||
+              (catId == 'malware_category' &&
+                  widget.selectedCategories.any(
+                    (c) => c.contains('malware'),
+                  ))) {
             return true;
           }
         }
 
         return false;
       }).toList();
-      
+
       print('🔍 Category results: ${filtered.length} reports');
     }
 
     if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
-      print('🔍 Type filter: ${widget.selectedTypes} on ${filtered.length} reports');
-      
+      print(
+        '🔍 Type filter: ${widget.selectedTypes} on ${filtered.length} reports',
+      );
+
       // Pre-compute selected type names for faster lookup
       final selectedTypeNames = <String>[];
       for (String typeId in widget.selectedTypes) {
         final name = _typeIdToName[typeId]?.toLowerCase();
         if (name != null) selectedTypeNames.add(name);
       }
-      
+
       filtered = filtered.where((report) {
         // Optimized type matching
         final type = report['reportTypeId'];
@@ -1535,22 +1572,27 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
         // Direct type ID matching for offline data
         if (typeId != null) {
-          if ((typeId == 'scam_type' && widget.selectedTypes.any((t) => t.contains('scam'))) ||
-              (typeId == 'fraud_type' && widget.selectedTypes.any((t) => t.contains('fraud'))) ||
-              (typeId == 'malware_type' && widget.selectedTypes.any((t) => t.contains('malware')))) {
+          if ((typeId == 'scam_type' &&
+                  widget.selectedTypes.any((t) => t.contains('scam'))) ||
+              (typeId == 'fraud_type' &&
+                  widget.selectedTypes.any((t) => t.contains('fraud'))) ||
+              (typeId == 'malware_type' &&
+                  widget.selectedTypes.any((t) => t.contains('malware')))) {
             return true;
           }
         }
 
         return false;
       }).toList();
-      
+
       print('🔍 Type results: ${filtered.length} reports');
     }
 
     if (widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty) {
-      print('🔍 Severity filter: ${widget.selectedSeverities} on ${filtered.length} reports');
-      
+      print(
+        '🔍 Severity filter: ${widget.selectedSeverities} on ${filtered.length} reports',
+      );
+
       // Pre-compute selected severity names for faster lookup
       final selectedSeverityNames = <String>[];
       for (String severityId in widget.selectedSeverities) {
@@ -1567,15 +1609,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         final reportSeverityId = _getNormalizedAlertLevelId(report);
 
         // Fast ID match
-        if (reportSeverityId != null && widget.selectedSeverities.contains(reportSeverityId)) {
+        if (reportSeverityId != null &&
+            widget.selectedSeverities.contains(reportSeverityId)) {
           return true;
         }
 
         // Fast name match
         if (reportSeverity != null) {
           for (String selectedName in selectedSeverityNames) {
-            if (reportSeverity == selectedName || 
-                reportSeverity.contains(selectedName) || 
+            if (reportSeverity == selectedName ||
+                reportSeverity.contains(selectedName) ||
                 selectedName.contains(reportSeverity)) {
               return true;
             }
@@ -1586,7 +1629,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         final rawAlertLevels = report['alertLevels']?.toString().toLowerCase();
         if (rawAlertLevels != null) {
           for (String selectedName in selectedSeverityNames) {
-            if (rawAlertLevels == selectedName || 
+            if (rawAlertLevels == selectedName ||
                 rawAlertLevels.contains(selectedName) ||
                 selectedName.contains(rawAlertLevels)) {
               return true;
@@ -1619,8 +1662,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'id': report.id,
         'description': report.description,
         'alertLevels': report.alertLevels,
-        'emails': report.emailAddresses, // Use 'emails' field for consistency with backend
-        'emailAddresses': report.emailAddresses, // Keep for backward compatibility
+        'emails': report
+            .emailAddresses, // Use 'emails' field for consistency with backend
+        'emailAddresses':
+            report.emailAddresses, // Keep for backward compatibility
         'phoneNumbers': report.phoneNumbers,
         'website': report.website,
         'createdAt': report.createdAt,
@@ -1631,7 +1676,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'typeName': typeName,
         'type': 'scam',
         'isSynced': report.isSynced,
-        'scammerName': report.description, // Use description as scammerName for local scam reports
+        'scammerName': report
+            .description, // Use description as scammerName for local scam reports
       });
     }
 
@@ -1649,7 +1695,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'id': report.id,
         'description': report.description ?? report.name ?? 'Fraud Report',
         'alertLevels': report.alertLevels,
-        'emails': report.emails, // Use 'emails' field for consistency with backend
+        'emails':
+            report.emails, // Use 'emails' field for consistency with backend
         'emailAddresses': report.emails, // Keep for backward compatibility
         'phoneNumbers': report.phoneNumbers,
         'website': report.website,
@@ -1662,7 +1709,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'name': report.name,
         'type': 'fraud',
         'isSynced': report.isSynced,
-        'scammerName': report.name, // Use name as scammerName for local fraud reports
+        'scammerName':
+            report.name, // Use name as scammerName for local fraud reports
       });
     }
 
@@ -1697,8 +1745,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'location': report.location,
         'name': report.name,
         'systemAffected': report.systemAffected,
-        'scammerName': report.name, // Use name as scammerName for local malware reports
-        'attackName': report.malwareType, // Use malwareType as attackName for local malware reports
+        'scammerName':
+            report.name, // Use name as scammerName for local malware reports
+        'attackName': report
+            .malwareType, // Use malwareType as attackName for local malware reports
       });
     }
 
@@ -2390,101 +2440,36 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
               MaterialPageRoute(builder: (context) => DashboardPage()),
             );
           },
-          icon: Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: Colors.white),
         ),
-        title: Column(children: [Text('Thread Database')]),
+        title: Column(
+          children: [
+            Text('Thread Database', style: TextStyle(color: Colors.white)),
+          ],
+        ),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => FilterPage()),
+              );
+              if (result == true) {
+                await _resetAndReload();
+              }
+            },
+            icon: Icon(Icons.filter_list, color: Colors.white),
+            tooltip: 'Filter',
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Filter Summary
-          Container(
-            color: Colors.grey[200],
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'All Reported Records',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    //   if (widget.hasSearchQuery ||
-                    //       widget.hasSelectedCategory ||
-                    //       widget.hasSelectedType ||
-                    //       widget.hasSelectedSeverity)
-                    //     Column(
-                    //       crossAxisAlignment: CrossAxisAlignment.start,
-                    //       children: [
-                    //         if (widget.hasSearchQuery)
-                    //           Text(
-                    //             'Search: "${widget.searchQuery}"',
-                    //             style: TextStyle(
-                    //               fontSize: 12,
-                    //               color: Colors.blue[700],
-                    //             ),
-                    //           ),
-                    //         if (widget.hasSelectedCategory)
-                    //           Text(
-                    //             'Category: ${widget.selectedCategories.map((id) => _categoryIdToName[id] ?? id).join(', ')}',
-                    //             style: TextStyle(
-                    //               fontSize: 12,
-                    //               color: Colors.blue[700],
-                    //             ),
-                    //           ),
-                    //         if (widget.hasSelectedType)
-                    //           Text(
-                    //             'Type: ${widget.selectedTypes.map((id) => _typeIdToName[id] ?? id).join(', ')}',
-                    //             style: TextStyle(
-                    //               fontSize: 12,
-                    //               color: Colors.blue[700],
-                    //             ),
-                    //           ),
-                    //         if (widget.hasSelectedSeverity)
-                    //           Text(
-                    //             'Severity: ${widget.selectedSeverities.map((id) {
-                    //               final level = widget.severityLevels.firstWhere((level) => (level['_id'] ?? level['id']) == id, orElse: () => {'name': id});
-                    //               return level['name'] ?? id;
-                    //             }).join(', ')}',
-                    //             style: TextStyle(
-                    //               fontSize: 12,
-                    //               color: Colors.blue[700],
-                    //             ),
-                    //           ),
-                    //       ],
-                    //     ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ThreadDatabaseFilterPage(),
-                      ),
-                    );
-                    // If we returned from filter page, reset and reload with new filters
-                    if (result == true) {
-                      await _resetAndReload();
-                    }
-                  },
-                  child: const Text('Filter'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black,
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
           // Offline Status Indicator
           if (widget.isOffline)
             Container(
@@ -2709,12 +2694,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     );
   }
 }
+
 // import 'package:flutter/material.dart';
 // import 'package:hive/hive.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
 // import 'dart:convert';
+// import 'dart:async';
 // import '../dashboard_page.dart';
 // import 'theard_database.dart';
+// import 'filter_page.dart';
 // import '../../models/filter_model.dart';
 // import '../../models/scam_report_model.dart';
 // import '../../models/fraud_report_model.dart';
@@ -2727,8 +2715,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 // import '../../services/api_service.dart';
 // import '../../config/api_config.dart';
 // import 'report_detail_view.dart';
-// import 'package:http/http.dart' as http;
-// import 'dart:async';
 
 // class ThreadDatabaseListPage extends StatefulWidget {
 //   final String searchQuery;
@@ -2772,6 +2758,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //   bool _hasMoreData = true;
 //   String? _errorMessage;
 
+//   // Current time variables
+//   String _currentTime = '';
+//   Timer? _timer;
+
 //   List<Map<String, dynamic>> _filteredReports = [];
 //   List<ReportModel> _typedReports = [];
 //   Set<int> syncingIndexes = {};
@@ -2786,61 +2776,54 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //   DateTime? _lastCleanupTime;
 //   bool _isCleanupRunning = false;
 
-//   // Network connectivity and auto-sync
-//   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
-//   bool _isOnline = true;
-//   bool _isAutoSyncing = false;
-//   bool _isCurrentlyOffline = false;
-
 //   @override
 //   void initState() {
 //     super.initState();
 //     WidgetsBinding.instance.addObserver(this);
 //     _scrollController.addListener(_onScroll);
-//     _setupNetworkListener();
 //     _initializeData();
+//     _debugTimestampIssues(); // Add debug call
+
+//     // Initialize current time
+//     _updateCurrentTime();
+//     _startTimer();
+//   }
+
+//   @override
+//   void dispose() {
+//     WidgetsBinding.instance.removeObserver(this);
+//     _scrollController.dispose();
+//     _timer?.cancel();
+//     super.dispose();
 //   }
 
 //   @override
 //   void didChangeDependencies() {
 //     super.didChangeDependencies();
-//     // Check connectivity again when page becomes active
-//     _checkConnectivityAndRefresh();
+//     // Refresh data when the page becomes visible
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       if (mounted) {
+//         _refreshDataIfNeeded();
+//       }
+//     });
 //   }
 
 //   @override
 //   void didChangeAppLifecycleState(AppLifecycleState state) {
 //     super.didChangeAppLifecycleState(state);
-
-//     // When app comes back to foreground, check connectivity and sync
 //     if (state == AppLifecycleState.resumed) {
-//       print('📱 App resumed - checking connectivity and syncing...');
-//       _checkConnectivityAndRefresh();
+//       // Refresh data when app is resumed
+//       _refreshDataIfNeeded();
 //     }
 //   }
 
-//   // Check connectivity and refresh data when page becomes active
-//   Future<void> _checkConnectivityAndRefresh() async {
+//   Future<void> _refreshDataIfNeeded() async {
+//     // Check if we need to refresh the data
+//     // This will help ensure new reports are shown
 //     try {
-//       final connectivity = await Connectivity().checkConnectivity();
-//       final wasOffline = _isCurrentlyOffline;
-//       final isNowOnline = connectivity != ConnectivityResult.none;
-
-//       _isOnline = isNowOnline;
-//       _isCurrentlyOffline = connectivity == ConnectivityResult.none;
-
-//       print('🔄 Page active - connectivity check:');
-//       print('  - Was offline: $wasOffline');
-//       print('  - Is now online: $isNowOnline');
-//       print('  - Current connectivity: ${connectivity.name}');
-
-//       // If we just came back online, force immediate sync
-//       if (wasOffline && isNowOnline) {
-//         print('🚀 Coming back online - forcing immediate sync');
-//         await _forceImmediateSync();
-//       }
+//       await _resetAndReload();
 //     } catch (e) {
-//       print('❌ Error checking connectivity: $e');
+//       print('❌ Error refreshing data: $e');
 //     }
 //   }
 
@@ -2854,27 +2837,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     // Test API connection
 //     await _testApiConnection();
 
-//     // Check current connectivity status
-//     final connectivity = await Connectivity().checkConnectivity();
-//     _isOnline = connectivity != ConnectivityResult.none;
-//     _isCurrentlyOffline = connectivity == ConnectivityResult.none;
-
-//     print('🌐 Initial connectivity: ${connectivity.name}');
-//     print('🌐 Is online: $_isOnline, Is offline: $_isCurrentlyOffline');
-
 //     // Then load reports
 //     await _loadFilteredReports();
-
-//     // Check if we're online and have pending reports to sync
-//     if (_isOnline) {
-//       // Force immediate sync if we have pending reports
-//       await _forceImmediateSync();
-//     }
 //   }
 
 //   Future<void> _testApiConnection() async {
 //     try {
-//       print('🧪 Testing API connection for reports...');
 //       print(
 //         '🧪 Using URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.reportSecurityIssueEndpoint}',
 //       );
@@ -2883,22 +2851,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //         ReportsFilter(page: 1, limit: 10),
 //       );
 
-//       print('✅ API test successful - found ${response.length} reports');
-
-//       if (response.isNotEmpty) {
-//         print('📋 First report: ${response.first}');
-//       }
-//     } catch (e) {
-//       print('❌ API test failed: $e');
-//     }
+//       if (response.isNotEmpty) {}
+//     } catch (e) {}
 //   }
 
 //   List<Map<String, dynamic>> _removeDuplicatesAndSort(
 //     List<Map<String, dynamic>> reports,
 //   ) {
-//     print('🔍 Starting duplicate removal and sorting...');
-//     print('🔍 Original reports count: ${reports.length}');
-
 //     // Create a map to track unique reports by ID
 //     final Map<String, Map<String, dynamic>> uniqueReports = {};
 
@@ -2910,7 +2869,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //         // If we haven't seen this ID before, or if this report is newer
 //         if (!uniqueReports.containsKey(reportId)) {
 //           uniqueReports[reportId] = report;
-//           print('✅ Added unique report: $reportId');
 //         } else {
 //           // Check if this report is newer than the existing one
 //           final existingReport = uniqueReports[reportId]!;
@@ -2919,17 +2877,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //           if (newDate.isAfter(existingDate)) {
 //             uniqueReports[reportId] = report;
-//             print('🔄 Updated report with newer version: $reportId');
-//           } else {
-//             print('⏭️ Skipped older duplicate: $reportId');
-//           }
+//           } else {}
 //         }
 //       } else {
 //         // For reports without ID, use description and creation date as key
 //         final key = '${report['description']}_${report['createdAt']}';
 //         if (!uniqueReports.containsKey(key)) {
 //           uniqueReports[key] = report;
-//           print('✅ Added report without ID: $key');
 //         }
 //       }
 //     }
@@ -2942,7 +2896,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       return dateB.compareTo(dateA); // Newest first
 //     });
 
-//     print('🔍 After duplicate removal: ${sortedReports.length} reports');
 //     print(
 //       '🔍 First report date: ${sortedReports.isNotEmpty ? _parseDateTime(sortedReports.first['createdAt']) : 'No reports'}',
 //     );
@@ -2953,6 +2906,71 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     return sortedReports;
 //   }
 
+//   // Add debug method to help identify timestamp issues
+//   void _debugTimestampIssues() {
+//     print('🔍 Current local time: ${DateTime.now()}');
+//     print('🔍 Current UTC time: ${DateTime.now().toUtc()}');
+//     print('🔍 Current ISO string: ${DateTime.now().toIso8601String()}');
+//     print(
+//       '🔍 Current UTC ISO string: ${DateTime.now().toUtc().toIso8601String()}',
+//     );
+
+//     // Check a few sample reports
+//     if (_filteredReports.isNotEmpty) {
+//       for (int i = 0; i < _filteredReports.length && i < 3; i++) {
+//         final report = _filteredReports[i];
+//         final createdAt = report['createdAt'];
+
+//         if (createdAt is String) {
+//           try {
+//             final parsed = DateTime.parse(createdAt);
+
+//             print('🔍   - Parsed UTC: ${parsed.toUtc()}');
+//           } catch (e) {}
+//         }
+//       }
+//     }
+//   }
+
+//   // Add method to clear database and recreate with proper timestamps
+//   Future<void> _clearAndRecreateDatabase() async {
+//     try {
+//       // Clear all Hive boxes
+//       final scamBox = Hive.box('scam_reports');
+//       final fraudBox = Hive.box('fraud_reports');
+//       final malwareBox = Hive.box('malware_reports');
+
+//       await scamBox.clear();
+//       await fraudBox.clear();
+//       await malwareBox.clear();
+
+//       // Reload data
+//       await _initializeData();
+
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(
+//             content: Text(
+//               'Database cleared and recreated with proper timestamps',
+//             ),
+//             backgroundColor: Colors.green,
+//             duration: Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     } catch (e) {
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error clearing database: $e'),
+//             backgroundColor: Colors.red,
+//             duration: Duration(seconds: 3),
+//           ),
+//         );
+//       }
+//     }
+//   }
+
 //   DateTime _parseDateTime(dynamic dateValue) {
 //     if (dateValue == null) return DateTime.now();
 
@@ -2961,7 +2979,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     }
 
 //     if (dateValue is String) {
-//       return DateTime.tryParse(dateValue) ?? DateTime.now();
+//       try {
+//         final parsed = DateTime.parse(dateValue);
+
+//         return parsed;
+//       } catch (e) {
+//         return DateTime.now();
+//       }
 //     }
 
 //     return DateTime.now();
@@ -3097,7 +3121,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                         fontSize: 10,
 //                         color: status == 'Synced' || status == 'Completed'
 //                             ? Colors.green
-//                             : Colors.grey[600],
+//                             : Colors.green[600],
 //                         fontWeight: FontWeight.bold,
 //                       ),
 //                     ),
@@ -3111,200 +3135,27 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     );
 //   }
 
-//   // Setup network connectivity listener for auto-sync
-//   void _setupNetworkListener() {
-//     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
-//       ConnectivityResult result,
-//     ) async {
-//       final wasOffline = !_isOnline;
-//       _isOnline = result != ConnectivityResult.none;
-//       _isCurrentlyOffline = result == ConnectivityResult.none;
-
-//       print('🌐 Network status changed: ${result.name}');
-//       print('🌐 Was offline: $wasOffline, Is online now: $_isOnline');
-
-//       // Update UI if mounted
-//       if (mounted) {
-//         setState(() {
-//           // Trigger UI refresh
-//         });
-//       }
-
-//       // IMMEDIATE SYNC when coming back online - NO DELAY
-//       if (wasOffline && _isOnline) {
-//         print(
-//           '🚀 IMMEDIATE SYNC: Back online - syncing all pending data IMMEDIATELY',
-//         );
-//         // Force immediate sync without any delay or checks
-//         _forceImmediateSync(); // Don't await - run in background
-//       }
-//     });
-//   }
-
-//   // Force immediate sync of all pending data (bypasses auto-sync flag)
-//   Future<void> _forceImmediateSync() async {
-//     print('🚀 FORCE IMMEDIATE SYNC: Starting aggressive sync...');
-
-//     try {
-//       // Check if we have any pending reports
-//       final syncStatus = await _getSyncStatus();
-//       final totalPending =
-//           syncStatus['scam']! + syncStatus['fraud']! + syncStatus['malware']!;
-
-//       if (totalPending > 0) {
-//         print(
-//           '📊 Found $totalPending pending reports, forcing immediate sync...',
-//         );
-
-//         // Show immediate user feedback
-//         if (mounted) {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             SnackBar(
-//               content: Text('🚀 Syncing $totalPending reports immediately...'),
-//               backgroundColor: Colors.blue,
-//               duration: Duration(seconds: 1),
-//             ),
-//           );
-//         }
-
-//         // Force sync all pending reports (bypass auto-sync flag)
-//         print('🔄 Force syncing scam reports...');
-//         try {
-//           await ScamReportService.syncOfflineReports();
-//         } catch (e) {
-//           print('❌ Main scam sync failed, trying fallback: $e');
-//           await ScamReportService.simpleSyncOfflineReports();
-//         }
-
-//         print('🔄 Force syncing fraud reports...');
-//         try {
-//           await FraudReportService.syncOfflineReports();
-//         } catch (e) {
-//           print('❌ Main fraud sync failed, trying fallback: $e');
-//           // Add fallback for fraud if available
-//         }
-
-//         print('🔄 Force syncing malware reports...');
-//         try {
-//           await MalwareReportService.syncOfflineReports();
-//         } catch (e) {
-//           print('❌ Main malware sync failed, trying fallback: $e');
-//           // Add fallback for malware if available
-//         }
-
-//         // Force refresh the data immediately
-//         print('🔄 Force refreshing data...');
-//         await refreshData();
-
-//         print('✅ FORCE IMMEDIATE SYNC completed successfully');
-
-//         if (mounted) {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             SnackBar(
-//               content: Text('✅ $totalPending reports synced immediately!'),
-//               backgroundColor: Colors.green,
-//               duration: Duration(seconds: 2),
-//             ),
-//           );
-//         }
-//       } else {
-//         print('✅ No pending reports to force sync');
-//       }
-//     } catch (e) {
-//       print('❌ FORCE IMMEDIATE SYNC failed: $e');
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('❌ Immediate sync failed: $e'),
-//             backgroundColor: Colors.red,
-//             duration: Duration(seconds: 3),
-//           ),
-//         );
-//       }
-//     }
-//   }
-
-//   // Auto-sync pending reports when coming back online
-//   Future<void> _autoSyncPendingReports() async {
-//     if (_isAutoSyncing) {
-//       print('⚠️ Auto-sync already in progress, skipping...');
-//       return;
-//     }
-
-//     _isAutoSyncing = true;
-
-//     try {
-//       print('🔄 Starting auto-sync of pending reports...');
-
-//       // Check if we have any pending reports
-//       final syncStatus = await _getSyncStatus();
-//       final totalPending =
-//           syncStatus['scam']! + syncStatus['fraud']! + syncStatus['malware']!;
-
-//       if (totalPending > 0) {
-//         print('📊 Found $totalPending pending reports, starting sync...');
-
-//         // Show user feedback
-//         if (mounted) {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             SnackBar(
-//               content: Text('Syncing $totalPending offline reports...'),
-//               duration: Duration(seconds: 2),
-//             ),
-//           );
-//         }
-
-//         // Sync all pending reports
-//         await ScamReportService.syncOfflineReports();
-//         await FraudReportService.syncOfflineReports();
-//         await MalwareReportService.syncOfflineReports();
-
-//         // Refresh the data
-//         await refreshData();
-
-//         print('✅ Auto-sync completed successfully');
-
-//         if (mounted) {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             SnackBar(
-//               content: Text('✅ $totalPending reports synced successfully!'),
-//               backgroundColor: Colors.green,
-//               duration: Duration(seconds: 3),
-//             ),
-//           );
-//         }
-//       } else {
-//         print('✅ No pending reports to sync');
-//       }
-//     } catch (e) {
-//       print('❌ Auto-sync failed: $e');
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('❌ Auto-sync failed: $e'),
-//             backgroundColor: Colors.red,
-//             duration: Duration(seconds: 3),
-//           ),
-//         );
-//       }
-//     } finally {
-//       _isAutoSyncing = false;
-//     }
-//   }
-
-//   @override
-//   void dispose() {
-//     WidgetsBinding.instance.removeObserver(this);
-//     _connectivitySubscription?.cancel();
-//     _scrollController.dispose();
-//     super.dispose();
-//   }
-
 //   void _onScroll() {
 //     if (_scrollController.position.pixels >=
 //         _scrollController.position.maxScrollExtent - 200) {
 //       _loadMoreData();
 //     }
+//   }
+
+//   // Update current time
+//   void _updateCurrentTime() {
+//     final now = DateTime.now();
+//     setState(() {
+//       _currentTime =
+//           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+//     });
+//   }
+
+//   // Start timer to update current time every minute
+//   void _startTimer() {
+//     _timer = Timer.periodic(Duration(minutes: 1), (timer) {
+//       _updateCurrentTime();
+//     });
 //   }
 
 //   Future<void> _loadMoreData() async {
@@ -3332,52 +3183,106 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           widget.hasSelectedSeverity;
 
 //       if (hasFilters) {
-//         print('🔍 ThreadDB Debug - hasFilters: $hasFilters');
 //         print(
-//           '🔍 ThreadDB Debug - widget.hasSelectedSeverity: ${widget.hasSelectedSeverity}',
-//         );
-//         print(
-//           '🔍 ThreadDB Debug - widget.selectedSeverities: ${widget.selectedSeverities}',
-//         );
-//         print(
-//           '🔍 ThreadDB Debug - widget.selectedSeverities isEmpty: ${widget.selectedSeverities.isEmpty}',
+//           '🔍 ThreadDB Debug - selectedCategories: ${widget.selectedCategories}',
 //         );
 
-//         // Convert alert level IDs to names for API
-//         final severityLevelsForAPI =
-//             widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty
-//             ? widget.selectedSeverities.map((severityId) {
-//                 // Find the alert level name from the severityLevels list
-//                 final alertLevel = widget.severityLevels.firstWhere(
-//                   (level) => (level['_id'] ?? level['id']) == severityId,
-//                   orElse: () => {'name': severityId.toLowerCase()},
-//                 );
-//                 return (alertLevel['name'] ?? severityId)
-//                     .toString()
-//                     .toLowerCase();
-//               }).toList()
-//             : null;
+//         print(
+//           '🔍 ThreadDB Debug - selectedSeverities: ${widget.selectedSeverities}',
+//         );
+//         print(
+//           '🔍 ThreadDB Debug - hasSelectedCategory: ${widget.hasSelectedCategory}',
+//         );
 
 //         print(
-//           '🔍 ThreadDB Debug - severityLevelsForAPI: $severityLevelsForAPI',
+//           '🔍 ThreadDB Debug - hasSelectedSeverity: ${widget.hasSelectedSeverity}',
 //         );
 
-//         newReports = await _apiService.getReportsWithComplexFilter(
-//           searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-//           categoryIds:
-//               widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty
-//               ? widget.selectedCategories
-//               : null,
-//           typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-//               ? widget.selectedTypes
-//               : null,
-//           severityLevels: severityLevelsForAPI,
-//           page: _currentPage,
-//           limit: _pageSize,
-//         );
+//         // Construct query parameters to match the working backend URL structure
+//         final queryParams = <String, dynamic>{
+//           'page': _currentPage.toString(),
+//           'limit': _pageSize.toString(),
+//         };
+
+//         // Add search query if present
+//         if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
+//           queryParams['search'] = widget.searchQuery;
+//         }
+
+//         // Add category ID if selected (use first selected category)
+//         if (widget.hasSelectedCategory &&
+//             widget.selectedCategories.isNotEmpty) {
+//           queryParams['reportCategoryId'] = widget.selectedCategories.first;
+//         }
+
+//         // Add type ID if selected (use first selected type)
+//         if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
+//           queryParams['reportTypeId'] = widget.selectedTypes.first;
+//         }
+
+//         // Add severity level if selected (use first selected severity)
+//         if (widget.hasSelectedSeverity &&
+//             widget.selectedSeverities.isNotEmpty) {
+//           queryParams['alertLevels'] = widget.selectedSeverities.first;
+//         }
+
+//         // Add empty parameters to match the URL structure
+//         queryParams['deviceTypeId'] = '';
+//         queryParams['detectTypeId'] = '';
+//         queryParams['operatingSystemName'] = '';
+//         queryParams['userId'] = '';
+
+//         // Make direct API call with constructed parameters using ReportsFilter
+//         try {
+//           final filter = ReportsFilter(
+//             page: _currentPage,
+//             limit: _pageSize,
+//             search: widget.hasSearchQuery ? widget.searchQuery : null,
+//             reportCategoryId:
+//                 widget.hasSelectedCategory &&
+//                     widget.selectedCategories.isNotEmpty
+//                 ? widget.selectedCategories.first
+//                 : null,
+//             reportTypeId:
+//                 widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+//                 ? widget.selectedTypes.first
+//                 : null,
+//           );
+
+//           newReports = await _apiService.fetchReportsWithFilter(filter);
+//         } catch (apiError) {
+//           // Fallback to complex filter method
+//           newReports = await _apiService.getReportsWithComplexFilter(
+//             searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+//             categoryIds:
+//                 widget.hasSelectedCategory &&
+//                     widget.selectedCategories.isNotEmpty
+//                 ? [widget.selectedCategories.first]
+//                 : null,
+//             typeIds: widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+//                 ? [widget.selectedTypes.first]
+//                 : null,
+//             severityLevels:
+//                 widget.hasSelectedSeverity &&
+//                     widget.selectedSeverities.isNotEmpty
+//                 ? [widget.selectedSeverities.first]
+//                 : null,
+//             page: _currentPage,
+//             limit: _pageSize,
+//           );
+//           print(
+//             '🔍 Fallback complex filter returned ${newReports.length} reports',
+//           );
+//           print(
+//             '🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}',
+//           );
+//         }
 //       } else {
 //         final filter = ReportsFilter(page: _currentPage, limit: _pageSize);
 //         newReports = await _apiService.fetchReportsWithFilter(filter);
+//         print(
+//           'ThreadDB Debug - Simple filter returned ${newReports.length} reports',
+//         );
 //       }
 
 //       if (newReports.isNotEmpty) {
@@ -3429,9 +3334,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       final normalizedJson = _normalizeReportData(json);
 //       return ReportModel.fromJson(normalizedJson);
 //     } catch (e) {
-//       print('❌ Error converting report model: $e');
-//       print('❌ Problematic JSON: $json');
-
 //       // Create a safe fallback with proper type handling
 //       String safeCreatedAt;
 //       try {
@@ -3443,7 +3345,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           safeCreatedAt = DateTime.now().toIso8601String();
 //         }
 //       } catch (dateError) {
-//         print('❌ Error handling createdAt: $dateError');
 //         safeCreatedAt = DateTime.now().toIso8601String();
 //       }
 
@@ -3518,12 +3419,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           'Unknown Report';
 
 //       // Handle alertLevels - could be String, Map, or null
-//       print(
-//         '🔍 ThreadDB - Normalizing alertLevels: ${normalized['alertLevels']}',
-//       );
+
 //       if (normalized['alertLevels'] is Map) {
 //         final alertMap = normalized['alertLevels'] as Map;
-//         print('🔍 ThreadDB - alertLevels is Map: $alertMap');
+
 //         normalized['alertLevels'] =
 //             alertMap['name']?.toString() ??
 //             alertMap['_id']?.toString() ??
@@ -3539,8 +3438,24 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           '🔍 ThreadDB - alertLevels was already string: ${normalized['alertLevels']}',
 //         );
 //       } else {
-//         // Handle null or other types
-//         normalized['alertLevels'] = 'medium';
+//         // Handle null or other types - try to get from alertSeverityLevel field
+//         if (normalized['alertSeverityLevel'] != null) {
+//           if (normalized['alertSeverityLevel'] is Map) {
+//             final alertMap = normalized['alertSeverityLevel'] as Map;
+//             normalized['alertLevels'] =
+//                 alertMap['name']?.toString() ??
+//                 alertMap['_id']?.toString() ??
+//                 alertMap['id']?.toString() ??
+//                 'medium';
+//           } else if (normalized['alertSeverityLevel'] is String) {
+//             normalized['alertLevels'] = normalized['alertSeverityLevel']
+//                 .toString();
+//           } else {
+//             normalized['alertLevels'] = 'medium';
+//           }
+//         } else {
+//           normalized['alertLevels'] = 'medium';
+//         }
 //         print(
 //           '🔍 ThreadDB - alertLevels was null/other, set to: ${normalized['alertLevels']}',
 //         );
@@ -3548,14 +3463,44 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //       // Handle createdAt - could be String, DateTime, or null
 //       if (normalized['createdAt'] is String) {
-//         normalized['createdAt'] = normalized['createdAt'];
+//         // Keep as string but ensure it's valid
+//         try {
+//           final parsed = DateTime.parse(normalized['createdAt']);
+//           normalized['createdAt'] = parsed.toUtc().toIso8601String();
+//           print(
+//             '🔍 Normalized createdAt string to UTC: ${normalized['createdAt']}',
+//           );
+//         } catch (e) {
+//           print(
+//             '❌ Invalid createdAt string: ${normalized['createdAt']}, using current time',
+//           );
+//           normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+//         }
 //       } else if (normalized['createdAt'] is DateTime) {
 //         normalized['createdAt'] = (normalized['createdAt'] as DateTime)
+//             .toUtc()
 //             .toIso8601String();
+//         print(
+//           '🔍 Normalized createdAt DateTime to UTC: ${normalized['createdAt']}',
+//         );
 //       } else if (normalized['createdAt'] != null) {
-//         normalized['createdAt'] = normalized['createdAt'].toString();
+//         try {
+//           final parsed = DateTime.parse(normalized['createdAt'].toString());
+//           normalized['createdAt'] = parsed.toUtc().toIso8601String();
+//           print(
+//             '🔍 Normalized createdAt other to UTC: ${normalized['createdAt']}',
+//           );
+//         } catch (e) {
+//           print(
+//             '❌ Could not parse createdAt: ${normalized['createdAt']}, using current time',
+//           );
+//           normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+//         }
 //       } else {
-//         normalized['createdAt'] = DateTime.now().toIso8601String();
+//         normalized['createdAt'] = DateTime.now().toUtc().toIso8601String();
+//         print(
+//           '🔍 Set createdAt to current UTC time: ${normalized['createdAt']}',
+//         );
 //       }
 
 //       // Handle phoneNumbers - could be String, List, or null
@@ -3665,9 +3610,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //       return normalized;
 //     } catch (e) {
-//       print('❌ Error normalizing report data: $e');
-//       print('❌ Original data: $json');
-
 //       // Return a safe fallback
 //       return {
 //         'id': json['_id']?.toString() ?? 'unknown',
@@ -3690,13 +3632,22 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       _hasMoreData = true;
 //       _filteredReports.clear();
 //       _typedReports.clear();
+//       _isLoading = true;
 //     });
+
+//     print('🔄 Resetting and reloading thread database data...');
 //     await _loadFilteredReports();
+
+//     if (mounted) {
+//       setState(() {
+//         _isLoading = false;
+//       });
+//     }
 //   }
 
 //   // Method to refresh data when returning from report creation
 //   Future<void> refreshData() async {
-//     print('🔄 Refreshing thread database data...');
+//     print('🔄 Manual refresh triggered...');
 //     await _resetAndReload();
 //   }
 
@@ -3704,7 +3655,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     try {
 //       // Prevent multiple simultaneous cleanup operations
 //       if (_isCleanupRunning) {
-//         print('⚠️ Cleanup already running, skipping...');
 //         if (mounted) {
 //           ScaffoldMessenger.of(context).showSnackBar(
 //             SnackBar(
@@ -3720,7 +3670,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       final now = DateTime.now();
 //       if (_lastCleanupTime != null &&
 //           now.difference(_lastCleanupTime!).inSeconds < 30) {
-//         print('⚠️ Cleanup called too frequently, skipping...');
 //         if (mounted) {
 //           ScaffoldMessenger.of(context).showSnackBar(
 //             SnackBar(
@@ -3734,16 +3683,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       _lastCleanupTime = now;
 //       _isCleanupRunning = true;
 
-//       print('🧹 TARGETED DUPLICATE CLEANUP...');
-
 //       // Clean local duplicates for scam and fraud reports
 //       await ScamReportService.removeDuplicateScamReports();
 //       await FraudReportService.removeDuplicateFraudReports();
 
 //       // Refresh data
 //       await _loadFilteredReports();
-
-//       print('✅ TARGETED DUPLICATE CLEANUP COMPLETED');
 
 //       if (mounted) {
 //         ScaffoldMessenger.of(context).showSnackBar(
@@ -3756,7 +3701,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //         );
 //       }
 //     } catch (e) {
-//       print('❌ Error during targeted cleanup: $e');
 //       if (mounted) {
 //         ScaffoldMessenger.of(context).showSnackBar(
 //           SnackBar(
@@ -3773,16 +3717,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //   // Auto-cleanup duplicates when loading data
 //   Future<void> _autoCleanupDuplicates() async {
 //     try {
-//       print('🧹 Auto-cleanup duplicates...');
-
 //       // Clean local duplicates for scam and fraud reports
 //       await ScamReportService.removeDuplicateScamReports();
 //       await FraudReportService.removeDuplicateFraudReports();
-
-//       print('✅ Auto-cleanup completed');
-//     } catch (e) {
-//       print('❌ Error during auto-cleanup: $e');
-//     }
+//     } catch (e) {}
 //   }
 
 //   Future<void> _loadFilteredReports() async {
@@ -3798,22 +3736,54 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //       List<Map<String, dynamic>> reports = [];
 
-//       // Check current connectivity status (ignore widget.isOffline parameter)
-//       final connectivity = await Connectivity().checkConnectivity();
-//       final isCurrentlyOnline = connectivity != ConnectivityResult.none;
+//       // Check if we're in offline mode or have local reports
+//       if (widget.isOffline || widget.localReports.isNotEmpty) {
+//         reports = widget.localReports.isNotEmpty
+//             ? widget.localReports
+//             : await _getLocalReports();
 
-//       print('🌐 Current connectivity: ${connectivity.name}');
-//       print('🌐 Is currently online: $isCurrentlyOnline');
-//       print('🌐 Widget offline flag: ${widget.isOffline} (ignored)');
+//         // Ensure local reports have proper category and type mappings for filtering
+//         reports = reports.map((report) {
+//           final enhancedReport = Map<String, dynamic>.from(report);
 
-//       // Always try to load both server and local data when online
-//       if (isCurrentlyOnline) {
-//         print('🌐 Online mode - loading server and local data...');
+//           // Ensure proper category and type information for filtering
+//           if (enhancedReport['type'] == 'scam') {
+//             enhancedReport['reportCategoryId'] =
+//                 enhancedReport['reportCategoryId'] ?? 'scam_category';
+//             enhancedReport['reportTypeId'] =
+//                 enhancedReport['reportTypeId'] ?? 'scam_type';
+//             enhancedReport['categoryName'] =
+//                 enhancedReport['categoryName'] ?? 'Report Scam';
+//             enhancedReport['typeName'] =
+//                 enhancedReport['typeName'] ?? 'Scam Report';
+//           } else if (enhancedReport['type'] == 'fraud') {
+//             enhancedReport['reportCategoryId'] =
+//                 enhancedReport['reportCategoryId'] ?? 'fraud_category';
+//             enhancedReport['reportTypeId'] =
+//                 enhancedReport['reportTypeId'] ?? 'fraud_type';
+//             enhancedReport['categoryName'] =
+//                 enhancedReport['categoryName'] ?? 'Report Fraud';
+//             enhancedReport['typeName'] =
+//                 enhancedReport['typeName'] ?? 'Fraud Report';
+//           } else if (enhancedReport['type'] == 'malware') {
+//             enhancedReport['reportCategoryId'] =
+//                 enhancedReport['reportCategoryId'] ?? 'malware_category';
+//             enhancedReport['reportTypeId'] =
+//                 enhancedReport['reportTypeId'] ?? 'malware_type';
+//             enhancedReport['categoryName'] =
+//                 enhancedReport['categoryName'] ?? 'Report Malware';
+//             enhancedReport['typeName'] =
+//                 enhancedReport['typeName'] ?? 'Malware Report';
+//           }
 
-//         List<Map<String, dynamic>> serverReports = [];
-//         List<Map<String, dynamic>> localReports = [];
+//           return enhancedReport;
+//         }).toList();
 
-//         // Load server data
+//         print(
+//           '📱 Enhanced ${reports.length} local reports with proper category/type mappings',
+//         );
+//       } else {
+//         // Online mode - try API first
 //         bool hasFilters =
 //             widget.hasSearchQuery ||
 //             widget.hasSelectedCategory ||
@@ -3822,12 +3792,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //         try {
 //           if (hasFilters) {
-//             print('🔍 ThreadDB Debug - hasFilters: $hasFilters');
-//             print('🔍 ThreadDB Debug - searchQuery: ${widget.searchQuery}');
 //             print(
 //               '🔍 ThreadDB Debug - selectedCategories: ${widget.selectedCategories}',
 //             );
-//             print('🔍 ThreadDB Debug - selectedTypes: ${widget.selectedTypes}');
+
 //             print(
 //               '🔍 ThreadDB Debug - selectedSeverities: ${widget.selectedSeverities}',
 //             );
@@ -3841,80 +3809,129 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //               '🔍 ThreadDB Debug - hasSelectedSeverity: ${widget.hasSelectedSeverity}',
 //             );
 
-//             final categoryIdsForAPI =
-//                 widget.hasSelectedCategory &&
-//                     widget.selectedCategories.isNotEmpty
-//                 ? widget.selectedCategories
-//                 : null;
-//             final typeIdsForAPI =
-//                 widget.hasSelectedType && widget.selectedTypes.isNotEmpty
-//                 ? widget.selectedTypes
-//                 : null;
-//             final severityLevelsForAPI =
-//                 widget.hasSelectedSeverity &&
-//                     widget.selectedSeverities.isNotEmpty
-//                 ? widget.selectedSeverities.map((severityId) {
-//                     // Find the alert level name from the severityLevels list
-//                     final alertLevel = widget.severityLevels.firstWhere(
-//                       (level) => (level['_id'] ?? level['id']) == severityId,
-//                       orElse: () => {'name': severityId.toLowerCase()},
-//                     );
-//                     return (alertLevel['name'] ?? severityId)
-//                         .toString()
-//                         .toLowerCase();
-//                   }).toList()
-//                 : null;
+//             // Construct query parameters to match the working backend URL structure
+//             final queryParams = <String, dynamic>{
+//               'page': _currentPage.toString(),
+//               'limit': _pageSize.toString(),
+//             };
 
-//             print('🔍 ThreadDB Debug - categoryIdsForAPI: $categoryIdsForAPI');
-//             print('🔍 ThreadDB Debug - typeIdsForAPI: $typeIdsForAPI');
-//             print(
-//               '🔍 ThreadDB Debug - severityLevelsForAPI: $severityLevelsForAPI',
-//             );
+//             // Add search query if present
+//             if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
+//               queryParams['search'] = widget.searchQuery;
+//             }
 
-//             serverReports = await _apiService.getReportsWithComplexFilter(
-//               searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
-//               categoryIds: categoryIdsForAPI,
-//               typeIds: typeIdsForAPI,
-//               severityLevels: severityLevelsForAPI,
-//               page: _currentPage,
-//               limit: _pageSize,
-//             );
-//             print(
-//               '🔍 ThreadDB Debug - API returned ${serverReports.length} reports',
-//             );
+//             // Add category ID if selected (use first selected category)
+//             if (widget.hasSelectedCategory &&
+//                 widget.selectedCategories.isNotEmpty) {
+//               queryParams['reportCategoryId'] = widget.selectedCategories.first;
+//             }
+
+//             // Add type ID if selected (use first selected type)
+//             if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
+//               queryParams['reportTypeId'] = widget.selectedTypes.first;
+//             }
+
+//             // Add severity level if selected (use first selected severity)
+//             if (widget.hasSelectedSeverity &&
+//                 widget.selectedSeverities.isNotEmpty) {
+//               queryParams['alertLevels'] = widget.selectedSeverities.first;
+//             }
+
+//             // Add empty parameters to match the URL structure
+//             queryParams['deviceTypeId'] = '';
+//             queryParams['detectTypeId'] = '';
+//             queryParams['operatingSystemName'] = '';
+//             queryParams['userId'] = '';
+
+//             // Make direct API call with constructed parameters using ReportsFilter
+//             try {
+//               final filter = ReportsFilter(
+//                 page: _currentPage,
+//                 limit: _pageSize,
+//                 search: widget.hasSearchQuery ? widget.searchQuery : null,
+//                 reportCategoryId:
+//                     widget.hasSelectedCategory &&
+//                         widget.selectedCategories.isNotEmpty
+//                     ? widget.selectedCategories.first
+//                     : null,
+//                 reportTypeId:
+//                     widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+//                     ? widget.selectedTypes.first
+//                     : null,
+//               );
+
+//               reports = await _apiService.fetchReportsWithFilter(filter);
+//               print(
+//                 '🔍 Direct filter API call returned ${reports.length} reports',
+//               );
+//             } catch (apiError) {
+//               // Fallback to complex filter method
+//               reports = await _apiService.getReportsWithComplexFilter(
+//                 searchQuery: widget.hasSearchQuery ? widget.searchQuery : null,
+//                 categoryIds:
+//                     widget.hasSelectedCategory &&
+//                         widget.selectedCategories.isNotEmpty
+//                     ? [widget.selectedCategories.first]
+//                     : null,
+//                 typeIds:
+//                     widget.hasSelectedType && widget.selectedTypes.isNotEmpty
+//                     ? [widget.selectedTypes.first]
+//                     : null,
+//                 severityLevels:
+//                     widget.hasSelectedSeverity &&
+//                         widget.selectedSeverities.isNotEmpty
+//                     ? [widget.selectedSeverities.first]
+//                     : null,
+//                 page: _currentPage,
+//                 limit: _pageSize,
+//               );
+//               print(
+//                 '🔍 Fallback complex filter returned ${reports.length} reports',
+//               );
+//               print(
+//                 '🔍 Severity levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? [widget.selectedSeverities.first] : null}',
+//               );
+//             }
 //           } else {
 //             final filter = ReportsFilter(page: _currentPage, limit: _pageSize);
-//             serverReports = await _apiService.fetchReportsWithFilter(filter);
+//             reports = await _apiService.fetchReportsWithFilter(filter);
 //             print(
-//               '🔍 ThreadDB Debug - Simple filter returned ${serverReports.length} reports',
+//               '🔍 ThreadDB Debug - Simple filter returned ${reports.length} reports',
 //             );
 //           }
 //         } catch (e) {
-//           print('❌ API failed: $e');
-//           serverReports = [];
+//           // Fallback to local data
+//           reports = await _getLocalReports();
 //         }
 
-//         // Load local data
-//         try {
-//           localReports = await _getLocalReports();
-//           print('📱 Loaded ${localReports.length} local reports');
-//         } catch (e) {
-//           print('❌ Failed to load local data: $e');
-//           localReports = [];
+//         // If API returned empty results but we have local data, use local data
+//         if (reports.isEmpty) {
+//           final localReports = await _getLocalReports();
+//           if (localReports.isNotEmpty) {
+//             print(
+//               '✅ Found ${localReports.length} local reports, using them instead',
+//             );
+//             reports = localReports;
+//           }
 //         }
+//       }
 
-//         // Combine server and local data, prioritizing server data for duplicates
-//         reports = _combineServerAndLocalData(serverReports, localReports);
-//         print(
-//           '📊 Combined data: ${reports.length} total reports (${serverReports.length} server + ${localReports.length} local)',
-//         );
+//       // Debug: Print the first few reports to see their structure
+//       if (reports.isNotEmpty) {
+//         print('🔍 DEBUG: First report structure:');
+//         final firstReport = reports.first;
+//         print('🔍 - ID: ${firstReport['_id'] ?? firstReport['id']}');
+//         print('🔍 - Description: ${firstReport['description']}');
+//         print('🔍 - AlertLevels: ${firstReport['alertLevels']}');
+//         print('🔍 - AlertSeverityLevel: ${firstReport['alertSeverityLevel']}');
+//         print('🔍 - ReportCategoryId: ${firstReport['reportCategoryId']}');
+//         print('🔍 - ReportTypeId: ${firstReport['reportTypeId']}');
+//         print('🔍 - CreatedAt: ${firstReport['createdAt']}');
+//         print('🔍 - Type: ${firstReport['type']}');
+//         print('🔍 - CategoryName: ${firstReport['categoryName']}');
+//         print('🔍 - TypeName: ${firstReport['typeName']}');
 //       } else {
-//         // Offline mode - only load local data
-//         print('📱 Offline mode - loading local data only');
-//         reports = widget.localReports.isNotEmpty
-//             ? widget.localReports
-//             : await _getLocalReports();
-//         print('📱 Loaded ${reports.length} local reports');
+//         print('❌ DEBUG: No reports returned from API/local storage');
 //       }
 
 //       // Apply filters to the reports only if filters are actually set
@@ -3926,15 +3943,17 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //       if (hasActiveFilters) {
 //         _filteredReports = _applyFilters(reports);
-//         print(
-//           '🔍 DEBUG: After applying filters: ${_filteredReports.length} reports',
-//         );
 //       } else {
 //         // No filters applied, show all reports
 //         _filteredReports = reports;
 //         print(
-//           '🔍 DEBUG: No filters applied, showing all ${_filteredReports.length} reports',
+//           '🔍 No filters applied, showing all ${_filteredReports.length} reports',
 //         );
+//       }
+
+//       // Debug filter issues if needed
+//       if (hasActiveFilters && _filteredReports.isEmpty) {
+//         _debugFilterIssues();
 //       }
 
 //       // Remove duplicates and sort by creation date (newest first)
@@ -3949,8 +3968,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           final report = _safeConvertToReportModel(_filteredReports[i]);
 //           _typedReports.add(report);
 //         } catch (e) {
-//           print('❌ Error converting report $i: $e');
-//           print('❌ Report data: ${_filteredReports[i]}');
+//           print('❌ Error converting report $i to ReportModel: $e');
 //         }
 //       }
 //       print(
@@ -3964,6 +3982,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       if (mounted) {
 //         setState(() => _isLoading = false);
 //       }
+
+//       // Final debug check
+//       print('🔍 DEBUG: Final state check:');
+//       print('🔍 - _filteredReports.length: ${_filteredReports.length}');
+//       print('🔍 - _typedReports.length: ${_typedReports.length}');
+//       print('🔍 - _isLoading: $_isLoading');
+//       print('🔍 - _errorMessage: $_errorMessage');
+//       print('🔍 - _hasMoreData: $_hasMoreData');
 //     } catch (e) {
 //       print('❌ Error in _loadFilteredReports: $e');
 //       if (mounted) {
@@ -3991,95 +4017,208 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //             phone.contains(searchTerm) ||
 //             website.contains(searchTerm);
 //       }).toList();
-//       print('🔍 After search filter: ${filtered.length} reports');
 //     }
 
 //     if (widget.hasSelectedCategory && widget.selectedCategories.isNotEmpty) {
 //       filtered = filtered.where((report) {
+//         // Try multiple ways to get category information
 //         final cat = report['reportCategoryId'];
+//         final categoryName = report['categoryName']?.toString().toLowerCase();
+//         final type = report['type']?.toString().toLowerCase();
+
 //         String? catId = cat is Map
 //             ? cat['_id']?.toString() ?? cat['id']?.toString()
 //             : cat?.toString();
 
-//         // For local reports, also check categoryName
-//         final categoryName = report['categoryName']?.toString().toLowerCase();
+//         bool matches = false;
 
-//         bool matches =
-//             catId != null && widget.selectedCategories.contains(catId);
+//         // First try exact ID match
+//         if (catId != null && widget.selectedCategories.contains(catId)) {
+//           matches = true;
+//         }
 
 //         // If no match by ID, try matching by name
 //         if (!matches && categoryName != null) {
-//           matches = widget.selectedCategories.any((selectedCat) {
-//             // Try to find category name from the selected category ID
+//           for (String selectedCat in widget.selectedCategories) {
 //             final selectedCategoryName = _categoryIdToName[selectedCat]
 //                 ?.toLowerCase();
-//             return selectedCategoryName != null &&
-//                 categoryName.contains(selectedCategoryName);
-//           });
+//             if (selectedCategoryName != null &&
+//                 categoryName.contains(selectedCategoryName)) {
+//               matches = true;
+
+//               break;
+//             }
+//           }
+//         }
+
+//         // If still no match, try matching by report type (for offline data)
+//         if (!matches && type != null) {
+//           for (String selectedCat in widget.selectedCategories) {
+//             final selectedCategoryName = _categoryIdToName[selectedCat]
+//                 ?.toLowerCase();
+//             if (selectedCategoryName != null) {
+//               if (type == 'scam' && selectedCategoryName.contains('scam')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (scam): $type');
+//                 break;
+//               } else if (type == 'fraud' &&
+//                   selectedCategoryName.contains('fraud')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (fraud): $type');
+//                 break;
+//               } else if (type == 'malware' &&
+//                   selectedCategoryName.contains('malware')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (malware): $type');
+//                 break;
+//               }
+//             }
+//           }
+//         }
+
+//         // For offline data, also try direct category ID matching
+//         if (!matches && catId != null) {
+//           if (catId == 'scam_category' &&
+//               widget.selectedCategories.any((c) => c.contains('scam'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct category ID (scam): $catId');
+//           } else if (catId == 'fraud_category' &&
+//               widget.selectedCategories.any((c) => c.contains('fraud'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct category ID (fraud): $catId');
+//           } else if (catId == 'malware_category' &&
+//               widget.selectedCategories.any((c) => c.contains('malware'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct category ID (malware): $catId');
+//           }
 //         }
 
 //         return matches;
 //       }).toList();
-//       print('🔍 After category filter: ${filtered.length} reports');
 //     }
 
 //     if (widget.hasSelectedType && widget.selectedTypes.isNotEmpty) {
 //       filtered = filtered.where((report) {
+//         // Try multiple ways to get type information
 //         final type = report['reportTypeId'];
+//         final typeName = report['typeName']?.toString().toLowerCase();
+//         final reportType = report['type']?.toString().toLowerCase();
+
 //         String? typeId = type is Map
 //             ? type['_id']?.toString() ?? type['id']?.toString()
 //             : type?.toString();
 
-//         // For local reports, also check typeName
-//         final typeName = report['typeName']?.toString().toLowerCase();
+//         bool matches = false;
 
-//         bool matches = typeId != null && widget.selectedTypes.contains(typeId);
+//         // First try exact ID match
+//         if (typeId != null && widget.selectedTypes.contains(typeId)) {
+//           matches = true;
+//         }
 
 //         // If no match by ID, try matching by name
 //         if (!matches && typeName != null) {
-//           matches = widget.selectedTypes.any((selectedType) {
-//             // Try to find type name from the selected type ID
+//           for (String selectedType in widget.selectedTypes) {
 //             final selectedTypeName = _typeIdToName[selectedType]?.toLowerCase();
-//             return selectedTypeName != null &&
-//                 typeName.contains(selectedTypeName);
-//           });
+//             if (selectedTypeName != null &&
+//                 typeName.contains(selectedTypeName)) {
+//               matches = true;
+
+//               break;
+//             }
+//           }
+//         }
+
+//         // If still no match, try matching by report type (for offline data)
+//         if (!matches && reportType != null) {
+//           for (String selectedType in widget.selectedTypes) {
+//             final selectedTypeName = _typeIdToName[selectedType]?.toLowerCase();
+//             if (selectedTypeName != null) {
+//               if (reportType == 'scam' && selectedTypeName.contains('scam')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (scam): $reportType');
+//                 break;
+//               } else if (reportType == 'fraud' &&
+//                   selectedTypeName.contains('fraud')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (fraud): $reportType');
+//                 break;
+//               } else if (reportType == 'malware' &&
+//                   selectedTypeName.contains('malware')) {
+//                 matches = true;
+//                 print('🔍   ✅ Matched by type (malware): $reportType');
+//                 break;
+//               }
+//             }
+//           }
+//         }
+
+//         // For offline data, also try direct type ID matching
+//         if (!matches && typeId != null) {
+//           if (typeId == 'scam_type' &&
+//               widget.selectedTypes.any((t) => t.contains('scam'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct type ID (scam): $typeId');
+//           } else if (typeId == 'fraud_type' &&
+//               widget.selectedTypes.any((t) => t.contains('fraud'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct type ID (fraud): $typeId');
+//           } else if (typeId == 'malware_type' &&
+//               widget.selectedTypes.any((t) => t.contains('malware'))) {
+//             matches = true;
+//             print('🔍   ✅ Matched by direct type ID (malware): $typeId');
+//           }
 //         }
 
 //         return matches;
 //       }).toList();
-//       print('🔍 After type filter: ${filtered.length} reports');
 //     }
 
 //     if (widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty) {
+//       print(
+//         '🔍 Available Severity Levels: ${widget.severityLevels.map((s) => '${s['_id']}: ${s['name']}').toList()}',
+//       );
+
 //       filtered = filtered.where((report) {
 //         final reportSeverity = _getNormalizedAlertLevel(report);
+//         final reportSeverityId = _getNormalizedAlertLevelId(report);
 
 //         // Check if any of the selected severities match
-//         return widget.selectedSeverities.any((selectedSeverityId) {
-//           // Convert selected severity ID to name for comparison
+//         bool matches = false;
+//         for (String selectedSeverityId in widget.selectedSeverities) {
+//           print(
+//             '🔍   Checking against selected severity ID: $selectedSeverityId',
+//           );
+
+//           // First try to match by ID
+//           if (reportSeverityId != null &&
+//               reportSeverityId == selectedSeverityId) {
+//             matches = true;
+//             break;
+//           }
+
+//           // If no ID match, try to match by name
+//           final selectedSeverityLevel = widget.severityLevels.firstWhere(
+//             (level) => (level['_id'] ?? level['id']) == selectedSeverityId,
+//             orElse: () => {'name': selectedSeverityId.toLowerCase()},
+//           );
+
 //           final selectedSeverityName =
-//               widget.severityLevels
-//                   .firstWhere(
-//                     (level) =>
-//                         (level['_id'] ?? level['id']) == selectedSeverityId,
-//                     orElse: () => {'name': selectedSeverityId.toLowerCase()},
-//                   )['name']
-//                   ?.toString()
-//                   .toLowerCase() ??
+//               selectedSeverityLevel['name']?.toString().toLowerCase() ??
 //               selectedSeverityId.toLowerCase();
 
 //           // Debug print to help identify issues
-//           if (reportSeverity.isNotEmpty) {
-//             print(
-//               'Filtering severity: Report="$reportSeverity" vs Selected ID="$selectedSeverityId" -> Name="$selectedSeverityName"',
-//             );
-//             print('Report data: ${report['alertLevels']}');
-//           }
+//           print(
+//             '🔍   Severity comparison: Report="$reportSeverity" vs Selected="$selectedSeverityName"',
+//           );
 
-//           return reportSeverity == selectedSeverityName;
-//         });
+//           if (reportSeverity == selectedSeverityName) {
+//             matches = true;
+//             break;
+//           }
+//         }
+
+//         return matches;
 //       }).toList();
-//       print('🔍 After severity filter: ${filtered.length} reports');
 //     }
 
 //     return filtered;
@@ -4092,7 +4231,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //     // Get scam reports
 //     final scamBox = Hive.box<ScamReportModel>('scam_reports');
-//     print('🔍 DEBUG: Scam box length: ${scamBox.length}');
+
 //     for (var report in scamBox.values) {
 //       print(
 //         '🔍 DEBUG: Processing scam report: ${report.id} - ${report.description}',
@@ -4123,7 +4262,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //     // Get fraud reports
 //     final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
-//     print('🔍 DEBUG: Fraud box length: ${fraudBox.length}');
+
 //     for (var report in fraudBox.values) {
 //       print(
 //         '🔍 DEBUG: Processing fraud report: ${report.id} - ${report.description}',
@@ -4156,7 +4295,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //     // Get malware reports
 //     final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
-//     print('🔍 DEBUG: Malware box length: ${malwareBox.length}');
+
 //     for (var report in malwareBox.values) {
 //       print(
 //         '🔍 DEBUG: Processing malware report: ${report.id} - ${report.malwareType}',
@@ -4167,7 +4306,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //       allReports.add({
 //         'id': report.id,
-//         'description': report.malwareType,
+//         'description': report.malwareType ?? 'Malware Report',
 //         'alertLevels': report.alertSeverityLevel,
 //         'emailAddresses': null,
 //         'phoneNumbers': null,
@@ -4191,7 +4330,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       });
 //     }
 
-//     print('🔍 DEBUG: Total reports loaded: ${allReports.length}');
 //     return allReports;
 //   }
 
@@ -4212,23 +4350,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //   String _getReportTypeDisplay(Map<String, dynamic> report) {
 //     // Debug logging
-//     print('🔍 Getting report type display for report: ${report['id']}');
-//     print('🔍 Report type: ${report['type']}');
-//     print('🔍 Category ID: ${report['reportCategoryId']}');
-//     print('🔍 Type ID: ${report['reportTypeId']}');
 
 //     // First, try to get names directly from the report
 //     final categoryName = report['categoryName']?.toString();
 //     final typeName = report['typeName']?.toString();
 
 //     if (categoryName?.isNotEmpty == true && typeName?.isNotEmpty == true) {
-//       print('✅ Using direct names: $categoryName - $typeName');
 //       return '$categoryName - $typeName';
 //     } else if (categoryName?.isNotEmpty == true) {
-//       print('✅ Using direct category name: $categoryName');
 //       return categoryName!;
 //     } else if (typeName?.isNotEmpty == true) {
-//       print('✅ Using direct type name: $typeName');
 //       return typeName!;
 //     }
 
@@ -4237,20 +4368,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //     final category = report['reportCategory']?.toString();
 
 //     if (reportType?.isNotEmpty == true) {
-//       print('✅ Using reportType: $reportType');
 //       return reportType!;
 //     }
 //     if (category?.isNotEmpty == true) {
-//       print('✅ Using category: $category');
 //       return category!;
 //     }
 
 //     // Try to resolve from IDs
 //     String? categoryId = _extractId(report['reportCategoryId']);
 //     String? typeId = _extractId(report['reportTypeId']);
-
-//     print('🔍 Extracted category ID: $categoryId');
-//     print('🔍 Extracted type ID: $typeId');
 
 //     String? resolvedCategoryName = categoryId?.isNotEmpty == true
 //         ? _resolveCategoryName(categoryId!)
@@ -4259,9 +4385,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //         ? _resolveTypeName(typeId!)
 //         : null;
 
-//     print('🔍 Resolved category name: $resolvedCategoryName');
-//     print('🔍 Resolved type name: $resolvedTypeName');
-
 //     if (resolvedCategoryName?.isNotEmpty == true &&
 //         resolvedTypeName?.isNotEmpty == true) {
 //       print(
@@ -4269,16 +4392,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       );
 //       return '$resolvedCategoryName - $resolvedTypeName';
 //     } else if (resolvedCategoryName?.isNotEmpty == true) {
-//       print('✅ Using resolved category name: $resolvedCategoryName');
 //       return resolvedCategoryName!;
 //     } else if (resolvedTypeName?.isNotEmpty == true) {
-//       print('✅ Using resolved type name: $resolvedTypeName');
 //       return resolvedTypeName!;
 //     }
 
 //     // Fallback to report type
 //     final type = report['type']?.toString().toLowerCase();
-//     print('🔍 Using fallback type: $type');
 
 //     switch (type) {
 //       case 'scam':
@@ -4305,6 +4425,32 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //   Future<void> _loadCategoryAndTypeNames() async {
 //     await Future.wait([_loadTypeNames(), _loadCategoryNames()]);
+
+//     // Ensure we have proper mappings for offline mode
+//     _ensureOfflineMappings();
+//   }
+
+//   void _ensureOfflineMappings() {
+//     // Add fallback mappings for offline mode
+//     if (!_categoryIdToName.containsKey('scam_category')) {
+//       _categoryIdToName['scam_category'] = 'Report Scam';
+//     }
+//     if (!_categoryIdToName.containsKey('fraud_category')) {
+//       _categoryIdToName['fraud_category'] = 'Report Fraud';
+//     }
+//     if (!_categoryIdToName.containsKey('malware_category')) {
+//       _categoryIdToName['malware_category'] = 'Report Malware';
+//     }
+
+//     if (!_typeIdToName.containsKey('scam_type')) {
+//       _typeIdToName['scam_type'] = 'Scam Report';
+//     }
+//     if (!_typeIdToName.containsKey('fraud_type')) {
+//       _typeIdToName['fraud_type'] = 'Fraud Report';
+//     }
+//     if (!_typeIdToName.containsKey('malware_type')) {
+//       _typeIdToName['malware_type'] = 'Malware Report';
+//     }
 //   }
 
 //   Future<void> _loadTypeNames() async {
@@ -4314,9 +4460,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       // Try to load from API first
 //       try {
 //         types = await _apiService.fetchReportTypes();
-//         print('✅ Loaded ${types.length} types from API');
 //       } catch (e) {
-//         print('❌ Failed to load types from API: $e');
 //         // Try to load from local storage
 //         try {
 //           final prefs = await SharedPreferences.getInstance();
@@ -4325,11 +4469,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //             types = List<Map<String, dynamic>>.from(
 //               jsonDecode(typesJson).map((x) => Map<String, dynamic>.from(x)),
 //             );
-//             print('✅ Loaded ${types.length} types from local storage');
 //           }
-//         } catch (e) {
-//           print('❌ Failed to load types from local storage: $e');
-//         }
+//         } catch (e) {}
 //       }
 
 //       _typeIdToName.clear();
@@ -4343,7 +4484,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //             'Type ${id ?? 'Unknown'}';
 //         if (id != null) {
 //           _typeIdToName[id] = name;
-//           print('📝 Type mapping: $id -> $name');
 //         }
 //       }
 
@@ -4352,7 +4492,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       _typeIdToName['fraud_type'] = 'Fraud Report';
 //       _typeIdToName['malware_type'] = 'Malware Report';
 //     } catch (e) {
-//       print('Error loading type names: $e');
 //       // Add basic fallback types
 //       _typeIdToName['scam_type'] = 'Scam Report';
 //       _typeIdToName['fraud_type'] = 'Fraud Report';
@@ -4367,9 +4506,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       // Try to load from API first
 //       try {
 //         categories = await _apiService.fetchReportCategories();
-//         print('✅ Loaded ${categories.length} categories from API');
 //       } catch (e) {
-//         print('❌ Failed to load categories from API: $e');
 //         // Try to load from local storage
 //         try {
 //           final prefs = await SharedPreferences.getInstance();
@@ -4384,9 +4521,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //               '✅ Loaded ${categories.length} categories from local storage',
 //             );
 //           }
-//         } catch (e) {
-//           print('❌ Failed to load categories from local storage: $e');
-//         }
+//         } catch (e) {}
 //       }
 
 //       _categoryIdToName.clear();
@@ -4399,7 +4534,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //             'Category ${id ?? 'Unknown'}';
 //         if (id != null) {
 //           _categoryIdToName[id] = name;
-//           print('📝 Category mapping: $id -> $name');
 //         }
 //       }
 
@@ -4408,7 +4542,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       _categoryIdToName['fraud_category'] = 'Report Fraud';
 //       _categoryIdToName['malware_category'] = 'Report Malware';
 //     } catch (e) {
-//       print('Error loading category names: $e');
 //       // Add basic fallback categories
 //       _categoryIdToName['scam_category'] = 'Report Scam';
 //       _categoryIdToName['fraud_category'] = 'Report Fraud';
@@ -4422,31 +4555,49 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
 //   bool _hasEvidence(Map<String, dynamic> report) {
 //     final type = report['type'];
-//     if (type == 'malware') {
-//       return (report['fileName']?.toString().isNotEmpty == true) ||
-//           (report['malwareType']?.toString().isNotEmpty == true);
-//     } else {
-//       return (report['emailAddresses']?.toString().isNotEmpty == true) ||
-//           (report['phoneNumbers']?.toString().isNotEmpty == true) ||
-//           (report['website']?.toString().isNotEmpty == true);
+
+//     bool _isNotEmpty(dynamic value) {
+//       if (value == null) return false;
+//       if (value is String) return value.trim().isNotEmpty;
+//       if (value is List) return value.isNotEmpty;
+//       if (value is Map) return value.isNotEmpty;
+//       return true;
+//     }
+
+//     // Dynamic evidence checking based on report type
+//     switch (type?.toString().toLowerCase()) {
+//       case 'scam':
+//       case 'report scam':
+//         return _isNotEmpty(report['screenshots']) ||
+//             _isNotEmpty(report['documents']) ||
+//             _isNotEmpty(report['voiceMessages']) ||
+//             _isNotEmpty(report['videoFiles']);
+
+//       case 'fraud':
+//       case 'report fraud':
+//         return _isNotEmpty(report['screenshots']) ||
+//             _isNotEmpty(report['documents']) ||
+//             _isNotEmpty(report['voiceMessages']) ||
+//             _isNotEmpty(report['videoFiles']);
+
+//       case 'malware':
+//       case 'report malware':
+//         return _isNotEmpty(report['screenshots']) ||
+//             _isNotEmpty(report['documents']) ||
+//             _isNotEmpty(report['voiceMessages']) ||
+//             _isNotEmpty(report['videoFiles']);
+
+//       default:
+//         // For unknown types, check all possible evidence fields
+//         return _isNotEmpty(report['screenshots']) ||
+//             _isNotEmpty(report['documents']) ||
+//             _isNotEmpty(report['voiceMessages']) ||
+//             _isNotEmpty(report['videoFiles']);
 //     }
 //   }
 
 //   String _getReportStatus(Map<String, dynamic> report) {
-//     // Normalize incoming flags
 //     final status = report['status']?.toString().toLowerCase();
-//     final bool isSyncedFlag =
-//         report['isSynced'] == true ||
-//         report['synced'] == true ||
-//         report['uploaded'] == true ||
-//         report['completed'] == true;
-
-//     // If currently offline, only trust explicit local sync flag
-//     if (_isCurrentlyOffline) {
-//       return isSyncedFlag ? 'Synced' : 'Pending';
-//     }
-
-//     // When online, respect status strings if provided
 //     if (status?.isNotEmpty == true) {
 //       if (status == 'completed' || status == 'synced' || status == 'uploaded') {
 //         return 'Synced';
@@ -4455,17 +4606,20 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       }
 //     }
 
-//     // Consider local sync flag
-//     if (isSyncedFlag) {
-//       return 'Synced';
+//     if (report['isSynced'] == true ||
+//         report['synced'] == true ||
+//         report['uploaded'] == true ||
+//         report['completed'] == true) {
+//       return 'completed';
 //     }
 
-//     // Treat server-provided reports (with _id) as synced when online
-//     if (report['_id'] != null) {
-//       return 'Synced';
+//     if (report['_id'] != null ||
+//         (report['reportCategoryId'] != null ||
+//             report['reportTypeId'] != null ||
+//             report['malwareType'] != null)) {
+//       return 'completed';
 //     }
 
-//     // Default
 //     return 'Pending';
 //   }
 
@@ -4491,114 +4645,154 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //           '';
 //     }
 
-//     print('🔍 ThreadDB - Extracting alert level from report:');
-//     print('🔍 ThreadDB - alertLevels field: ${report['alertLevels']}');
 //     print(
 //       '🔍 ThreadDB - alertSeverityLevel field: ${report['alertSeverityLevel']}',
 //     );
-//     print('🔍 ThreadDB - severity field: ${report['severity']}');
-//     print('🔍 ThreadDB - level field: ${report['level']}');
-//     print('🔍 ThreadDB - priority field: ${report['priority']}');
-//     print('🔍 ThreadDB - Final alert level: $alertLevel');
-//     print('🔍 ThreadDB - Report type: ${report['type']}');
-//     print('🔍 ThreadDB - Report ID: ${report['id']}');
 
 //     // Normalize the alert level
 //     final normalized = alertLevel.toLowerCase().trim();
 //     switch (normalized) {
-//       case 'low':
-//       case 'low risk':
-//       case 'low severity':
-//         return 'Low';
-//       case 'medium':
-//       case 'medium risk':
-//       case 'medium severity':
-//         return 'Medium';
-//       case 'high':
-//       case 'high risk':
-//       case 'high severity':
-//         return 'High';
-//       case 'critical':
-//       case 'critical risk':
-//       case 'critical severity':
-//         return 'Critical';
 //       default:
 //         return alertLevel.isNotEmpty ? alertLevel : 'Unknown';
 //     }
 //   }
 
 //   String _getNormalizedAlertLevel(Map<String, dynamic> report) {
-//     // Handle alertLevels - could be String, Map, or null
-//     String alertLevel = '';
+//     try {
+//       // Try to get alert level from different possible fields
+//       final alertLevel =
+//           report['alertLevels'] ??
+//           report['alertSeverityLevel'] ??
+//           report['severityLevel'] ??
+//           'medium';
 
-//     if (report['alertLevels'] is Map) {
-//       final alertMap = report['alertLevels'] as Map;
-//       alertLevel =
-//           alertMap['name']?.toString() ??
-//           alertMap['_id']?.toString() ??
-//           alertMap['id']?.toString() ??
-//           '';
-//     } else if (report['alertLevels'] is String) {
-//       alertLevel = report['alertLevels'].toString();
-//     } else {
-//       alertLevel =
-//           report['alertSeverityLevel']?.toString() ??
-//           report['severity']?.toString() ??
-//           '';
-//     }
+//       if (alertLevel is Map) {
+//         // If it's a map, extract the name
+//         return (alertLevel['name'] ?? 'medium').toString().toLowerCase();
+//       } else if (alertLevel is String) {
+//         // If it's a string, normalize it
+//         final normalized = alertLevel.toLowerCase().trim();
 
-//     // Normalize the alert level to lowercase for consistent comparison and backend compatibility
-//     final normalized = alertLevel.toLowerCase().trim();
-
-//     // Map common variations to standard lowercase format for backend
-//     switch (normalized) {
-//       case 'low':
-//       case 'low risk':
-//       case 'low severity':
-//         return 'low';
-//       case 'medium':
-//       case 'medium risk':
-//       case 'medium severity':
+//         // Map common variations to standard lowercase format
+//         switch (normalized) {
+//           case 'low':
+//           case 'low risk':
+//           case 'low severity':
+//             return 'low';
+//           case 'medium':
+//           case 'medium risk':
+//           case 'medium severity':
+//             return 'medium';
+//           case 'high':
+//           case 'high risk':
+//           case 'high severity':
+//             return 'high';
+//           case 'critical':
+//           case 'critical risk':
+//           case 'critical severity':
+//             return 'critical';
+//           default:
+//             return normalized;
+//         }
+//       } else {
 //         return 'medium';
-//       case 'high':
-//       case 'high risk':
-//       case 'high severity':
-//         return 'high';
-//       case 'critical':
-//       case 'critical risk':
-//       case 'critical severity':
-//         return 'critical';
-//       default:
-//         return normalized;
+//       }
+//     } catch (e) {
+//       return 'medium';
+//     }
+//   }
+
+//   String? _getNormalizedAlertLevelId(Map<String, dynamic> report) {
+//     try {
+//       // Try to get alert level ID from different possible fields
+//       final alertLevel =
+//           report['alertLevels'] ??
+//           report['alertSeverityLevel'] ??
+//           report['severityLevel'];
+
+//       if (alertLevel is Map) {
+//         // If it's a map, extract the ID
+//         return alertLevel['_id']?.toString() ?? alertLevel['id']?.toString();
+//       } else if (alertLevel is String) {
+//         // If it's a string, it might be an ID
+//         return alertLevel;
+//       } else {
+//         return null;
+//       }
+//     } catch (e) {
+//       return null;
 //     }
 //   }
 
 //   // Method to get display version of alert level (properly capitalized for UI)
-//   // _getAlertLevelDisplay is not used; keep logic in _getAlertLevel
+//   String _getAlertLevelDisplay(Map<String, dynamic> report) {
+//     final alertLevel = _getAlertLevel(report);
+
+//     // Convert lowercase backend values to proper display format
+//     switch (alertLevel.toLowerCase()) {
+//       case 'low':
+//         return 'Low';
+//       case 'medium':
+//         return 'Medium';
+//       case 'high':
+//         return 'High';
+//       case 'critical':
+//         return 'Critical';
+//       default:
+//         return alertLevel.isNotEmpty
+//             ? alertLevel.substring(0, 1).toUpperCase() +
+//                   alertLevel.substring(1).toLowerCase()
+//             : 'Unknown';
+//     }
+//   }
 
 //   String _getTimeAgo(dynamic createdAt) {
 //     if (createdAt == null) return 'Unknown time';
 
 //     try {
-//       DateTime createdDate = createdAt is String
-//           ? DateTime.parse(createdAt)
-//           : createdAt is DateTime
-//           ? createdAt
-//           : throw Exception('Invalid date');
+//       DateTime createdDate;
+
+//       if (createdAt is String) {
+//         // Handle ISO string parsing
+//         createdDate = DateTime.parse(createdAt);
+//       } else if (createdAt is DateTime) {
+//         createdDate = createdAt;
+//       } else {
+//         return 'Invalid time';
+//       }
+
 //       final now = DateTime.now();
 //       final difference = now.difference(createdDate);
 
-//       if (difference.inMinutes < 60)
+//       // Handle negative values (future dates) by treating as "Just now"
+//       if (difference.isNegative) {
+//         return 'Just now';
+//       }
+
+//       // Format the time difference for past dates
+//       if (difference.inMinutes < 1) {
+//         return 'Just now';
+//       } else if (difference.inMinutes < 60) {
 //         return '${difference.inMinutes} minutes ago';
-//       if (difference.inHours < 24) return '${difference.inHours} hours ago';
-//       return '${difference.inDays} days ago';
+//       } else if (difference.inHours < 24) {
+//         return '${difference.inHours} hours ago';
+//       } else if (difference.inDays < 7) {
+//         return '${difference.inDays} days ago';
+//       } else if (difference.inDays < 30) {
+//         final weeks = (difference.inDays / 7).floor();
+//         return '${weeks} week${weeks > 1 ? 's' : ''} ago';
+//       } else if (difference.inDays < 365) {
+//         final months = (difference.inDays / 30).floor();
+//         return '${months} month${months > 1 ? 's' : ''} ago';
+//       } else {
+//         final years = (difference.inDays / 365).floor();
+//         return '${years} year${years > 1 ? 's' : ''} ago';
+//       }
 //     } catch (e) {
 //       return 'Unknown time';
 //     }
 //   }
 
-//   // Unused manual sync kept as reference. Uncomment if exposing a UI control.
-//   // ignore: unused_element
 //   Future<void> _manualSync(int index, Map<String, dynamic> report) async {
 //     final connectivityResult = await Connectivity().checkConnectivity();
 //     if (connectivityResult == ConnectivityResult.none) {
@@ -4687,7 +4881,51 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //   }
 
 //   // Test URL construction and backend connectivity
-//   // _testUrlAndBackend unused in production UI
+//   Future<void> _testUrlAndBackend() async {
+//     try {
+//       final apiService = ApiService();
+
+//       // Test URL construction
+//       await apiService.testUrlConstruction();
+
+//       // Test backend connectivity
+//       final isConnected = await apiService.testBackendConnectivity();
+
+//       if (isConnected) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('✅ Backend connectivity test passed'),
+//             backgroundColor: Colors.green,
+//           ),
+//         );
+//       } else {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('❌ Backend connectivity test failed'),
+//             backgroundColor: Colors.red,
+//           ),
+//         );
+//       }
+//     } catch (e) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('❌ Test failed: $e'),
+//           backgroundColor: Colors.red,
+//         ),
+//       );
+//     }
+//   }
+
+//   // Add debug method to help identify filter issues
+//   void _debugFilterIssues() {
+//     _categoryIdToName.forEach((id, name) {});
+
+//     _typeIdToName.forEach((id, name) {});
+
+//     if (_filteredReports.isNotEmpty) {
+//       final sample = _filteredReports.first;
+//     }
+//   }
 
 //   @override
 //   Widget build(BuildContext context) {
@@ -4700,42 +4938,31 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //               MaterialPageRoute(builder: (context) => DashboardPage()),
 //             );
 //           },
-//           icon: Icon(Icons.arrow_back),
+//           icon: Icon(Icons.arrow_back, color: Colors.white),
 //         ),
-//         title: const Text('Thread Database'),
+//         title: Column(
+//           children: [
+//             Text('Thread Database', style: TextStyle(color: Colors.white)),
+//           ],
+//         ),
 //         centerTitle: true,
-//         backgroundColor: Colors.white,
-//         foregroundColor: Colors.black,
+//         backgroundColor: const Color(0xFF064FAD),
+//         foregroundColor: Colors.white,
 //         elevation: 0,
 //         actions: [
 //           IconButton(
 //             onPressed: () async {
-//               print('🔄 Manual sync triggered from UI');
-//               try {
-//                 ScaffoldMessenger.of(context).showSnackBar(
-//                   SnackBar(
-//                     content: Text(
-//                       '🚀 Syncing all offline reports immediately...',
-//                     ),
-//                   ),
-//                 );
-
-//                 // Use the enhanced force immediate sync method
-//                 await _forceImmediateSync();
-
-//                 ScaffoldMessenger.of(context).showSnackBar(
-//                   SnackBar(
-//                     content: Text('✅ Sync completed! Reports refreshed.'),
-//                   ),
-//                 );
-//               } catch (e) {
-//                 ScaffoldMessenger.of(
-//                   context,
-//                 ).showSnackBar(SnackBar(content: Text('❌ Sync failed: $e')));
+//               final result = await Navigator.push(
+//                 context,
+//                 MaterialPageRoute(builder: (context) => FilterPage()),
+//               );
+//               // If we returned from filter page, reset and reload with new filters
+//               if (result == true) {
+//                 await _resetAndReload();
 //               }
 //             },
-//             icon: Icon(Icons.sync),
-//             tooltip: 'Sync offline reports immediately',
+//             icon: Icon(Icons.filter_list, color: Colors.white),
+//             tooltip: 'Filter',
 //           ),
 //         ],
 //       ),
@@ -4743,55 +4970,45 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //         crossAxisAlignment: CrossAxisAlignment.start,
 //         children: [
 //           // Filter Summary
-//           Container(
-//             color: Colors.grey[200],
-//             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//             child: Row(
-//               children: [
-//                 Expanded(
-//                   child: Column(
-//                     crossAxisAlignment: CrossAxisAlignment.start,
-//                     children: [
+//           Column(
+//             crossAxisAlignment: CrossAxisAlignment.start,
+//             children: [
+//               if (widget.hasSearchQuery ||
+//                   widget.hasSelectedCategory ||
+//                   widget.hasSelectedType ||
+//                   widget.hasSelectedSeverity)
+//                 Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     if (widget.hasSearchQuery)
 //                       Text(
-//                         'All  Reported Records:',
-//                         style: TextStyle(fontWeight: FontWeight.bold),
+//                         'Search: "${widget.searchQuery}"',
+//                         style: TextStyle(fontSize: 12, color: Colors.blue[700]),
 //                       ),
-//                       // if (widget.searchQuery.isNotEmpty)
-//                       //   Text('Search: "${widget.searchQuery}"', style: TextStyle(fontSize: 12)),
-//                       // if (widget.scamTypeId.isNotEmpty)
-//                       //   Text('Category: ${widget.scamTypeId}', style: TextStyle(fontSize: 12)),
-//                       // if (widget.selectedType != null && widget.selectedType!.isNotEmpty)
-//                       //   Text('Type: ${widget.selectedType}', style: TextStyle(fontSize: 12)),
-//                       // if (widget.selectedSeverity != null && widget.selectedSeverity!.isNotEmpty)
-//                       //   Text('Severity: ${widget.selectedSeverity}', style: TextStyle(fontSize: 12)),
-//                     ],
-//                   ),
-//                 ),
-//                 ElevatedButton(
-//                   onPressed: () async {
-//                     final result = await Navigator.push(
-//                       context,
-//                       MaterialPageRoute(
-//                         builder: (context) => ThreadDatabaseFilterPage(),
+//                     if (widget.hasSelectedCategory)
+//                       Text(
+//                         'Category: ${widget.selectedCategories.map((id) => _categoryIdToName[id] ?? id).join(', ')}',
+//                         style: TextStyle(fontSize: 12, color: Colors.blue[700]),
 //                       ),
-//                     );
-//                     // If we returned from filter page, reset and reload with new filters
-//                     if (result == true) {
-//                       await _resetAndReload();
-//                     }
-//                   },
-//                   child: const Text('Filter'),
-//                   style: ElevatedButton.styleFrom(
-//                     backgroundColor: Colors.grey[300],
-//                     foregroundColor: Colors.black,
-//                     elevation: 0,
-//                   ),
+//                     if (widget.hasSelectedType)
+//                       Text(
+//                         'Type: ${widget.selectedTypes.map((id) => _typeIdToName[id] ?? id).join(', ')}',
+//                         style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+//                       ),
+//                     if (widget.hasSelectedSeverity)
+//                       Text(
+//                         'Severity: ${widget.selectedSeverities.map((id) {
+//                           final level = widget.severityLevels.firstWhere((level) => (level['_id'] ?? level['id']) == id, orElse: () => {'name': id});
+//                           return level['name'] ?? id;
+//                         }).join(', ')}',
+//                         style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+//                       ),
+//                   ],
 //                 ),
-//               ],
-//             ),
+//             ],
 //           ),
 //           // Offline Status Indicator
-//           if (_isCurrentlyOffline)
+//           if (widget.isOffline)
 //             Container(
 //               padding: EdgeInsets.all(12),
 //               margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -4805,12 +5022,28 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                   Icon(Icons.wifi_off, color: Colors.orange.shade600, size: 20),
 //                   SizedBox(width: 8),
 //                   Expanded(
-//                     child: Text(
-//                       'Offline Mode - Showing local data',
-//                       style: TextStyle(
-//                         color: Colors.orange.shade700,
-//                         fontWeight: FontWeight.w500,
-//                       ),
+//                     child: Column(
+//                       crossAxisAlignment: CrossAxisAlignment.start,
+//                       children: [
+//                         Text(
+//                           'Offline Mode - Showing local data',
+//                           style: TextStyle(
+//                             color: Colors.orange.shade700,
+//                             fontWeight: FontWeight.w500,
+//                           ),
+//                         ),
+//                         if (widget.hasSearchQuery ||
+//                             widget.hasSelectedCategory ||
+//                             widget.hasSelectedType ||
+//                             widget.hasSelectedSeverity)
+//                           Text(
+//                             'Filters applied to local data',
+//                             style: TextStyle(
+//                               color: Colors.orange.shade600,
+//                               fontSize: 12,
+//                             ),
+//                           ),
+//                       ],
 //                     ),
 //                   ),
 //                   Container(
@@ -4820,7 +5053,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                       borderRadius: BorderRadius.circular(12),
 //                     ),
 //                     child: Text(
-//                       '${_filteredReports.length} reports available',
+//                       '${_filteredReports.length} reports',
 //                       style: TextStyle(
 //                         color: Colors.green.shade700,
 //                         fontSize: 12,
@@ -4831,63 +5064,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                 ],
 //               ),
 //             ),
-//           // Sync Status Indicator
-//           FutureBuilder<Map<String, int>>(
-//             future: _getSyncStatus(),
-//             builder: (context, snapshot) {
-//               if (snapshot.hasData) {
-//                 final status = snapshot.data!;
-//                 final totalUnsynced =
-//                     status['scam']! + status['fraud']! + status['malware']!;
-
-//                 if (totalUnsynced > 0) {
-//                   return Container(
-//                     padding: EdgeInsets.all(12),
-//                     margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//                     decoration: BoxDecoration(
-//                       color: Colors.blue.shade50,
-//                       border: Border.all(color: Colors.blue.shade200),
-//                       borderRadius: BorderRadius.circular(8),
-//                     ),
-//                     child: Row(
-//                       children: [
-//                         Icon(Icons.sync, color: Colors.blue.shade600, size: 20),
-//                         SizedBox(width: 8),
-//                         Expanded(
-//                           child: Text(
-//                             'Offline reports pending sync',
-//                             style: TextStyle(
-//                               color: Colors.blue.shade700,
-//                               fontWeight: FontWeight.w500,
-//                             ),
-//                           ),
-//                         ),
-//                         Container(
-//                           padding: EdgeInsets.symmetric(
-//                             horizontal: 8,
-//                             vertical: 4,
-//                           ),
-//                           decoration: BoxDecoration(
-//                             color: Colors.orange.shade100,
-//                             borderRadius: BorderRadius.circular(12),
-//                           ),
-//                           child: Text(
-//                             '$totalUnsynced pending',
-//                             style: TextStyle(
-//                               color: Colors.orange.shade700,
-//                               fontSize: 12,
-//                               fontWeight: FontWeight.w500,
-//                             ),
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                   );
-//                 }
-//               }
-//               return SizedBox.shrink();
-//             },
-//           ),
 //           // Results Count
 //           Padding(
 //             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -4977,14 +5153,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                     ),
 //                   )
 //                 : RefreshIndicator(
-//                     onRefresh: () async {
-//                       print(
-//                         '🚀 Pull-to-refresh triggered - force immediate sync',
-//                       );
-//                       // Force immediate sync and refresh
-//                       await _forceImmediateSync();
-//                       await _resetAndReload();
-//                     },
+//                     onRefresh: _resetAndReload,
 //                     child: ListView.builder(
 //                       controller: _scrollController,
 //                       // Add scroll controller
@@ -5045,6 +5214,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //                         // Use typed reports if available
 //                         if (_typedReports.isNotEmpty &&
 //                             index < _typedReports.length) {
+//                           final report = _typedReports[index];
 //                           return _buildReportCard(
 //                             _filteredReports[index],
 //                             index,
@@ -5060,87 +5230,4 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 //       ),
 //     );
 //   }
-
-//   // Combine server and local data, prioritizing server data for duplicates
-//   List<Map<String, dynamic>> _combineServerAndLocalData(
-//     List<Map<String, dynamic>> serverReports,
-//     List<Map<String, dynamic>> localReports,
-//   ) {
-//     print('🔄 Combining server and local data...');
-//     print('  - Server reports: ${serverReports.length}');
-//     print('  - Local reports: ${localReports.length}');
-
-//     final Map<String, Map<String, dynamic>> combinedMap = {};
-
-//     // First, add all server reports (these take priority)
-//     for (final serverReport in serverReports) {
-//       final serverId =
-//           serverReport['_id']?.toString() ??
-//           serverReport['id']?.toString() ??
-//           '';
-//       if (serverId.isNotEmpty) {
-//         combinedMap[serverId] = serverReport;
-//         print('✅ Added server report: $serverId');
-//       }
-//     }
-
-//     // Then add local reports that don't have server equivalents
-//     for (final localReport in localReports) {
-//       final localId = localReport['id']?.toString() ?? '';
-//       final localDesc = localReport['description']?.toString() ?? '';
-
-//       // Check if this local report has a server equivalent
-//       bool hasServerEquivalent = false;
-
-//       for (final serverReport in serverReports) {
-//         final serverDesc = serverReport['description']?.toString() ?? '';
-
-//         // Match by description similarity (for synced reports)
-//         if (serverDesc.contains(localDesc) || localDesc.contains(serverDesc)) {
-//           hasServerEquivalent = true;
-//           print('🔄 Local report matches server report: $localDesc');
-//           break;
-//         }
-//       }
-
-//       // Only add local report if it doesn't have a server equivalent
-//       if (!hasServerEquivalent && localId.isNotEmpty) {
-//         combinedMap[localId] = localReport;
-//         print('✅ Added local report: $localId - $localDesc');
-//       }
-//     }
-
-//     final combinedList = combinedMap.values.toList();
-//     print('📊 Combined result: ${combinedList.length} unique reports');
-
-//     return combinedList;
-//   }
-
-//   Future<Map<String, int>> _getSyncStatus() async {
-//     try {
-//       final scamBox = Hive.box<ScamReportModel>('scam_reports');
-//       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
-//       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
-
-//       final unsyncedScam = scamBox.values
-//           .where((r) => r.isSynced != true)
-//           .length;
-//       final unsyncedFraud = fraudBox.values
-//           .where((r) => r.isSynced != true)
-//           .length;
-//       final unsyncedMalware = malwareBox.values
-//           .where((r) => r.isSynced != true)
-//           .length;
-
-//       return {
-//         'scam': unsyncedScam,
-//         'fraud': unsyncedFraud,
-//         'malware': unsyncedMalware,
-//       };
-//     } catch (e) {
-//       print('❌ Error getting sync status: $e');
-//       return {'scam': 0, 'fraud': 0, 'malware': 0};
-//     }
-//   }
 // }
-

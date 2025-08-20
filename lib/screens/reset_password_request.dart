@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_api_service.dart';
-import '../utils/responsive_helper.dart';
-import '../widgets/responsive_widget.dart';
+import '../services/api_service.dart';
+
 import 'reset_password_success.dart';
 
 class ResetPasswordRequestScreen extends StatefulWidget {
@@ -17,7 +16,7 @@ class _ResetPasswordRequestScreenState
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
-  final AuthApiService _authApiService = AuthApiService();
+  final ApiService _apiService = ApiService();
   String _errorMessage = '';
 
   // Validation states
@@ -68,7 +67,7 @@ class _ResetPasswordRequestScreenState
   Widget build(BuildContext context) {
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return ResponsiveScaffold(
+    return Scaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: LayoutBuilder(
@@ -174,14 +173,14 @@ class _ResetPasswordRequestScreenState
                                   : null,
                               suffixIcon: _emailController.text.isNotEmpty
                                   ? Icon(
-                                _isEmailValid
-                                    ? Icons.check_circle
-                                    : Icons.error,
-                                color: _isEmailValid
-                                    ? Colors.green
-                                    : Colors.red,
-                                size: 20,
-                              )
+                                      _isEmailValid
+                                          ? Icons.check_circle
+                                          : Icons.error,
+                                      color: _isEmailValid
+                                          ? Colors.green
+                                          : Colors.red,
+                                      size: 20,
+                                    )
                                   : null,
                             ),
                             validator: _validateEmail,
@@ -207,85 +206,90 @@ class _ResetPasswordRequestScreenState
                         onPressed: _isLoading
                             ? null
                             : () async {
-                          if (!_formKey.currentState!.validate()) return;
+                                if (!_formKey.currentState!.validate()) return;
 
-                          setState(() {
-                            _isLoading = true;
-                            _errorMessage = '';
-                          });
+                                setState(() {
+                                  _isLoading = true;
+                                  _errorMessage = '';
+                                });
 
-                          try {
-                            final email = _emailController.text.trim();
-                            print('📧 Sending forgot password request for: $email');
+                                try {
+                                  final email = _emailController.text.trim();
 
-                            final response = await AuthApiService.forgotPassword(email);
-                            print('✅ Forgot password response: ${response.statusCode}');
-                            print('📦 Response data: ${response.data}');
+                                  final response =
+                                      await _apiService.forgotPassword(email);
 
-                            setState(() => _isLoading = false);
+                                  setState(() => _isLoading = false);
 
-                            if (mounted) {
-                              // Show success message
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Reset link sent to $email'),
-                                  backgroundColor: Colors.green,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-
-                              // Navigate to success screen
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      ResetPasswordSuccessScreen(
-                                        email: email,
+                                  if (mounted) {
+                                    // Show success message
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Reset link sent to $email',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: const Duration(seconds: 2),
                                       ),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            setState(() {
-                              _isLoading = false;
-                              _errorMessage = e.toString();
-                            });
+                                    );
 
-                            if (mounted) {
-                              String errorMessage = 'Failed to send reset link';
-                              if (e.toString().contains('400')) {
-                                errorMessage = 'Invalid email address';
-                              } else if (e.toString().contains('404')) {
-                                errorMessage = 'Email not found';
-                              } else if (e.toString().contains('500')) {
-                                errorMessage = 'Server error. Please try again later';
-                              } else if (e.toString().contains('network')) {
-                                errorMessage = 'Network error. Please check your connection';
-                              }
+                                    // Navigate to success screen
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            ResetPasswordSuccessScreen(
+                                              email: email,
+                                            ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setState(() {
+                                    _isLoading = false;
+                                    _errorMessage = e.toString();
+                                  });
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(errorMessage),
-                                  backgroundColor: Colors.red,
-                                  duration: const Duration(seconds: 4),
-                                ),
-                              );
-                            }
-                          }
-                        },
+                                  if (mounted) {
+                                    String errorMessage =
+                                        'Failed to send reset link';
+                                    if (e.toString().contains('400')) {
+                                      errorMessage = 'Invalid email address';
+                                    } else if (e.toString().contains('404')) {
+                                      errorMessage = 'Email not found';
+                                    } else if (e.toString().contains('500')) {
+                                      errorMessage =
+                                          'Server error. Please try again later';
+                                    } else if (e.toString().contains(
+                                      'network',
+                                    )) {
+                                      errorMessage =
+                                          'Network error. Please check your connection';
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(errorMessage),
+                                        backgroundColor: Colors.red,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
                         child: _isLoading
                             ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
+                                color: Colors.white,
+                              )
                             : const Text(
-                          'Send link',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
+                                'Send link',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontFamily: 'Poppins',
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -315,13 +319,6 @@ class _ResetPasswordRequestScreenState
     );
   }
 }
-
-
-
-
-
-
-
 
 // import 'package:flutter/material.dart';
 // import '../services/api_service.dart';

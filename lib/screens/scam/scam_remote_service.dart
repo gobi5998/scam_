@@ -14,7 +14,7 @@ class ScamRemoteService {
       final url = Uri.parse(
         '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
       );
-      print('🔗 Attempting to send report to: $url');
+
 
       // Create multipart request for file uploads
       var request = http.MultipartRequest('POST', url);
@@ -65,17 +65,17 @@ class ScamRemoteService {
         }
       }
 
-      print('📤 Report data: ${request.fields}');
-      print('📤 Files to upload: ${request.files.length} files');
+
+
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
 
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: $responseBody');
+
+
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Report sent successfully: $responseBody');
+
         return true;
       } else {
         print(
@@ -84,7 +84,7 @@ class ScamRemoteService {
         return false;
       }
     } catch (e) {
-      print('💥 Error sending report: $e');
+
       return false;
     }
   }
@@ -115,11 +115,11 @@ class ScamRemoteService {
             )
             .toList();
       } else {
-        print('Failed to fetch reports. Status: ${response.statusCode}');
+
         return [];
       }
     } catch (e) {
-      print('Error fetching reports: $e');
+
       return [];
     }
   }
@@ -129,7 +129,7 @@ class ScamRemoteService {
       final url = Uri.parse(
         '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
       );
-      print('🔍 Fetching scam reports from: $url');
+
 
       final response = await http.get(url);
 
@@ -137,18 +137,18 @@ class ScamRemoteService {
         final List<dynamic> data = json.decode(response.body);
         return data.cast<Map<String, dynamic>>();
       } else {
-        print('❌ Failed to fetch scam reports. Status: ${response.statusCode}');
+
         return [];
       }
     } catch (e) {
-      print('❌ Error fetching scam reports: $e');
+
       return [];
     }
   }
 
   static Future<void> submitScamReport(Map<String, dynamic> reportJson) async {
     try {
-      print('📤 Submitting scam report to backend...');
+
       print('📤 Report data: ${jsonEncode(reportJson)}');
 
       final response = await http.post(
@@ -162,17 +162,17 @@ class ScamRemoteService {
         body: jsonEncode(reportJson),
       );
 
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
+
+
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Scam report submitted successfully');
+
       } else {
-        print('❌ Failed to submit scam report. Status: ${response.statusCode}');
+
         throw Exception('Failed to submit scam report');
       }
     } catch (e) {
-      print('❌ Error submitting scam report: $e');
+
       throw e;
     }
   }

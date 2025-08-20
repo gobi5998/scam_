@@ -24,14 +24,19 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
-    print('🔍 Parsing user JSON: $json');
     print('🔍 Available keys: ${json.keys.toList()}');
 
     final user = User(
-      id: json['id'] ?? json['_id'] ?? '',
-      username: json['username'] ?? json['userName'] ?? json['name'] ?? '',
+      id: json['id'] ?? json['_id'] ?? json['sub'] ?? '',
+      username:
+          json['username'] ??
+          json['userName'] ??
+          json['name'] ??
+          json['preferred_username'] ??
+          '',
       email: json['email'] ?? '',
-      firstName: json['firstName'] ?? json['firstname'] ?? json['first_name'] ?? '',
+      firstName:
+          json['firstName'] ?? json['firstname'] ?? json['first_name'] ?? '',
       lastName: json['lastName'] ?? json['lastname'] ?? json['last_name'] ?? '',
       phone: json['phone'] ?? '',
       role: json['role'] ?? '',
@@ -39,14 +44,6 @@ class User {
       createdAt: json['createdAt'] ?? '',
       updatedAt: json['updatedAt'] ?? '',
     );
-
-    print('🔍 Parsed user:');
-    print('  - ID: ${user.id}');
-    print('  - Username: ${user.username}');
-    print('  - Email: ${user.email}');
-    print('  - FirstName: ${user.firstName}');
-    print('  - LastName: ${user.lastName}');
-    print('  - FullName: ${user.fullName}');
 
     return user;
   }

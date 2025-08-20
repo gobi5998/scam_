@@ -1,5 +1,4 @@
 import 'package:local_auth/local_auth.dart';
-import 'package:local_auth_android/local_auth_android.dart';
 
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,30 +9,24 @@ class BiometricService {
   // Check if biometric authentication is available
   static Future<bool> isBiometricAvailable() async {
     try {
-      print('Checking biometric availability...');
       final isAvailable = await _localAuth.canCheckBiometrics;
       final isDeviceSupported = await _localAuth.isDeviceSupported();
-      print('Biometric available: $isAvailable, Device supported: $isDeviceSupported');
-      
+
       // For testing purposes, if device is not supported but biometric is available, still allow it
       if (isAvailable) {
-        print('Biometric is available, proceeding with authentication');
         return true;
       }
-      
+
       // If device is supported but canCheckBiometrics is false, still try to get available biometrics
       if (isDeviceSupported) {
         final availableBiometrics = await getAvailableBiometrics();
         if (availableBiometrics.isNotEmpty) {
-          print('Device is supported and has biometric methods: $availableBiometrics');
           return true;
         }
       }
-      
-      print('Biometric not available');
+
       return false;
     } on PlatformException catch (e) {
-      print('Error checking biometric availability: $e');
       return false;
     }
   }
@@ -42,10 +35,9 @@ class BiometricService {
   static Future<List<BiometricType>> getAvailableBiometrics() async {
     try {
       final biometrics = await _localAuth.getAvailableBiometrics();
-      print('Available biometrics: $biometrics');
+
       return biometrics;
     } on PlatformException catch (e) {
-      print('Error getting available biometrics: $e');
       return [];
     }
   }
@@ -53,20 +45,15 @@ class BiometricService {
   // Authenticate using biometrics
   static Future<bool> authenticateWithBiometrics() async {
     try {
-      print('Starting biometric authentication...');
       final isAvailable = await isBiometricAvailable();
       if (!isAvailable) {
-        print('Biometric authentication not available');
         return false;
       }
 
       final availableBiometrics = await getAvailableBiometrics();
       if (availableBiometrics.isEmpty) {
-        print('No biometric methods available');
         return false;
       }
-
-      print('Available biometric types: $availableBiometrics');
 
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Please authenticate to access the Security Alert app',
@@ -76,16 +63,10 @@ class BiometricService {
         ),
       );
 
-      print('Biometric authentication result: $didAuthenticate');
       return didAuthenticate;
     } on PlatformException catch (e) {
-      print('Error during biometric authentication: $e');
-      print('Error code: ${e.code}');
-      print('Error message: ${e.message}');
-      print('Error details: ${e.details}');
       return false;
     } catch (e) {
-      print('General error during biometric authentication: $e');
       return false;
     }
   }
@@ -95,10 +76,9 @@ class BiometricService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final enabled = prefs.getBool('biometric_enabled') ?? false;
-      print('Biometric enabled: $enabled');
+
       return enabled;
     } catch (e) {
-      print('Error checking biometric enabled status: $e');
       return false;
     }
   }
@@ -108,10 +88,7 @@ class BiometricService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('biometric_enabled', true);
-      print('Biometric enabled successfully');
-    } catch (e) {
-      print('Error enabling biometric: $e');
-    }
+    } catch (e) {}
   }
 
   // Disable biometric login
@@ -119,10 +96,7 @@ class BiometricService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('biometric_enabled', false);
-      print('Biometric disabled successfully');
-    } catch (e) {
-      print('Error disabling biometric: $e');
-    }
+    } catch (e) {}
   }
 
   // Get biometric type string
@@ -159,24 +133,15 @@ class BiometricService {
 
   // Test biometric functionality
   static Future<void> testBiometric() async {
-    print('=== Biometric Test Start ===');
-    
     final isAvailable = await isBiometricAvailable();
-    print('Biometric available: $isAvailable');
-    
+
     if (isAvailable) {
       final biometrics = await getAvailableBiometrics();
-      print('Available biometrics: $biometrics');
-      
+
       final hasFingerprintSensor = await hasFingerprint();
       final hasFaceRecognitionSensor = await hasFaceRecognition();
-      print('Has fingerprint: $hasFingerprintSensor');
-      print('Has face recognition: $hasFaceRecognitionSensor');
-      
+
       final isEnabled = await isBiometricEnabled();
-      print('Biometric enabled: $isEnabled');
     }
-    
-    print('=== Biometric Test End ===');
   }
-} 
+}

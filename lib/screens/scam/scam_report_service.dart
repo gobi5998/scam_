@@ -19,7 +19,7 @@ class ScamReportService {
 
     // Run diagnostics if no user ID found (device-specific issue)
     if (keycloakUserId == null) {
-      print('⚠️ No user ID found - running token storage diagnostics...');
+
       await JwtService.diagnoseTokenStorage();
     }
 
@@ -27,7 +27,7 @@ class ScamReportService {
       report = report.copyWith(keycloakUserId: keycloakUserId);
     } else {
       // Fallback for device-specific issues
-      print('⚠️ Using fallback user ID for device compatibility');
+
       report = report.copyWith(
         keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
       );
@@ -43,7 +43,7 @@ class ScamReportService {
 
     // Always save to local storage first (offline-first approach)
     await _box.add(report);
-    print('✅ Scam report saved locally with type ID: ${report.reportTypeId}');
+
 
     // AUTOMATIC DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving new scam report...');
@@ -52,7 +52,7 @@ class ScamReportService {
     // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
-      print('🌐 Online - attempting to sync report...');
+
       try {
         // Initialize reference service before syncing
         await ReportReferenceService.initialize();
@@ -64,19 +64,19 @@ class ScamReportService {
           ); // Get the key of the last added item
           final updated = report.copyWith(isSynced: true);
           await _box.put(key, updated);
-          print('✅ Scam report synced successfully!');
+
 
           // AUTOMATIC BACKEND DUPLICATE CLEANUP after syncing
-          print('🧹 Auto-cleaning backend duplicates after syncing...');
+
           await _apiService.removeDuplicateScamFraudReports();
         } else {
-          print('⚠️ Failed to sync report - will retry later');
+
         }
       } catch (e) {
-        print('❌ Error syncing report: $e - will retry later');
+
       }
     } else {
-      print('📱 Offline - report saved locally for later sync');
+
     }
   }
 
@@ -87,7 +87,7 @@ class ScamReportService {
       report = report.copyWith(keycloakUserId: keycloakUserId);
     } else {
       // Fallback for device-specific issues
-      print('⚠️ Using fallback user ID for offline save');
+
       report = report.copyWith(
         keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
       );
@@ -96,7 +96,7 @@ class ScamReportService {
     // Save the new report first
     print('Saving scam report to local storage: ${report.toJson()}');
     await _box.add(report);
-    print('Scam report saved successfully. Box length: ${_box.length}');
+
 
     // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving offline scam report...');
@@ -109,8 +109,8 @@ class ScamReportService {
     final uniqueReports = <ScamReportModel>[];
     final seenKeys = <String>{};
 
-    print('🧹 Starting scam report duplicate cleanup...');
-    print('🔍 Total reports before cleanup: ${allReports.length}');
+
+
 
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
@@ -138,21 +138,21 @@ class ScamReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-      print('✅ Duplicates removed. Box length: ${box.length}');
+
     } else {
-      print('✅ No duplicates found in scam reports');
+
     }
   }
 
   static Future<void> syncReports() async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity == ConnectivityResult.none) {
-      print('📱 No internet connection - cannot sync');
+
       return;
     }
 
     // Initialize reference service before syncing
-    print('🔄 Initializing report reference service for sync...');
+
     await ReportReferenceService.initialize();
 
     final box = Hive.box<ScamReportModel>('scam_reports');
@@ -160,11 +160,11 @@ class ScamReportService {
         .where((r) => r.isSynced != true)
         .toList();
 
-    print('🔄 Syncing ${unsyncedReports.length} unsynced scam reports...');
+
 
     for (var report in unsyncedReports) {
       try {
-        print('📤 Syncing report with type ID: ${report.reportTypeId}');
+
         final success = await ScamReportService.sendToBackend(report);
         if (success) {
           // Mark as synced
@@ -175,14 +175,14 @@ class ScamReportService {
             '✅ Successfully synced report with type ID: ${report.reportTypeId}',
           );
         } else {
-          print('❌ Failed to sync report with type ID: ${report.reportTypeId}');
+
         }
       } catch (e) {
-        print('❌ Error syncing report with type ID ${report.reportTypeId}: $e');
+
       }
     }
 
-    print('✅ Sync completed for scam reports');
+
   }
 
   static Future<bool> sendToBackend(ScamReportModel report) async {
@@ -192,8 +192,8 @@ class ScamReportService {
         'scam',
       );
 
-      print('🔄 Using ObjectId values for scam report:');
-      print('  - reportCategoryId: $reportCategoryId');
+
+
       print(
         '  - reportTypeId: ${report.reportTypeId} (from selected dropdown)',
       );
@@ -233,15 +233,15 @@ class ScamReportService {
       };
 
       // Debug age values
-      print('🔍 DEBUG - Age in reportData: ${reportData['age']}');
+
       final ageData = reportData['age'] as Map<String, dynamic>?;
-      print('🔍 DEBUG - Age min: ${ageData?['min']}');
-      print('🔍 DEBUG - Age max: ${ageData?['max']}');
+
+
 
       // Remove age field if it's null to avoid sending null values to backend
       if (reportData['age'] == null) {
         reportData.remove('age');
-        print('🔍 DEBUG - Removed null age field from reportData');
+
       }
 
       // Handle methodOfContact properly - only add if it's a valid ObjectId
@@ -260,15 +260,15 @@ class ScamReportService {
           );
         }
       } else {
-        print('⚠️ No methodOfContact ID provided');
+
       }
 
-      print('📤 Sending scam report to backend...');
+
       print('📤 Report data: ${jsonEncode(reportData)}');
-      print('🔍 Final alert level being sent: ${reportData['alertLevels']}');
-      print('🔍 Original report alert level: ${report.alertLevels}');
-      print('🔍 Report ID: ${report.id}');
-      print('🔍 Alert level in reportData: "${reportData['alertLevels']}"');
+
+
+
+
       print(
         '🔍 Alert level in reportData type: ${reportData['alertLevels'].runtimeType}',
       );
@@ -292,9 +292,9 @@ class ScamReportService {
       );
       print('🔍 Full reportData keys: ${reportData.keys.toList()}');
       print('🔍 Full reportData values: ${reportData.values.toList()}');
-      print('🔍 Alert level in report object: ${report.alertLevels}');
-      print('🔍 Alert level type in report: ${report.alertLevels.runtimeType}');
-      print('🔍 Alert level is null in report: ${report.alertLevels == null}');
+
+
+
       print(
         '🔍 Alert level is empty in report: ${report.alertLevels?.isEmpty}',
       );
@@ -304,9 +304,9 @@ class ScamReportService {
       print(
         '🔍 DEBUG - Age values: min=${report.minAge}, max=${report.maxAge}',
       );
-      print('🔍 DEBUG - reportData before JSON encoding: $reportData');
+
       print('🔍 DEBUG - JSON encoded data: ${jsonEncode(reportData)}');
-      print('🔍 DEBUG - Content-Type header: application/json');
+
       print(
         '🔍 DEBUG - URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
       );
@@ -318,8 +318,8 @@ class ScamReportService {
       print(
         '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
       );
-      print('🔍 DEBUG - Request body length: ${requestBody.length}');
-      print('🔍 DEBUG - Request body: $requestBody');
+
+
 
       final response = await http.post(
         Uri.parse(
@@ -332,9 +332,9 @@ class ScamReportService {
         body: requestBody,
       );
 
-      print('📥 Send to backend response status: ${response.statusCode}');
-      print('📥 Send to backend response headers: ${response.headers}');
-      print('📥 Send to backend response body: ${response.body}');
+
+
+
       print(
         '🔍 DEBUG - Response content-type: ${response.headers['content-type']}',
       );
@@ -343,14 +343,14 @@ class ScamReportService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Scam report sent successfully!');
+
         return true;
       } else {
-        print('❌ Scam report failed with status: ${response.statusCode}');
+
         return false;
       }
     } catch (e) {
-      print('❌ Error sending scam report to backend: $e');
+
       return false;
     }
   }
@@ -361,9 +361,9 @@ class ScamReportService {
   }
 
   static List<ScamReportModel> getLocalReports() {
-    print('Getting local scam reports. Box length: ${_box.length}');
+
     final reports = _box.values.toList();
-    print('Retrieved ${reports.length} scam reports from local storage');
+
     return reports;
   }
 
@@ -390,8 +390,8 @@ class ScamReportService {
     final uniqueReports = <ScamReportModel>[];
     final seenKeys = <String>{};
 
-    print('🧹 Starting scam report duplicate removal...');
-    print('🔍 Total reports before removal: ${allReports.length}');
+
+
 
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
@@ -419,9 +419,9 @@ class ScamReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-      print('✅ Duplicates removed. Box length: ${box.length}');
+
     } else {
-      print('✅ No duplicates found in scam reports');
+
     }
   }
 
@@ -443,18 +443,18 @@ class ScamReportService {
 
   // NUCLEAR OPTION - Clear all data and start fresh
   static Future<void> clearAllData() async {
-    print('☢️ NUCLEAR OPTION - Clearing ALL scam report data...');
+
     await _box.clear();
-    print('✅ All scam report data cleared');
+
   }
 
   // TARGETED DUPLICATE REMOVAL - Only removes exact duplicates
   static Future<void> removeDuplicateScamReports() async {
     try {
-      print('🔍 Starting targeted duplicate removal for scam reports...');
+
 
       final allReports = _box.values.toList();
-      print('📊 Found ${allReports.length} scam reports in local storage');
+
 
       // Group by unique identifiers to find duplicates
       final Map<String, List<ScamReportModel>> groupedReports = {};
@@ -479,7 +479,7 @@ class ScamReportService {
       for (var entry in groupedReports.entries) {
         final reports = entry.value;
         if (reports.length > 1) {
-          print('🔍 Found ${reports.length} duplicates for key: ${entry.key}');
+
 
           // Sort by creation date (oldest first)
           reports.sort((a, b) {
@@ -493,34 +493,34 @@ class ScamReportService {
             final key = _box.keyAt(_box.values.toList().indexOf(reports[i]));
             await _box.delete(key);
             duplicatesRemoved++;
-            print('🗑️ Removed duplicate scam report: ${reports[i].id}');
+
           }
         }
       }
 
-      print('✅ TARGETED SCAM DUPLICATE REMOVAL COMPLETED');
-      print('📊 Summary:');
-      print('  - Total scam reports: ${allReports.length}');
-      print('  - Duplicates removed: $duplicatesRemoved');
+
+
+
+
     } catch (e) {
-      print('❌ Error during targeted scam duplicate removal: $e');
+
     }
   }
 
   // Comprehensive offline sync method with retry mechanism
   static Future<void> syncOfflineReports() async {
-    print('🔄 SCAM-SYNC: Starting comprehensive offline sync...');
+
 
     try {
       // Step 1: Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity == ConnectivityResult.none) {
-        print('❌ SCAM-SYNC: No internet connection available');
+
         throw Exception('No internet connection available');
       }
 
       // Step 2: Initialize reference service
-      print('🔄 SCAM-SYNC: Initializing reference service...');
+
       await ReportReferenceService.initialize();
       await ReportReferenceService.refresh();
 
@@ -536,7 +536,7 @@ class ScamReportService {
       );
 
       if (offlineReports.isEmpty) {
-        print('✅ SCAM-SYNC: No offline reports to sync');
+
         return;
       }
 
@@ -572,7 +572,7 @@ class ScamReportService {
               await box.put(key, updated);
               successCount++;
               reportSynced = true;
-              print('✅ SCAM-SYNC: Successfully synced report ${report.id}');
+
             } else {
               retryCount++;
               print(
@@ -610,10 +610,10 @@ class ScamReportService {
         );
       }
 
-      print('✅ SCAM-SYNC: Comprehensive offline sync completed successfully');
+
     } catch (e) {
-      print('❌ SCAM-SYNC: Error during comprehensive offline sync: $e');
-      print('🔍 SCAM-SYNC: Stack trace: ${StackTrace.current}');
+
+
       rethrow;
     }
   }

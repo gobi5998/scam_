@@ -9,6 +9,7 @@ class LocationStorageService {
     return await Hive.openBox<dynamic>(_boxName);
   }
 
+
   static Future<void> addSavedAddress({
     required String label,
     required String address,

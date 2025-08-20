@@ -32,9 +32,8 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>(
-    debugLabel: 'dashboard_scaffold',
-  );
+  // Add GlobalKey for drawer control
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Map<String, dynamic>> reportTypes = [];
   bool isLoadingTypes = true;
   List<Map<String, dynamic>> reportCategories = [];
@@ -79,45 +78,26 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _testApiConnection() async {
     try {
-      print('🧪 Testing API connection for report categories...');
-
       final categories = await ScamReportService.fetchReportCategories();
-      print('✅ API test successful - found ${categories.length} categories');
 
-      for (var category in categories) {
-        print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
-      }
+      for (var category in categories) {}
 
       // Test direct thread statistics fetch
-      print('🧪 Testing direct thread statistics fetch...');
+
       final apiService = ApiService();
       final directThreadStats = await apiService.getThreadStatistics();
-      print('🧪 Direct thread stats result: $directThreadStats');
 
       // Test direct thread analysis fetch
-      print('🧪 Testing direct thread analysis fetch...');
+
       final directThreadAnalysis = await apiService.getThreadAnalysis('1w');
-      print('🧪 Direct thread analysis result: $directThreadAnalysis');
 
       // Test direct percentage count fetch
-      print('🧪 Testing direct percentage count fetch...');
+
       final directPercentageCount = await apiService.getPercentageCount();
-      print('🧪 Direct percentage count result: $directPercentageCount');
 
       // Show a snackbar with the results for debugging
-      // if (mounted) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(
-      //       content: Text(
-      //         'API Test: ${categories.length} categories loaded successfully',
-      //       ),
-      //       backgroundColor: Colors.green,
-      //       duration: Duration(seconds: 5),
-      //     ),
-      //   );
-      // }
+      if (mounted) {}
     } catch (e) {
-      print('❌ API test failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -132,32 +112,29 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadReportTypes() async {
     reportTypes = await ScamReportService.fetchReportTypes();
-    print('report$reportTypes');
-    setState(() {
-      isLoadingTypes = false;
-    });
+
+    if (mounted) {
+      setState(() {
+        isLoadingTypes = false;
+      });
+    }
   }
 
   Future<void> _loadReportCategories() async {
     try {
-      print('🔍 Attempting to load report categories from API...');
       print(
         '🔍 Full endpoint: ${ApiConfig.mainBaseUrl}${ApiConfig.reportCategoryEndpoint}',
       );
 
       reportCategories = await ScamReportService.fetchReportCategories();
-      print('✅ Loaded categories from API: $reportCategories');
 
       // Only use API response, no fallback
       if (reportCategories.isNotEmpty) {
         print(
           '✅ Successfully loaded ${reportCategories.length} categories from API',
         );
-        for (var category in reportCategories) {
-          print('📋 Category: ${category['name']} -> ID: ${category['_id']}');
-        }
+        for (var category in reportCategories) {}
       } else {
-        print('⚠️ API returned empty categories');
         reportCategories = [];
 
         // Show user-friendly error message
@@ -174,15 +151,9 @@ class _DashboardPageState extends State<DashboardPage> {
         }
       }
     } catch (e) {
-      print('❌ Error loading categories: $e');
-      print('❌ Error type: ${e.runtimeType}');
       if (e.toString().contains('SocketException')) {
-        print('❌ Network connection issue - check ngrok tunnel');
       } else if (e.toString().contains('TimeoutException')) {
-        print('❌ Request timeout - check ngrok tunnel');
-      } else if (e.toString().contains('HttpException')) {
-        print('❌ HTTP error - check ngrok tunnel and backend server');
-      }
+      } else if (e.toString().contains('HttpException')) {}
 
       reportCategories = [];
 
@@ -198,10 +169,11 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     }
 
-    setState(() {
-      isLoadingCategories = false;
-    });
-    print('✅ Categories loading completed. Count: ${reportCategories.length}');
+    if (mounted) {
+      setState(() {
+        isLoadingCategories = false;
+      });
+    }
   }
 
   @override
@@ -231,7 +203,7 @@ class _DashboardPageState extends State<DashboardPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          "Scam Detect",
+          "Scam Detect ",
           style: TextStyle(
             color: Colors.white,
             fontFamily: 'Poppins',
@@ -241,7 +213,10 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Colors.white, size: 24),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          onPressed: () {
+            // Use the GlobalKey to open the drawer reliably
+            _scaffoldKey.currentState?.openDrawer();
+          },
         ),
         actions: [
           Stack(
@@ -533,7 +508,10 @@ class _DashboardPageState extends State<DashboardPage> {
               selectedItemColor: Colors.black,
               items: [
                 customBottomNavItem(BottomNav: BottomNav.home, label: 'Home'),
-                customBottomNavItem(BottomNav: BottomNav.alert, label: 'Threads'),
+                customBottomNavItem(
+                  BottomNav: BottomNav.alert,
+                  label: 'Threads',
+                ),
                 customBottomNavItem(
                   BottomNav: BottomNav.profile,
                   label: 'Profile',
@@ -544,7 +522,19 @@ class _DashboardPageState extends State<DashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ThreadDatabaseListPage(searchQuery: '',),
+                      builder: (context) => ThreadDatabaseListPage(
+                        searchQuery: '',
+                        selectedTypes: [],
+                        selectedSeverities: [],
+                        selectedCategories: [],
+                        hasSearchQuery: false,
+                        hasSelectedType: false,
+                        hasSelectedSeverity: false,
+                        hasSelectedCategory: false,
+                        isOffline: false,
+                        localReports: [],
+                        severityLevels: [],
+                      ),
                     ),
                   );
                 } else if (index == 2) {
@@ -711,7 +701,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                     ),
                                     PopupMenuButton<String>(
                                       onSelected: (String value) {
-                                        print('🔄 Selected period: $value');
                                         // Reload percentage count data when period changes
                                         Provider.of<DashboardProvider>(
                                           context,
@@ -796,7 +785,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   ),
                                 ),
                                 // Feature items will be handled by ReportedFeaturesPanel
-                                ReportedFeaturesPanel(),
+                                ReportedFeaturesPanel(
+                                  reportCategories: reportCategories,
+                                ),
                               ],
                             ),
                           ),

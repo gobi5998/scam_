@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/login.dart';
+import 'package:security_alert/screens/dashboard_page.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/responsive_widget.dart';
 import '../services/app_version_service.dart';
+import '../services/token_storage.dart';
+import '../provider/auth_provider.dart';
+import 'package:provider/provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,19 +24,50 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     // Initialize app version
     _initializeAppVersion();
-    // Delay of 1 second before showing button
+    // Check authentication status after a short delay
     Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        _showButton = true;
-      });
+      if (mounted) {
+        _checkAuthenticationStatus();
+      }
     });
+  }
+
+  Future<void> _checkAuthenticationStatus() async {
+    try {
+      // Check if user has valid tokens
+      final accessToken = await TokenStorage.getAccessToken();
+      final refreshToken = await TokenStorage.getRefreshToken();
+
+      if (accessToken != null && accessToken.isNotEmpty) {
+        // User has tokens, navigate to dashboard (AuthGuard will handle validation)
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
+      } else {
+        // No tokens, show login button
+        if (mounted) {
+          setState(() {
+            _showButton = true;
+          });
+        }
+      }
+    } catch (e) {
+      // Error checking authentication, show login button
+      if (mounted) {
+        setState(() {
+          _showButton = true;
+        });
+      }
+    }
   }
 
   Future<void> _initializeAppVersion() async {
     await AppVersionService.initialize();
-    setState(() {
-      _appVersion = AppVersionService.displayVersion;
-    });
+    if (mounted) {
+      setState(() {
+        _appVersion = AppVersionService.displayVersion;
+      });
+    }
   }
 
   @override
@@ -74,7 +109,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 20,
                               ),
                               child: Image.asset(
-                                'assets/image/Splash1.png',
+                                'assets/image/splash.png',
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -86,7 +121,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             ),
                           ),
                           Text(
-                            'Scam Detect',
+                            'Security Alert',
                             style: TextStyle(
                               fontSize: ResponsiveHelper.getResponsiveFontSize(
                                 context,
@@ -145,10 +180,11 @@ class _SplashScreenState extends State<SplashScreen> {
                             Text(
                               'Version $_appVersion',
                               style: TextStyle(
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  12,
-                                ),
+                                fontSize:
+                                    ResponsiveHelper.getResponsiveFontSize(
+                                      context,
+                                      12,
+                                    ),
                                 color: Colors.grey[600],
                                 fontFamily: 'Poppins',
                               ),
@@ -172,11 +208,6 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-
-
-
-
-
 
 // import 'package:flutter/material.dart';
 // import 'package:security_alert/screens/login.dart';

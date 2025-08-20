@@ -1,7 +1,5 @@
-
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/subscriptionPage/payment_validation.dart';
-
 
 class SubscriptionPlansPage extends StatefulWidget {
   @override
@@ -15,9 +13,13 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Subscription Plans'),
+        title: Text(
+          'Subscription Plans',
+          style: TextStyle(color: Colors.white),
+        ),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: Padding(
@@ -25,21 +27,27 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Select Sector', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Select Sector',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: selectedSector,
               hint: Text('Select a Sector Type'),
               items: ['Banking', 'ATM', 'Online Payment', 'Fraud']
-                  .map((sector) => DropdownMenuItem(
-                        value: sector,
-                        child: Text(sector),
-                      ))
+                  .map(
+                    (sector) =>
+                        DropdownMenuItem(value: sector, child: Text(sector)),
+                  )
                   .toList(),
               onChanged: (val) => setState(() => selectedSector = val),
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
             ),
             SizedBox(height: 20),
@@ -49,11 +57,29 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
             ),
             Row(
               children: [
-                Text('Basic', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                Text(
+                  'Basic',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Text(' . '),
-                Text('Advance', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                Text(
+                  'Advance',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Text(' . '),
-                Text('Premium', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                Text(
+                  'Premium',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             SizedBox(height: 20),
@@ -66,7 +92,14 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
                 ),
                 child: Column(
                   children: [
-                    Text('\$2', style: TextStyle(fontSize: 40, color: Colors.blue, fontWeight: FontWeight.bold)),
+                    Text(
+                      '\$2',
+                      style: TextStyle(
+                        fontSize: 40,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     Text('User/Month', style: TextStyle(color: Colors.black54)),
                     SizedBox(height: 10),
                     Column(
@@ -89,13 +122,17 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
                 onPressed: selectedSector == null
                     ? null
                     : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => PaymentValidationPage()),
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PaymentValidationPage(),
                         ),
+                      ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Text('Continue', style: TextStyle(fontSize: 18)),
               ),
@@ -107,10 +144,10 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
   }
 
   Widget _feature(String text) => Row(
-        children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 18),
-          SizedBox(width: 6),
-          Text(text, style: TextStyle(fontSize: 14)),
-        ],
-      );
+    children: [
+      Icon(Icons.check_circle, color: Colors.green, size: 18),
+      SizedBox(width: 6),
+      Text(text, style: TextStyle(fontSize: 14)),
+    ],
+  );
 }

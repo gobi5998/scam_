@@ -15,7 +15,7 @@ class FraudRemoteService {
       final url = Uri.parse(
         '${ApiConfig.reportsBaseUrl}${ApiConfig.fraudReportsEndpoint}',
       );
-      print('🔗 Attempting to send fraud report to: $url');
+
 
       // Create multipart request for file uploads
       var request = http.MultipartRequest('POST', url);
@@ -72,17 +72,17 @@ class FraudRemoteService {
         }
       }
 
-      print('📤 Report data: ${request.fields}');
-      print('📤 Files to upload: ${request.files.length} files');
+
+
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
 
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: $responseBody');
+
+
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Report sent successfully: $responseBody');
+
         return true;
       } else {
         print(
@@ -91,7 +91,7 @@ class FraudRemoteService {
         return false;
       }
     } catch (e) {
-      print('💥 Error sending report: $e');
+
       return false;
     }
   }
@@ -122,11 +122,11 @@ class FraudRemoteService {
             )
             .toList();
       } else {
-        print('Failed to fetch reports. Status: ${response.statusCode}');
+
         return [];
       }
     } catch (e) {
-      print('Error fetching reports: $e');
+
       return [];
     }
   }

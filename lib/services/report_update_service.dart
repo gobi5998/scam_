@@ -7,17 +7,17 @@ class ReportUpdateService {
     try {
       // Update existing scam reports
       await ScamReportService.updateExistingReportsWithKeycloakUserId();
-      print('Updated existing scam reports with keycloakUserId');
+
 
       // Update existing fraud reports
       await FraudReportService.updateExistingReportsWithKeycloakUserId();
-      print('Updated existing fraud reports with keycloakUserId');
+
 
       // Update existing malware reports
       await MalwareReportService.updateExistingReportsWithKeycloakUserId();
-      print('Updated existing malware reports with keycloakUserId');
+
     } catch (e) {
-      print('Error updating existing reports: $e');
+
     }
   }
 }

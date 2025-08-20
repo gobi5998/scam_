@@ -1,140 +1,86 @@
 import 'package:dio/dio.dart';
-import 'package:synchronized/synchronized.dart';
-import '../config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'token_storage.dart';
+import '../config/api_config.dart';
+
+const ACCESS_TOKEN_KEY = "access_token";
+const REFRESH_TOKEN_KEY = "refresh_token";
+
+Future<void> saveTokens(String access, String refresh) async {
+  await TokenStorage.setAccessToken(access);
+  await TokenStorage.setRefreshToken(refresh);
+}
+
+Future<String?> getAccessToken() async {
+  return await TokenStorage.getAccessToken();
+}
+
+Future<String?> getRefreshToken() async {
+  return await TokenStorage.getRefreshToken();
+}
 
 class AuthInterceptor extends Interceptor {
   final Dio _dio;
+  final Dio? _authDio; // Separate Dio instance for auth requests
 
-  // A lock to ensure single refresh at once
-  final Lock _refreshLock = Lock();
-  String? _cachedAccessToken;
-
-  AuthInterceptor(this._dio);
+  AuthInterceptor(this._dio, {Dio? authDio}) : _authDio = authDio;
 
   @override
   void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    try {
-      // Attach access token if available
-      String? accessToken = await TokenStorage.getAccessToken();
-      if (accessToken != null && accessToken.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $accessToken';
-      }
-      // Default headers
-      options.headers.addAll(ApiConfig.defaultHeaders);
-
-      if (ApiConfig.enableLogging) {
-        print('→ [Request] ${options.method} ${options.uri}');
-      }
-      handler.next(options);
-    } catch (e) {
-      handler.next(options); // still proceed
+    final token = await getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      options.headers['Authorization'] = 'Bearer $token';
     }
+    handler.next(options);
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
-    final response = err.response;
-    final requestOptions = err.requestOptions;
+  void onError(DioException e, handler) async {
+    // Only attempt refresh token if this is NOT a refresh token request itself
+    if (e.response?.statusCode == 401 &&
+        !e.requestOptions.path.contains('refresh-token')) {
+      final refreshToken = await getRefreshToken();
 
-    if (ApiConfig.enableLogging) {
-      print(
-        '✖ [Error] ${requestOptions.method} ${requestOptions.uri} '
-        'Status: ${response?.statusCode} Message: ${err.message}',
-      );
-    }
+      print("🔄 Refresh token: $refreshToken");
+      print("🔄 Refresh token length: ${refreshToken?.length ?? 0}");
+      print("🔄 Using auth endpoint: ${ApiConfig.refreshTokenEndpoint}");
 
-    // Only attempt refresh on 401 and if not already retried
-    if (response?.statusCode == 401 &&
-        requestOptions.extra['retried'] != true) {
-      await _refreshLock.synchronized(() async {
-        // If token was already refreshed by another waiting request, reuse it
-        final currentAccess = await TokenStorage.getAccessToken();
-        if (currentAccess != null &&
-            currentAccess.isNotEmpty &&
-            currentAccess != _cachedAccessToken) {
-          _cachedAccessToken = currentAccess;
-          return;
-        }
-
-        // Attempt refresh
-        final refreshToken = await TokenStorage.getRefreshToken();
-        if (refreshToken == null || refreshToken.isEmpty) {
-          // No refresh token, force logout
-          await TokenStorage.clearAllTokens();
-          return;
-        }
-
+      if (refreshToken != null && refreshToken.isNotEmpty) {
         try {
-          final refreshDio = Dio(
-            BaseOptions(
-              baseUrl: ApiConfig.authBaseUrl,
-              contentType: 'application/json',
-              receiveTimeout: const Duration(seconds: ApiConfig.receiveTimeout),
-            ),
-          );
-          final refreshResp = await refreshDio.post(
-            '/auth/refresh-token',
-            data: {'refreshToken': refreshToken},
+          // Use authDio if available, otherwise use the current dio
+          final dioToUse = _authDio ?? _dio;
+          final refreshResponse = await dioToUse.post(
+            ApiConfig.refreshTokenEndpoint,
+            data: {"refresh_token": refreshToken},
           );
 
-          final newAccess = refreshResp.data['access_token'];
-          final newRefresh = refreshResp.data['refresh_token'];
+          print("🔄 Refresh response status: ${refreshResponse.statusCode}");
+          print("🔄 Refresh response data: ${refreshResponse.data}");
 
-          if (newAccess != null && newAccess.isNotEmpty) {
-            await TokenStorage.setAccessToken(newAccess);
-            if (newRefresh != null && newRefresh.isNotEmpty) {
-              await TokenStorage.setRefreshToken(newRefresh);
-            }
-            _cachedAccessToken = newAccess;
-            if (ApiConfig.enableLogging) {
-              print('✔ Token refreshed successfully.');
-            }
-          } else {
-            // Invalid refresh response; clear everything
-            await TokenStorage.clearAllTokens();
-            if (ApiConfig.enableLogging) {
-              print('✖ Token refresh response invalid.');
-            }
-          }
-        } catch (e) {
-          // Refresh failed
-          await TokenStorage.clearAllTokens();
-          if (ApiConfig.enableLogging) {
-            print('✖ Token refresh failed: $e');
-          }
-        }
-      });
+          if (refreshResponse.data["refresh_token"] != null) {
+            final newAccess = refreshResponse.data["access_token"];
+            final newRefresh = refreshResponse.data["refresh_token"];
+            await saveTokens(newAccess, newRefresh);
 
-      // If access token now exists, retry original request
-      final updatedAccess = await TokenStorage.getAccessToken();
-      if (updatedAccess != null && updatedAccess.isNotEmpty) {
-        final opts = requestOptions.copyWith();
-        opts.headers['Authorization'] = 'Bearer $updatedAccess';
-        opts.extra['retried'] = true;
-        try {
-          final cloneResp = await _dio.fetch(opts);
-          return handler.resolve(cloneResp);
-        } catch (retryError) {
-          return handler.next(err);
+            // retry original request
+            e.requestOptions.headers["Authorization"] = "Bearer $newAccess";
+            final cloneReq = await _dio.fetch(e.requestOptions);
+            return handler.resolve(cloneReq);
+          }
+        } catch (err) {
+          // Only clear refresh token, keep access token for retry
+          await TokenStorage.setRefreshToken("");
         }
       }
     }
-
-    // Otherwise propagate original error
-    handler.next(err);
+    return handler.next(e);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (ApiConfig.enableLogging) {
-      print(
-        '✔ [Response] ${response.statusCode} ${response.requestOptions.uri}',
-      );
-    }
     handler.next(response);
   }
 }

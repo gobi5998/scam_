@@ -9,6 +9,9 @@ import '../utils/responsive_helper.dart';
 import '../widgets/responsive_widget.dart';
 import 'dashboard_page.dart';
 import 'reset_password_request.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/token_storage.dart';
+import '../services/jwt_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -199,14 +202,14 @@ class _LoginPageState extends State<LoginPage> {
                                 : null,
                             suffixIcon: _emailController.text.isNotEmpty
                                 ? Icon(
-                              _isEmailValid
-                                  ? Icons.check_circle
-                                  : Icons.error,
-                              color: _isEmailValid
-                                  ? Colors.green
-                                  : Colors.red,
-                              size: 20,
-                            )
+                                    _isEmailValid
+                                        ? Icons.check_circle
+                                        : Icons.error,
+                                    color: _isEmailValid
+                                        ? Colors.green
+                                        : Colors.red,
+                                    size: 20,
+                                  )
                                 : null,
                           ),
                           const SizedBox(height: 4),
@@ -257,7 +260,7 @@ class _LoginPageState extends State<LoginPage> {
                                           : Icons.visibility,
                                     ),
                                     onPressed: () => setState(
-                                          () => _obscureText = !_obscureText,
+                                      () => _obscureText = !_obscureText,
                                     ),
                                   ),
                                 ],
@@ -328,26 +331,29 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: (authProvider.isLoading || !_isFormValid())
                               ? null
                               : () async {
-                            if (!_formKey.currentState!.validate())
-                              return;
+                                  if (!_formKey.currentState!.validate())
+                                    return;
 
-                            final success = await authProvider.login(
-                              _emailController.text.trim(),
-                              _passwordController.text.trim(),
-                            );
+                                  final success = await authProvider.login(
+                                    _emailController.text.trim(),
+                                    _passwordController.text.trim(),
+                                  );
 
-                            if (success) {
-                              // Navigate back to root route so AuthWrapper can handle the authentication state
-                              Navigator.pushReplacementNamed(context, '/');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Login Successfully'),
-                                  duration: Duration(seconds: 2),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            }
-                          },
+                                  if (success) {
+                                    // Navigate back to root route so AuthWrapper can handle the authentication state
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/',
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Login Successfully'),
+                                        duration: Duration(seconds: 2),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                },
                           isLoading: authProvider.isLoading,
                           borderCircular: 6,
                           width: 350,
@@ -355,7 +361,7 @@ class _LoginPageState extends State<LoginPage> {
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

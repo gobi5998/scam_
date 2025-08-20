@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class DrawerMenuItem extends StatelessWidget {
+class DrawerMenuItem extends StatefulWidget {
   final String ImagePath; // Pass asset image path
   final String label;
   final String routeName;
@@ -19,26 +19,54 @@ class DrawerMenuItem extends StatelessWidget {
   });
 
   @override
+  State<DrawerMenuItem> createState() => _DrawerMenuItemState();
+}
+
+class _DrawerMenuItemState extends State<DrawerMenuItem> {
+  bool isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Image.asset(
-        ImagePath,
-        width: iconSize,
-        height: iconSize,
-        color: iconColor,
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: textColor ?? Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
+    return MouseRegion(
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.symmetric(vertical: 1),
+        decoration: BoxDecoration(
+          color: isHovered
+              ? const Color(0xFF064FAD).withOpacity(0.05)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
+          leading: Image.asset(
+            widget.ImagePath,
+            width: widget.iconSize,
+            height: widget.iconSize,
+            color: widget.iconColor ?? const Color(0xFF064FAD),
+          ),
+          title: Text(
+            widget.label,
+            style: TextStyle(
+              color: widget.textColor ?? Colors.grey[800],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          onTap: () {
+            Navigator.pop(context); // Close drawer
+            Navigator.pushNamed(
+              context,
+              widget.routeName,
+            ); // Navigate using named route
+          },
         ),
       ),
-      onTap: () {
-        Navigator.pop(context); // Close drawer
-        Navigator.pushNamed(context, routeName); // Navigate using named route
-      },
     );
   }
 }

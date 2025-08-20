@@ -5,11 +5,20 @@ class PaymentSuccessPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-        title: Text(''),
-        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         elevation: 0,
-        actions: [IconButton(icon: Icon(Icons.share), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: Icon(Icons.share, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -17,7 +26,14 @@ class PaymentSuccessPage extends StatelessWidget {
           children: [
             Icon(Icons.check_circle, color: Colors.green, size: 48),
             SizedBox(height: 10),
-            Text('Payment Success!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 20)),
+            Text(
+              'Payment Success!',
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
             SizedBox(height: 10),
             Container(
               padding: EdgeInsets.all(16),
@@ -51,11 +67,14 @@ class PaymentSuccessPage extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                onPressed: () =>
+                    Navigator.popUntil(context, (route) => route.isFirst),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Text('Continue', style: TextStyle(fontSize: 18)),
               ),
@@ -67,13 +86,16 @@ class PaymentSuccessPage extends StatelessWidget {
   }
 
   Widget _row(String label, String value, {Color? valueColor}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: TextStyle(color: Colors.black54)),
-            Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: valueColor)),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(color: Colors.black54)),
+        Text(
+          value,
+          style: TextStyle(fontWeight: FontWeight.bold, color: valueColor),
         ),
-      );
+      ],
+    ),
+  );
 }

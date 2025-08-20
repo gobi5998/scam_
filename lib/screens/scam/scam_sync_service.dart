@@ -42,7 +42,7 @@ class ScamSyncService {
           try {
             screenshots.add(File(path));
           } catch (e) {
-            print('Warning: Could not load screenshot at $path: $e');
+
           }
         }
 
@@ -50,7 +50,7 @@ class ScamSyncService {
           try {
             documents.add(File(path));
           } catch (e) {
-            print('Warning: Could not load document at $path: $e');
+
           }
         }
 

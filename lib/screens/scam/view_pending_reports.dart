@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../provider/scam_report_provider.dart';
 
-
 class ViewPendingReports extends StatelessWidget {
   const ViewPendingReports({Key? key}) : super(key: key);
 
@@ -12,7 +11,11 @@ class ViewPendingReports extends StatelessWidget {
     final pending = provider.reports.where((r) => r.isSynced != true).toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text('Pending Reports')),
+      appBar: AppBar(
+        title: Text('Pending Reports', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
+      ),
       body: ListView.builder(
         itemCount: pending.length,
         itemBuilder: (context, i) {

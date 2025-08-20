@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:provider/provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/responsive_widget.dart';
 import 'edit_profile_page.dart';
 import '../../services/app_version_service.dart';
-import '../../services/auth_api_service.dart';
+import '../../services/api_service.dart';
 import '../../models/user_model.dart';
 import '../../services/biometric_service.dart';
 import '../../services/token_storage.dart';
 import '../../services/jwt_service.dart';
+import '../../services/profile_image_service.dart';
+import '../../widgets/profile_image_widget.dart';
+import '../../provider/auth_provider.dart';
+import '../login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -25,11 +30,37 @@ class _ProfilePageState extends State<ProfilePage> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
   bool _isUploadingImage = false;
+  String? _dynamicProfileImageUrl;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+
+    // Also check AuthProvider for user data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.currentUser != null && _user == null) {
+        setState(() {
+          _user = authProvider.currentUser;
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadDynamicProfileImage() async {
+    try {
+      final userId = await ProfileImageService.getCurrentUserId();
+      if (userId != null) {
+        final imageUrl = await ProfileImageService.getProfileImageUrl(userId);
+        setState(() {
+          _dynamicProfileImageUrl = imageUrl;
+        });
+      }
+    } catch (e) {
+      print('Error loading dynamic profile image: $e');
+    }
   }
 
   Future<void> _loadUserProfile() async {
@@ -39,19 +70,29 @@ class _ProfilePageState extends State<ProfilePage> {
         _errorMessage = '';
       });
 
-      print('🔐 Loading user profile from /api/user/me endpoint...');
-      print('🔐 Checking authentication status...');
+      // First try to get user data from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.currentUser != null) {
+        print('✅ Found user data in AuthProvider');
+        setState(() {
+          _user = authProvider.currentUser;
+          _isLoading = false;
+        });
+        await _loadDynamicProfileImage();
+        return;
+      }
+
+      print('❌ No user data in AuthProvider, trying API call...');
 
       // Check if we have a valid token
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
-      print('🔐 Auth token exists: ${token != null && token.isNotEmpty}');
+
       if (token != null && token.isNotEmpty) {
         print(
           '🔐 Token preview: ${token.substring(0, token.length > 50 ? 50 : token.length)}...',
         );
       } else {
-        print('❌ No auth token found! This is the problem.');
         setState(() {
           _errorMessage = 'No authentication token found. Please login again.';
           _isLoading = false;
@@ -59,66 +100,46 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      print('🔐 Making API call to getUserProfile...');
-      final response = await AuthApiService.getUserProfile();
-      print('📊 User profile response status: ${response.statusCode}');
-      print('📦 Response data: ${response.data}');
-      print('📦 Response data type: ${response.data.runtimeType}');
-      print('📦 Full response: ${response.toString()}');
+      final apiService = ApiService();
+      final userData = await apiService.getUserMe();
 
-      if (response.statusCode == 200) {
-        final userData = response.data;
-        print('📦 Response data type: ${userData.runtimeType}');
+      print('📦 Full response: ${userData.toString()}');
+
+      if (userData != null) {
         print('📦 User data keys: ${userData.keys.toList()}');
-        print('📦 FULL USER DATA: $userData');
+        print('📦 Email field: ${userData['email']}');
+        print('📦 Username field: ${userData['username']}');
+        print('📦 Name field: ${userData['name']}');
+        print('📦 Preferred username field: ${userData['preferred_username']}');
 
         // Check if response is wrapped in a data field
         Map<String, dynamic> actualUserData;
-        if (userData is Map<String, dynamic> && userData.containsKey('data')) {
+        if (userData.containsKey('data')) {
           actualUserData = userData['data'];
-          print('📦 Response wrapped in data field');
         } else {
           actualUserData = userData;
-          print('📦 Direct response data');
         }
 
         print('📦 Actual user data keys: ${actualUserData.keys.toList()}');
-        print('📦 Email field: ${actualUserData['email']}');
-        print('📦 FirstName field: ${actualUserData['firstName']}');
-        print('📦 LastName field: ${actualUserData['lastName']}');
-        print('📦 Username field: ${actualUserData['username']}');
-        print('📦 ID field: ${actualUserData['id']}');
 
         // Create user object using the fromJson factory method
         final user = User.fromJson(actualUserData);
-        print('🔍 User object created successfully');
-        print('🔍 User email: ${user.email}');
-        print('🔍 User firstName: ${user.firstName}');
-        print('🔍 User lastName: ${user.lastName}');
-        print('🔍 User fullName: ${user.fullName}');
 
         setState(() {
           _user = user;
           _isLoading = false;
         });
 
-        print('✅ User object created successfully:');
-        print('  - Email: ${_user?.email}');
-        print('  - FirstName: ${_user?.firstName}');
-        print('  - LastName: ${_user?.lastName}');
-        print('  - FullName: ${_user?.fullName}');
-        print('  - Username: ${_user?.username}');
-        print('  - ID: ${_user?.id}');
+        // Load dynamic profile image URL
+        await _loadDynamicProfileImage();
       } else {
-        print('❌ Failed to load profile - Status: ${response.statusCode}');
         setState(() {
-          _errorMessage =
-              'Failed to load profile (Status: ${response.statusCode})';
+          _errorMessage = 'Failed to load profile';
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('❌ Error loading user profile: $e');
+      print('❌ Error loading profile: $e');
       setState(() {
         _errorMessage = 'Failed to load profile: ${e.toString()}';
         _isLoading = false;
@@ -142,7 +163,6 @@ class _ProfilePageState extends State<ProfilePage> {
         await _uploadProfileImage();
       }
     } catch (e) {
-      print('❌ Error picking image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error picking image: ${e.toString()}'),
@@ -160,8 +180,6 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      print('📤 Uploading profile image...');
-
       // Create form data for image upload
       final formData = FormData.fromMap({
         'profileImage': await MultipartFile.fromFile(
@@ -170,11 +188,12 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       });
 
-      // Call API to upload profile image
-      final response = await AuthApiService.uploadProfileImage(formData);
+      // Use the new service to upload and update profile image
+      final imageUrl = await ProfileImageService.uploadAndUpdateProfileImage(
+        formData,
+      );
 
-      if (response.statusCode == 200) {
-        print('✅ Profile image uploaded successfully');
+      if (imageUrl != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Profile image updated successfully'),
@@ -182,10 +201,14 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         );
 
-        // Reload user profile to get updated image URL
+        // Update the dynamic profile image URL
+        setState(() {
+          _dynamicProfileImageUrl = imageUrl;
+        });
+
+        // Reload user profile to get updated data
         await _loadUserProfile();
       } else {
-        print('❌ Failed to upload profile image: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to upload profile image'),
@@ -194,7 +217,6 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
     } catch (e) {
-      print('❌ Error uploading profile image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error uploading image: ${e.toString()}'),
@@ -286,9 +308,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     IconButton(
                       icon: Icon(Icons.refresh, color: Colors.white),
-                      onPressed: () {
-                        print('🔄 Manual refresh triggered');
-                        _loadUserProfile();
+                      onPressed: () async {
+                        await _loadUserProfile();
+                        await _loadDynamicProfileImage();
                       },
                     ),
                   ],
@@ -350,26 +372,23 @@ class _ProfilePageState extends State<ProfilePage> {
                                   // Profile Image with Edit Button
                                   Stack(
                                     children: [
-                                      CircleAvatar(
-                                        radius: 50,
-                                        backgroundColor: Colors.white
-                                            .withOpacity(0.2),
-                                        backgroundImage: _profileImage != null
-                                            ? FileImage(_profileImage!)
-                                            : (_user?.profileImageUrl != null &&
-                                                      _user!
-                                                          .profileImageUrl!
-                                                          .isNotEmpty
-                                                  ? NetworkImage(
-                                                          _user!
-                                                              .profileImageUrl!,
-                                                        )
-                                                        as ImageProvider
-                                                  : AssetImage(
-                                                          'assets/image/security1.jpg',
-                                                        )
-                                                        as ImageProvider),
-                                      ),
+                                      _profileImage != null
+                                          ? CircleAvatar(
+                                              radius: 50,
+                                              backgroundColor: Colors.white
+                                                  .withOpacity(0.2),
+                                              backgroundImage: FileImage(
+                                                _profileImage!,
+                                              ),
+                                            )
+                                          : ProfileImageWidget(
+                                              imageUrl:
+                                                  _dynamicProfileImageUrl ??
+                                                  _user?.profileImageUrl,
+                                              radius: 50,
+                                              backgroundColor: Colors.white
+                                                  .withOpacity(0.2),
+                                            ),
                                       if (_isUploadingImage)
                                         Positioned.fill(
                                           child: Container(
@@ -591,31 +610,29 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
 
                               ListTile(
-                                leading: Icon(Icons.logout),
-                                title: Text('Logout'),
-                                trailing: Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 16,
+                                leading: const Icon(
+                                  Icons.logout,
+                                  color: Colors.red,
+                                ),
+                                title: const Text(
+                                  'Logout',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 onTap: () async {
-                                  try {
-                                    await AuthApiService.logout();
-                                    // Navigate to login screen and clear navigation stack
-                                    Navigator.pushNamedAndRemoveUntil(
-                                      context,
-                                      '/login',
-                                      (route) => false,
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Logout failed: ${e.toString()}',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
+                                  await Provider.of<AuthProvider>(
+                                    context,
+                                    listen: false,
+                                  ).logout();
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const LoginPage(),
+                                    ),
+                                    (route) => false,
+                                  );
                                 },
                               ),
                             ],
@@ -669,7 +686,6 @@ class _ProfilePageState extends State<ProfilePage> {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool('biometric_enabled') ?? false;
     } catch (e) {
-      print('Error getting biometric status: $e');
       return false;
     }
   }
@@ -869,11 +885,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         final userData = JwtService.decodeToken(token);
         final email = userData?['email'] ?? 'your email';
 
-        print('📧 Sending forgot password request for: $email');
-
-        final response = await AuthApiService.forgotPassword(email);
-        print('✅ Forgot password response: ${response.statusCode}');
-        print('📦 Response data: ${response.data}');
+        final apiService = ApiService();
+        final response = await apiService.forgotPassword(email);
 
         setState(() => _isLoading = false);
 

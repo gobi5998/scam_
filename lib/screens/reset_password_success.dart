@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 
 class ResetPasswordSuccessScreen extends StatelessWidget {
   final String email;
-  
-  const ResetPasswordSuccessScreen({Key? key, required this.email}) : super(key: key);
+
+  const ResetPasswordSuccessScreen({Key? key, required this.email})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.grey[800]),
+          icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -74,7 +76,11 @@ class ResetPasswordSuccessScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade600,
+                          size: 20,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'What to do next:',
@@ -108,10 +114,15 @@ class ResetPasswordSuccessScreen extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF185ABC),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Back to Login', style: TextStyle(fontSize: 16, color: Colors.white)),
+                  child: Text(
+                    'Back to Login',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
                 ),
               ),
               SizedBox(height: 16),
@@ -136,7 +147,7 @@ class ResetPasswordSuccessScreen extends StatelessWidget {
 class _InstructionItem extends StatelessWidget {
   final String number;
   final String text;
-  
+
   const _InstructionItem({required this.number, required this.text});
 
   @override
@@ -168,14 +179,11 @@ class _InstructionItem extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: Colors.blue.shade800,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.blue.shade800, fontSize: 14),
             ),
           ),
         ],
       ),
     );
   }
-} 
+}

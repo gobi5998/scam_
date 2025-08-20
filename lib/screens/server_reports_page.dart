@@ -20,7 +20,14 @@ class ServerReportsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Server Reports')),
+      appBar: AppBar(
+        title: const Text(
+          'Server Reports',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF064FAD),
+        foregroundColor: Colors.white,
+      ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: fetchServerReports(),
         builder: (context, snapshot) {
