@@ -29,25 +29,26 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       screenshots: (fields[9] as List).cast<String>(),
       documents: (fields[10] as List).cast<String>(),
       name: fields[11] as String?,
-      keycloakUserId: fields[12] as String?,
+      keycloackUserId: fields[12] as String?,
       fraudsterName: fields[13] as String?,
       phoneNumbers: (fields[14] as List).cast<String>(),
       emails: (fields[15] as List).cast<String>(),
       companyName: fields[16] as String?,
-      socialMediaHandles: (fields[17] as List).cast<String>(),
-      incidentDateTime: fields[18] as DateTime?,
-      amountInvolved: fields[19] as double?,
+      mediaHandles: (fields[17] as List).cast<String>(),
+      incidentDate: fields[18] as DateTime?,
+      moneyLost: fields[19] as double?,
       voiceMessages: (fields[20] as List).cast<String>(),
-      currency: fields[21] as String?,
-      minAge: fields[22] as int?,
-      maxAge: fields[23] as int?,
+      videofiles: (fields[21] as List).cast<String>(),
+      currency: fields[22] as String?,
+      minAge: fields[23] as int?,
+      maxAge: fields[24] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, FraudReportModel obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -73,7 +74,7 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(11)
       ..write(obj.name)
       ..writeByte(12)
-      ..write(obj.keycloakUserId)
+      ..write(obj.keycloackUserId)
       ..writeByte(13)
       ..write(obj.fraudsterName)
       ..writeByte(14)
@@ -83,18 +84,20 @@ class FraudReportModelAdapter extends TypeAdapter<FraudReportModel> {
       ..writeByte(16)
       ..write(obj.companyName)
       ..writeByte(17)
-      ..write(obj.socialMediaHandles)
+      ..write(obj.mediaHandles)
       ..writeByte(18)
-      ..write(obj.incidentDateTime)
+      ..write(obj.incidentDate)
       ..writeByte(19)
-      ..write(obj.amountInvolved)
+      ..write(obj.moneyLost)
       ..writeByte(20)
       ..write(obj.voiceMessages)
       ..writeByte(21)
-      ..write(obj.currency)
+      ..write(obj.videofiles)
       ..writeByte(22)
-      ..write(obj.minAge)
+      ..write(obj.currency)
       ..writeByte(23)
+      ..write(obj.minAge)
+      ..writeByte(24)
       ..write(obj.maxAge);
   }
 

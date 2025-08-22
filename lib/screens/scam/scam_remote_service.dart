@@ -28,7 +28,7 @@ class ScamRemoteService {
       request.fields['severity'] = report.alertLevels ?? '';
       request.fields['date'] = report.createdAt?.toIso8601String() ?? '';
       request.fields['phoneNumbers'] = report.phoneNumbers?.join(',') ?? '';
-      request.fields['emailAddresses'] = report.emailAddresses?.join(',') ?? '';
+      request.fields['emails'] = report.emails?.join(',') ?? '';
       request.fields['website'] = report.website ?? '';
 
       // Add file paths as JSON

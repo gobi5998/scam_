@@ -6,6 +6,9 @@ import '../services/api_service.dart';
 import '../screens/login.dart';
 import '../screens/dashboard_page.dart';
 import '../screens/SplashScreen.dart';
+import '../screens/scam/scam_sync_service.dart';
+import '../screens/Fraud/fraud_sync_service.dart';
+import '../screens/malware/malware_sync_service.dart';
 
 class AuthGuard extends StatefulWidget {
   final Widget child;
@@ -122,6 +125,9 @@ class _AuthGuardState extends State<AuthGuard> {
           if (userResponse is Map<String, dynamic>) {
             // Update auth provider with user data
             await authProvider.setUserData(userResponse);
+
+            // Trigger post-login sync for pending reports
+            _triggerPostLoginSync();
 
             setState(() {
               _authChecked = true;
@@ -268,6 +274,42 @@ class _AuthGuardState extends State<AuthGuard> {
         (route) => false,
       );
     });
+  }
+
+  // Trigger post-login sync for pending reports
+  Future<void> _triggerPostLoginSync() async {
+    try {
+      print('🔄 AuthGuard: Triggering post-login sync...');
+
+      // Add a small delay to ensure authentication is complete
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      // Trigger sync for all report types
+      print('🔄 AuthGuard: Syncing scam reports...');
+      try {
+        await ScamSyncService().syncReports();
+      } catch (e) {
+        print('❌ AuthGuard: Scam sync failed: $e');
+      }
+
+      print('🔄 AuthGuard: Syncing fraud reports...');
+      try {
+        await FraudSyncService().syncReports();
+      } catch (e) {
+        print('❌ AuthGuard: Fraud sync failed: $e');
+      }
+
+      print('🔄 AuthGuard: Syncing malware reports...');
+      try {
+        await MalwareSyncService().syncReports();
+      } catch (e) {
+        print('❌ AuthGuard: Malware sync failed: $e');
+      }
+
+      print('✅ AuthGuard: Post-login sync completed');
+    } catch (e) {
+      print('❌ AuthGuard: Error in post-login sync: $e');
+    }
   }
 
   // Method to retry authentication after token refresh

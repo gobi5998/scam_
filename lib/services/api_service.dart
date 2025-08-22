@@ -1511,22 +1511,104 @@ class ApiService {
     try {
       await OfflineCacheService.initialize();
 
-      print(
-        '🔍 API URL: ${_dioService.mainApi.options.baseUrl}${ApiConfig.dropdownEndpoint}&limit=200',
-      );
+      print('📞 Fetching method of contact data...');
 
-      // Try to fetch from the backend dropdowns endpoint with limit 200
+      // First, try to get the scam category ID
+      String scamCategoryId = '';
+      try {
+        final categories = await fetchReportCategories();
+        for (final category in categories) {
+          final name = category['name']?.toString().toLowerCase() ?? '';
+          if (name.contains('scam')) {
+            scamCategoryId = category['_id']?.toString() ?? '';
+            print('✅ Found scam category ID: $scamCategoryId');
+            break;
+          }
+        }
+      } catch (e) {
+        print('❌ Error getting scam category ID: $e');
+      }
+
+      // If we have a scam category ID, try to fetch method of contact from that category
+      if (scamCategoryId.isNotEmpty) {
+        try {
+          print(
+            '🔍 Trying to fetch method of contact from scam category: $scamCategoryId',
+          );
+          final response = await _dioService.mainApi.get(
+            '${ApiConfig.dropdownEndpoint}&id=$scamCategoryId',
+          );
+
+          if (response.statusCode == 200 && response.data != null) {
+            final Map<String, dynamic> responseData = response.data;
+            final List<dynamic> data = responseData['data'] ?? [];
+
+            // Filter for method of contact type
+            final List<Map<String, dynamic>> methodOfContactOptions = data
+                .where((item) {
+                  final type = item['type']?.toString().toLowerCase() ?? '';
+                  return type.contains('method') ||
+                      type.contains('contact') ||
+                      type.contains('method-of-contact') ||
+                      type.contains('method_of_contact');
+                })
+                .map((item) {
+                  final Map<String, dynamic> transformedItem =
+                      Map<String, dynamic>.from(item);
+
+                  // Ensure the item has the required fields
+                  if (!transformedItem.containsKey('name')) {
+                    transformedItem['name'] =
+                        transformedItem['_id']?.toString() ?? 'Unknown Method';
+                  }
+
+                  // Ensure the item has an ID field
+                  if (!transformedItem.containsKey('_id')) {
+                    transformedItem['_id'] =
+                        transformedItem['id'] ??
+                        transformedItem['name'] ??
+                        'unknown';
+                  }
+
+                  return transformedItem;
+                })
+                .toList();
+
+            if (methodOfContactOptions.isNotEmpty) {
+              print(
+                '✅ Found ${methodOfContactOptions.length} method of contact options from category',
+              );
+
+              // Cache for offline
+              await OfflineCacheService.saveDropdown(
+                'method-of-contact',
+                methodOfContactOptions,
+              );
+
+              // Print the options
+              for (int i = 0; i < methodOfContactOptions.length; i++) {
+                final option = methodOfContactOptions[i];
+                print(
+                  '✅ Method of contact option $i: ${option['name']} (ID: ${option['_id']})',
+                );
+              }
+
+              return methodOfContactOptions;
+            }
+          }
+        } catch (e) {
+          print('❌ Error fetching from category: $e');
+        }
+      }
+
+      // Fallback: try the generic dropdown endpoint
+      print('🔍 Fallback: trying generic dropdown endpoint...');
       final response = await _dioService.mainApi.get(
         '${ApiConfig.dropdownEndpoint}&limit=200',
       );
 
       if (response.statusCode == 200 && response.data != null) {
         final List<dynamic> data = response.data;
-
-        // Print all items to see what's available
-        for (int i = 0; i < data.length; i++) {
-          final item = data[i];
-        }
 
         // Transform the data to ensure it has the expected structure
         final List<Map<String, dynamic>> methodOfContactOptions = data.map((
@@ -1568,7 +1650,7 @@ class ApiService {
         }).toList();
 
         print(
-          '✅ Method of contact options loaded from API: ${methodOfContactOptions.length} items',
+          '✅ Method of contact options loaded from generic API: ${methodOfContactOptions.length} items',
         );
 
         // Cache for offline
@@ -1592,14 +1674,24 @@ class ApiService {
         );
       }
     } catch (e) {
-      if (e is Exception) {}
+      print('❌ Error in fetchMethodOfContact: $e');
 
       // If the primary endpoint fails, return cached list (with aliases)
-
       await OfflineCacheService.initialize();
       final cached = OfflineCacheService.getDropdownByAliases([
         'method of contact',
+        'method-of-contact',
+        'method_of_contact',
       ]);
+
+      if (cached.isNotEmpty) {
+        print(
+          '✅ Returning cached method of contact data: ${cached.length} items',
+        );
+      } else {
+        print('⚠️ No cached method of contact data found');
+      }
+
       return cached;
     }
   }
@@ -1724,45 +1816,81 @@ class ApiService {
   // Preload and cache reference data so dropdowns are identical offline
   Future<void> prewarmReferenceData() async {
     try {
+      print('🔥 Starting reference data prewarm...');
       await OfflineCacheService.initialize();
+
       // 1) Categories and all types
+      print('📋 Fetching report categories...');
       final categories = await fetchReportCategories();
+      print('✅ Fetched ${categories.length} categories');
+
+      print('📋 Fetching report types...');
       await fetchReportTypes();
+      print('✅ Fetched report types');
 
       // 2) Cache method of contact data globally (not category-specific)
+      print('📞 Fetching method of contact...');
       try {
         await fetchMethodOfContact();
-      } catch (e) {}
+        print('✅ Method of contact fetched');
+      } catch (e) {
+        print('❌ Error fetching method of contact: $e');
+      }
 
       // 3) Cache types and other dropdowns for each known category
+      print('🔍 Fetching types by category...');
       for (final c in categories) {
         final id = (c['_id'] ?? c['id'])?.toString();
         if (id == null || id.isEmpty) continue;
         try {
           await fetchReportTypesByCategory(id);
-        } catch (_) {}
+          print('✅ Fetched types for category: ${c['name'] ?? id}');
+        } catch (e) {
+          print('❌ Error fetching types for category ${c['name'] ?? id}: $e');
+        }
         // Note: method-of-contact is now cached globally above, so we don't need to cache per category
       }
 
       // 4) Global families used by malware flow
+      print('🦠 Fetching malware reference data...');
       try {
         await fetchDeviceTypes();
-      } catch (_) {}
+        print('✅ Device types fetched');
+      } catch (e) {
+        print('❌ Error fetching device types: $e');
+      }
       try {
         await fetchOperatingSystems();
-      } catch (_) {}
+        print('✅ Operating systems fetched');
+      } catch (e) {
+        print('❌ Error fetching operating systems: $e');
+      }
       try {
         await fetchDetectionMethods();
-      } catch (_) {}
+        print('✅ Detection methods fetched');
+      } catch (e) {
+        print('❌ Error fetching detection methods: $e');
+      }
       try {
         await fetchSeverityLevels();
-      } catch (_) {}
+        print('✅ Severity levels fetched');
+      } catch (e) {
+        print('❌ Error fetching severity levels: $e');
+      }
 
       // 5) Alert levels
+      print('🚨 Fetching alert levels...');
       try {
         await fetchAlertLevels();
-      } catch (_) {}
-    } catch (e) {}
+        print('✅ Alert levels fetched');
+      } catch (e) {
+        print('❌ Error fetching alert levels: $e');
+      }
+
+      print('🔥 Reference data prewarm completed successfully!');
+    } catch (e) {
+      print('❌ Error during reference data prewarm: $e');
+    }
   }
 
   // Helper method to get current user information

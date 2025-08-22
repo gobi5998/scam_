@@ -774,12 +774,10 @@ class _ReportScam1State extends State<ReportScam1> {
       List<Map<String, dynamic>> methodOfContactData = [];
 
       try {
-        // Use the properly filtered method of contact data
-        methodOfContactData = await apiService.fetchDropdownByType(
-          'method-of-contact',
-          widget.categoryId,
-        );
+        // Use the improved fetchMethodOfContact function that handles category lookup
+        methodOfContactData = await apiService.fetchMethodOfContact();
       } catch (e) {
+        print('❌ Error fetching method of contact: $e');
         // Fallback to cached method
         methodOfContactData = await apiService.fetchMethodOfContactWithCache();
       }
@@ -801,11 +799,16 @@ class _ReportScam1State extends State<ReportScam1> {
           methodOfContactOptions = capitalizedOptions;
           isLoadingMethodOfContact = false;
         });
+
+        print(
+          '✅ Loaded ${methodOfContactOptions.length} method of contact options',
+        );
       } else {
         setState(() {
           methodOfContactOptions = [];
           isLoadingMethodOfContact = false;
         });
+        print('⚠️ No method of contact options found');
         // If offline, avoid noisy snackbar; rely on cache silently
         // and let user retry with refresh button when online.
       }
@@ -814,6 +817,7 @@ class _ReportScam1State extends State<ReportScam1> {
         methodOfContactOptions = [];
         isLoadingMethodOfContact = false;
       });
+      print('❌ Error in _loadMethodOfContactOptions: $e');
       // Silence snackbar to prevent confusion when offline; refresh will retry
     }
   }
@@ -858,20 +862,20 @@ class _ReportScam1State extends State<ReportScam1> {
       reportTypeId: scamTypeId!,
       alertLevels: null, // Remove hardcoded value - will be set in Step 2
       phoneNumbers: finalPhoneNumbers,
-      emailAddresses: finalEmailAddresses,
+      emails: finalEmailAddresses,
       website: website ?? '',
       description: description!,
       createdAt: now,
       updatedAt: now,
       scammerName: scammerName,
-      socialMediaHandles: finalSocialMediaHandles,
-      incidentDateTime: incidentDateTime,
-      amountLost: amountLost,
+      mediaHandles: finalSocialMediaHandles,
+      incidentDate: incidentDateTime,
+      moneyLost: amountLost,
       currency: selectedCurrency,
       methodOfContactId: selectedMethodOfContactId,
       minAge: minAge,
       maxAge: maxAge,
-      keycloakUserId: keycloakUserId,
+      keycloackUserId: keycloakUserId,
       name: userEmail, // Use user's email as the name/createdBy
     );
 

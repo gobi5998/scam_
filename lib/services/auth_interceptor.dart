@@ -71,8 +71,17 @@ class AuthInterceptor extends Interceptor {
             return handler.resolve(cloneReq);
           }
         } catch (err) {
-          // Only clear refresh token, keep access token for retry
-          await TokenStorage.setRefreshToken("");
+          print("❌ Token refresh failed: $err");
+          // Check if it's a timeout error
+          if (err.toString().contains('timeout') ||
+              err.toString().contains('408')) {
+            print("⏰ Token refresh timed out - backend timeout issue");
+            // Don't clear refresh token on timeout, just log the issue
+          } else {
+            // Only clear refresh token for other errors, keep access token for retry
+            await TokenStorage.setRefreshToken("");
+            print("🗑️ Cleared refresh token due to error");
+          }
         }
       }
     }

@@ -12,6 +12,7 @@ import 'package:security_alert/screens/scam/report_scam_1.dart';
 import 'package:security_alert/screens/malware/report_malware_1.dart';
 import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
 import 'package:security_alert/widgets/auth_guard.dart';
+import 'package:security_alert/screens/menu/theard_database.dart';
 
 import 'package:security_alert/screens/subscriptionPage/subscription_plans_page.dart';
 
@@ -21,6 +22,7 @@ import 'package:security_alert/screens/SplashScreen.dart';
 import 'package:security_alert/screens/dashboard_page.dart';
 import 'package:security_alert/screens/login.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 import 'models/scam_report_model.dart'; // ✅ Make sure this file contains: part 'scam_report_model.g.dart';
@@ -28,13 +30,17 @@ import 'models/fraud_report_model.dart'; // at the top, if not already present
 import 'models/malware_report_model.dart';
 import 'screens/Fraud/fraud_report_service.dart';
 import 'screens/malware/malware_report_service.dart';
+import 'screens/scam/scam_local_service.dart';
+import 'screens/scam/scam_sync_service.dart';
 import 'services/report_update_service.dart';
 import 'services/app_version_service.dart';
 import 'services/api_service.dart';
 import 'services/dio_service.dart';
 import 'services/token_storage.dart';
 import 'services/jwt_service.dart';
+import 'services/offline_cache_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:security_alert/custom/offline_file_upload.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,9 +55,216 @@ void main() async {
 
   // Open Hive boxes with error handling for corrupted databases
 
+  // Manual test function for reference data
+  Future<void> testReferenceData() async {
+    print('🧪 Testing reference data availability...');
+
+    try {
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Hive boxes opened successfully');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Test offline cache
+      await OfflineCacheService.initialize();
+      final categories = OfflineCacheService.getCategories();
+      final types = OfflineCacheService.getTypes();
+      final methodOfContact = OfflineCacheService.getDropdown(
+        'method-of-contact',
+      );
+
+      print('📋 Offline cache status:');
+      print('📋 - Categories: ${categories.length}');
+      print('📋 - Types: ${types.length}');
+      print('📋 - Method of contact: ${methodOfContact.length}');
+
+      if (categories.isNotEmpty) {
+        print('📋 Sample category: ${categories.first['name']}');
+      }
+      if (types.isNotEmpty) {
+        print('📋 Sample type: ${types.first['name']}');
+      }
+      if (methodOfContact.isNotEmpty) {
+        print('📋 Sample method: ${methodOfContact.first['name']}');
+      }
+
+      // Test method of contact cache specifically
+      print('📞 Testing method of contact cache specifically...');
+      try {
+        final methodOfContactCache = OfflineCacheService.getDropdown(
+          'method-of-contact',
+        );
+        print(
+          '📞 Method of contact cache: ${methodOfContactCache.length} items',
+        );
+
+        if (methodOfContactCache.isNotEmpty) {
+          print(
+            '📞 Sample method of contact: ${methodOfContactCache.first['name']}',
+          );
+        }
+      } catch (e) {
+        print('❌ Error testing method of contact cache: $e');
+      }
+    } catch (e) {
+      print('❌ Error testing reference data: $e');
+    }
+  }
+
+  // Test offline functionality
+  Future<void> testOfflineMode() async {
+    print('🧪 ===== OFFLINE MODE TEST =====');
+
+    try {
+      // 1. Check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      print('🌐 Current connectivity: $connectivityResult');
+
+      if (connectivityResult == ConnectivityResult.none) {
+        print('✅ App is OFFLINE - perfect for testing');
+      } else {
+        print('⚠️ App is ONLINE - turn off internet to test offline mode');
+      }
+
+      // 2. Check local data
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Local reports:');
+      print('📊 - Scam: ${scamBox.length}');
+      print('📊 - Fraud: ${fraudBox.length}');
+      print('📊 - Malware: ${malwareBox.length}');
+
+      // 3. Check offline cache
+      await OfflineCacheService.initialize();
+      final categories = OfflineCacheService.getCategories();
+      final types = OfflineCacheService.getTypes();
+      final methodOfContact = OfflineCacheService.getDropdown(
+        'method-of-contact',
+      );
+
+      print('📋 Offline reference data:');
+      print('📋 - Categories: ${categories.length}');
+      print('📋 - Types: ${types.length}');
+      print('📋 - Method of contact: ${methodOfContact.length}');
+
+      // 4. Check sync status
+      final scamLocalService = ScamLocalService();
+      final stats = await scamLocalService.getSyncStats();
+      print('🔄 Sync status:');
+      print('🔄 - Total: ${stats['total']}');
+      print('🔄 - Pending: ${stats['pending']}');
+      print('🔄 - Synced: ${stats['synced']}');
+
+      // 5. Summary
+      print('\n📋 ===== OFFLINE TEST SUMMARY =====');
+      if (connectivityResult == ConnectivityResult.none) {
+        if (categories.isNotEmpty && types.isNotEmpty) {
+          print('✅ OFFLINE MODE: FULLY FUNCTIONAL');
+          print('✅ Can create reports offline');
+          print('✅ Can view existing reports');
+          print('✅ Reference data available');
+        } else {
+          print('❌ OFFLINE MODE: Missing reference data');
+          print('💡 Go online first to cache reference data');
+        }
+      } else {
+        print(
+          '⚠️ ONLINE MODE: Turn off internet to test offline functionality',
+        );
+      }
+    } catch (e) {
+      print('❌ Error during offline test: $e');
+    }
+  }
+
+  // Cache reference data for offline use
+  Future<void> cacheReferenceDataForOffline() async {
+    print('🔄 ===== CACHING REFERENCE DATA FOR OFFLINE =====');
+
+    try {
+      // Check if we're online
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        print('❌ Cannot cache data: No internet connection');
+        return;
+      }
+
+      print('✅ Internet available, caching reference data...');
+
+      // Initialize offline cache service
+      await OfflineCacheService.initialize();
+
+      // Cache categories
+      print('📋 Caching report categories...');
+      await ApiService().prewarmReferenceData();
+
+      // Verify cache
+      final categories = OfflineCacheService.getCategories();
+      final types = OfflineCacheService.getTypes();
+      final methodOfContact = OfflineCacheService.getDropdown(
+        'method-of-contact',
+      );
+
+      print('📊 Cache verification:');
+      print('📊 - Categories: ${categories.length}');
+      print('📊 - Types: ${types.length}');
+      print('📊 - Method of contact: ${methodOfContact.length}');
+
+      if (categories.isNotEmpty && types.isNotEmpty) {
+        print('✅ Reference data cached successfully for offline use');
+        print('💡 You can now turn off internet and test offline mode');
+      } else {
+        print('❌ Failed to cache reference data');
+        print('💡 Make sure you are logged in and have internet connection');
+      }
+    } catch (e) {
+      print('❌ Error caching reference data: $e');
+    }
+  }
+
+  // Sync offline files when back online
+  Future<void> syncOfflineFiles() async {
+    print('🔄 ===== SYNCING OFFLINE FILES =====');
+
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        print('❌ Cannot sync files: No internet connection');
+        return;
+      }
+
+      print('✅ Internet available, syncing offline files...');
+
+      final syncResult = await OfflineFileUploadService.syncOfflineFiles();
+
+      if (syncResult['success']) {
+        print('✅ Offline files sync completed successfully');
+        print('📊 - Synced: ${syncResult['synced']} files');
+        print('📊 - Failed: ${syncResult['failed']} files');
+
+        if (syncResult['synced'] > 0) {
+          print(
+            '🎉 Successfully synced ${syncResult['synced']} offline files to server!',
+          );
+        }
+      } else {
+        print('❌ Offline files sync failed: ${syncResult['message']}');
+      }
+    } catch (e) {
+      print('❌ Error syncing offline files: $e');
+    }
+  }
+
   try {
     await Hive.openBox<ScamReportModel>('scam_reports');
   } catch (e) {
+    print('🔄 Clearing scam_reports box due to schema mismatch: $e');
     await Hive.deleteBoxFromDisk('scam_reports');
     await Hive.openBox<ScamReportModel>('scam_reports');
   }
@@ -59,6 +272,7 @@ void main() async {
   try {
     await Hive.openBox<FraudReportModel>('fraud_reports');
   } catch (e) {
+    print('🔄 Clearing fraud_reports box due to schema mismatch: $e');
     await Hive.deleteBoxFromDisk('fraud_reports');
     await Hive.openBox<FraudReportModel>('fraud_reports');
   }
@@ -66,20 +280,213 @@ void main() async {
   try {
     await Hive.openBox<MalwareReportModel>('malware_reports');
   } catch (e) {
+    print('🔄 Clearing malware_reports box due to schema mismatch: $e');
     await Hive.deleteBoxFromDisk('malware_reports');
     await Hive.openBox<MalwareReportModel>('malware_reports');
   }
 
-  // Check existing data
-  final scamBox = Hive.box<ScamReportModel>('scam_reports');
-  final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
-  final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+  // Check existing data - with error handling for schema mismatches
+  Box<ScamReportModel>? scamBox;
+  Box<FraudReportModel>? fraudBox;
+  Box<MalwareReportModel>? malwareBox;
+
+  try {
+    scamBox = Hive.box<ScamReportModel>('scam_reports');
+    fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+    malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+  } catch (e) {
+    print('🚨 Critical schema mismatch detected. Clearing all boxes...');
+    await Hive.deleteBoxFromDisk('scam_reports');
+    await Hive.deleteBoxFromDisk('fraud_reports');
+    await Hive.deleteBoxFromDisk('malware_reports');
+
+    // Reopen boxes
+    scamBox = await Hive.openBox<ScamReportModel>('scam_reports');
+    fraudBox = await Hive.openBox<FraudReportModel>('fraud_reports');
+    malwareBox = await Hive.openBox<MalwareReportModel>('malware_reports');
+  }
 
   // Update existing reports with keycloakUserId
   await ReportUpdateService.updateAllExistingReports();
 
   // Initialize app version service
   await AppVersionService.initialize();
+
+  // Test reference data availability (commented out to prevent startup issues)
+  // await testReferenceData();
+
+  // Test offline mode (commented out to prevent startup issues)
+  // await testOfflineMode();
+
+  // Cache reference data for offline use (only if online)
+  try {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      print('🌐 Online - caching reference data for offline use...');
+      await cacheReferenceDataForOffline();
+    } else {
+      print('📱 Offline - skipping reference data caching');
+    }
+  } catch (e) {
+    print('❌ Error during reference data caching: $e');
+  }
+
+  // Test method of contact specifically
+  print('📞 Testing method of contact cache specifically...');
+  try {
+    await OfflineCacheService.initialize();
+    final methodOfContact = OfflineCacheService.getDropdown(
+      'method-of-contact',
+    );
+    print('📞 Method of contact cache: ${methodOfContact.length} items');
+
+    if (methodOfContact.isNotEmpty) {
+      print('📞 Sample method of contact: ${methodOfContact.first['name']}');
+    } else {
+      print('⚠️ No method of contact data in cache, attempting to fetch...');
+      try {
+        final apiService = ApiService();
+        final freshData = await apiService.fetchMethodOfContact();
+        print('✅ Fresh method of contact data: ${freshData.length} items');
+
+        // Test the cache again
+        final updatedCache = OfflineCacheService.getDropdown(
+          'method-of-contact',
+        );
+        print('📞 Updated cache: ${updatedCache.length} items');
+      } catch (e) {
+        print('❌ Error fetching fresh method of contact data: $e');
+      }
+    }
+  } catch (e) {
+    print('❌ Error testing method of contact cache: $e');
+  }
+
+  // Test manual sync process (commented out to prevent startup issues)
+  // print('🧪 Testing manual sync process...');
+  // try {
+  //   // First, check if we have valid tokens
+  //   await TokenStorage.diagnoseTokenStorage();
+  //
+  //   // Check if tokens are valid before attempting sync
+  //   final accessToken = await TokenStorage.getAccessToken();
+  //   final refreshToken = await TokenStorage.getRefreshToken();
+  //
+  //   if (refreshToken == null || refreshToken.isEmpty) {
+  //     print('❌ CRITICAL: Refresh token is empty! Sync will fail.');
+  //     print('💡 SOLUTION: You need to re-login to get fresh tokens.');
+  //     print('🔄 Please log out and log back in, then try sync again.');
+  //
+  //     // Don't automatically clear tokens - let user handle login manually
+  //     print('🔄 Skipping sync until user logs in.');
+  //     return;
+  //   }
+  //
+  //   if (accessToken == null || accessToken.isEmpty) {
+  //     print('❌ CRITICAL: Access token is empty! Sync will fail.');
+  //     print('💡 SOLUTION: You need to re-login to get fresh tokens.');
+  //     print('🔄 Please log out and log back in, then try sync again.');
+  //
+  //     // Don't automatically clear tokens - let user handle login manually
+  //     print('🔄 Skipping sync until user logs in.');
+  //     return;
+  //   }
+
+  //   final scamLocalService = ScamLocalService();
+  //   final stats = await scamLocalService.getSyncStats();
+
+  //   if (stats['pending'] > 0) {
+  //     print('🔄 Found ${stats['pending']} pending reports, testing sync...');
+
+  //     // Try to sync all pending reports manually
+  //     final scamSyncService = ScamSyncService();
+  //     final syncResult = await scamSyncService.syncReports();
+
+  //     print('📊 Manual sync result: ${syncResult['message']}');
+  //     print(
+  //       '📊 Synced: ${syncResult['syncedCount']}, Failed: ${syncResult['failedCount']}',
+  //     );
+
+  //     if (syncResult['failedCount'] > 0) {
+  //       print('❌ Failed reports: ${syncResult['failedReports']}');
+  //     }
+
+  //     // Check final status
+  //     final finalStats = await scamLocalService.getSyncStats();
+  //     print(
+  //       '📊 Final sync status: ${finalStats['total']} total, ${finalStats['pending']} pending, ${finalStats['synced']} synced',
+  //     );
+  //   } else {
+  //     print('✅ No pending reports to sync');
+  //   }
+  // } catch (e) {
+  //   print('❌ Error during manual sync test: $e');
+  // }
+
+  // Check pending reports status
+  print('📋 Checking pending reports status...');
+  try {
+    final scamLocalService = ScamLocalService();
+    final scamStats = await scamLocalService.getSyncStats();
+    print(
+      '📊 Scam reports: ${scamStats['total']} total, ${scamStats['pending']} pending, ${scamStats['synced']} synced',
+    );
+
+    if (scamStats['pending'] > 0) {
+      print(
+        '🔄 Found ${scamStats['pending']} pending scam reports that need sync',
+      );
+      final pendingReports = await scamLocalService.getPendingReports();
+      for (int i = 0; i < pendingReports.length && i < 3; i++) {
+        final report = pendingReports[i];
+        print(
+          '  - Pending: ${report.description?.substring(0, report.description!.length > 30 ? 30 : report.description!.length)}... (ID: ${report.id})',
+        );
+      }
+      if (pendingReports.length > 3) {
+        print('  ... and ${pendingReports.length - 3} more pending reports');
+      }
+
+      // Test manual sync for the first pending report
+      if (pendingReports.isNotEmpty) {
+        print('🧪 Testing manual sync for first pending report...');
+        try {
+          final firstReport = pendingReports.first;
+          if (firstReport.id != null) {
+            print('🧪 Attempting to sync report: ${firstReport.id}');
+
+            // Use the enhanced sync service
+            final scamSyncService = ScamSyncService();
+            final result = await scamSyncService.syncSpecificReport(
+              firstReport.id!,
+            );
+
+            if (result) {
+              print(
+                '✅ Manual sync test successful for report: ${firstReport.id}',
+              );
+            } else {
+              print('❌ Manual sync test failed for report: ${firstReport.id}');
+            }
+
+            // Check status again
+            final updatedStats = await scamLocalService.getSyncStats();
+            print(
+              '📊 Updated stats: ${updatedStats['total']} total, ${updatedStats['pending']} pending, ${updatedStats['synced']} synced',
+            );
+          } else {
+            print(
+              '⚠️ First pending report has no ID, skipping manual sync test',
+            );
+          }
+        } catch (e) {
+          print('❌ Error during manual sync test: $e');
+        }
+      }
+    }
+  } catch (e) {
+    print('❌ Error checking pending reports: $e');
+  }
 
   // DioService interceptors are automatically set up in the constructor
   // No need to call AuthApiService.setupInterceptors() anymore
@@ -111,29 +518,53 @@ void main() async {
   // Initial sync if online
   final initialConnectivity = await Connectivity().checkConnectivity();
   if (initialConnectivity != ConnectivityResult.none) {
+    print('🌐 Internet available on startup, prewarming reference data...');
+
+    // CRITICAL: Prewarm reference data for offline use
+    try {
+      await ApiService().prewarmReferenceData();
+      print('✅ Reference data prewarmed successfully');
+    } catch (e) {
+      print('❌ Error prewarming reference data: $e');
+    }
+
+    print('🌐 Internet available on startup, syncing reports...');
     try {
       await ScamReportService.syncReports();
+      print('✅ Initial scam sync completed');
     } catch (e) {
-      // Error syncing scam reports
+      print('❌ Error syncing scam reports: $e');
     }
 
     try {
       await FraudReportService.syncReports();
+      print('✅ Initial fraud sync completed');
     } catch (e) {
-      // Error syncing fraud reports
+      print('❌ Error syncing fraud reports: $e');
     }
 
     try {
       await MalwareReportService.syncReports();
+      print('✅ Initial malware sync completed');
     } catch (e) {
-      // Error syncing malware reports
+      print('❌ Error syncing malware reports: $e');
     }
+  } else {
+    print('📱 No internet on startup, will sync when connection restored');
   }
 
   // Set up periodic sync (every 30 minutes when online) - reduced frequency
   Timer.periodic(const Duration(minutes: 30), (timer) async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
+      // Prewarm reference data periodically
+      try {
+        await ApiService().prewarmReferenceData();
+        print('✅ Periodic reference data prewarm completed');
+      } catch (e) {
+        print('❌ Error during periodic reference data prewarm: $e');
+      }
+
       try {
         await ScamReportService.syncReports();
       } catch (e) {
@@ -158,27 +589,72 @@ void main() async {
   bool hasCleanedUp = false;
 
   Connectivity().onConnectivityChanged.listen((result) async {
-    if (result != ConnectivityResult.none && !hasCleanedUp) {
-      hasCleanedUp = true; // Prevent multiple executions
+    print('🌐 Connectivity changed: $result');
 
-      // Then sync reports
+    if (result != ConnectivityResult.none) {
+      print('🌐 Internet connection available, prewarming reference data...');
+
+      // CRITICAL: Prewarm reference data when internet is restored
       try {
-        await ScamReportService.syncReports();
+        await ApiService().prewarmReferenceData();
+        print('✅ Reference data prewarmed on connectivity restore');
       } catch (e) {
-        // Error syncing scam reports
+        print('❌ Error prewarming reference data on connectivity restore: $e');
+      }
+
+      print('🌐 Internet connection available, syncing reports...');
+
+      try {
+        print('🔄 Starting scam reports sync on connectivity change...');
+        await ScamReportService.syncReports();
+        print('✅ Scam sync on connectivity change completed');
+
+        // Get sync statistics for detailed logging
+        try {
+          final scamLocalService = ScamLocalService();
+          final stats = await scamLocalService.getSyncStats();
+          print(
+            '📊 Scam sync stats: ${stats['total']} total, ${stats['pending']} pending, ${stats['synced']} synced (${stats['syncPercentage']}%)',
+          );
+        } catch (e) {
+          print('⚠️ Could not get sync stats: $e');
+        }
+      } catch (e) {
+        print('❌ Error syncing scam reports on connectivity change: $e');
       }
 
       try {
         await FraudReportService.syncReports();
+        print('✅ Fraud sync on connectivity change completed');
       } catch (e) {
-        // Error syncing fraud reports
+        print('❌ Error syncing fraud reports on connectivity change: $e');
       }
 
       try {
         await MalwareReportService.syncReports();
+        print('✅ Malware sync on connectivity change completed');
       } catch (e) {
-        // Error syncing malware reports
+        print('❌ Error syncing malware reports on connectivity change: $e');
       }
+
+      // Sync offline files when internet is restored
+      try {
+        print('📁 Syncing offline files on connectivity restore...');
+        final fileSyncResult =
+            await OfflineFileUploadService.syncOfflineFiles();
+
+        if (fileSyncResult['success']) {
+          print(
+            '✅ Offline files sync completed: ${fileSyncResult['synced']} synced, ${fileSyncResult['failed']} failed',
+          );
+        } else {
+          print('❌ Offline files sync failed: ${fileSyncResult['message']}');
+        }
+      } catch (e) {
+        print('❌ Error syncing offline files on connectivity change: $e');
+      }
+    } else {
+      print('📱 Internet connection lost');
     }
   });
 
@@ -226,7 +702,7 @@ class MyApp extends StatelessWidget {
             severityLevels: [],
           ),
         ),
-        '/filter': (context) => AuthGuard(child: FilterPage()),
+        '/filter': (context) => AuthGuard(child: ThreadDatabaseFilterPage()),
         '/subscription': (context) => AuthGuard(child: SubscriptionPlansPage()),
         '/rate': (context) => AuthGuard(child: Ratepage()),
         '/share': (context) => AuthGuard(child: Shareapp()),

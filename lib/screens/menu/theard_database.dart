@@ -26,6 +26,16 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   List<String> selectedTypeIds = [];
   List<String> selectedAlertLevels = [];
 
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  String? _selectedDeviceTypeId;
+  String? _selectedOperatingSystemId;
+  String? _selectedDetectTypeId;
+  List<Map<String, dynamic>> _deviceTypes = [];
+  List<Map<String, dynamic>> _detectTypes = [];
+  List<Map<String, dynamic>> _operatingSystems = [];
+
   final ApiService _apiService = ApiService();
 
   bool _isLoadingCategories = true;
@@ -109,6 +119,61 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       _loadAllReportTypes(),
       _loadAlertLevels(),
     ]);
+  }
+
+  Future<void> _loadDeviceFilters() async {
+    try {
+      final String? categoryId = selectedCategoryIds.isNotEmpty
+          ? selectedCategoryIds.first
+          : null;
+
+      print('🔍 Loading device filters for category: ${categoryId ?? 'none'}');
+
+      final deviceRaw = await _apiService.fetchDropdownByType(
+        'device',
+        categoryId ?? '',
+      );
+      final detectRaw = await _apiService.fetchDropdownByType(
+        'detect',
+        categoryId ?? '',
+      );
+      final osRaw = await _apiService.fetchDropdownByType(
+        'operating System',
+        categoryId ?? '',
+      );
+
+      print('🔍 Raw data received:');
+      print('🔍   - Device types: ${deviceRaw.length}');
+      print('🔍   - Detect types: ${detectRaw.length}');
+      print('🔍   - Operating systems: ${osRaw.length}');
+
+      List<Map<String, dynamic>> _capitalize(List<Map<String, dynamic>> list) {
+        return list.map((option) {
+          final name = option['name'] as String? ?? '';
+          if (name.isNotEmpty) {
+            return {
+              ...option,
+              'name': name[0].toUpperCase() + name.substring(1).toLowerCase(),
+            };
+          }
+          return option;
+        }).toList();
+      }
+
+      setState(() {
+        _deviceTypes = _capitalize(List<Map<String, dynamic>>.from(deviceRaw));
+        _detectTypes = _capitalize(List<Map<String, dynamic>>.from(detectRaw));
+        _operatingSystems = _capitalize(List<Map<String, dynamic>>.from(osRaw));
+      });
+
+      print('🔍 Device filters loaded successfully:');
+      print('🔍   - Device types: ${_deviceTypes.length}');
+      print('🔍   - Detect types: ${_detectTypes.length}');
+      print('🔍   - Operating systems: ${_operatingSystems.length}');
+    } catch (e) {
+      print('❌ Error loading device filters: $e');
+      // keep empty lists on failure
+    }
   }
 
   // Load local categories
@@ -211,24 +276,30 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       final alertLevelsJson = prefs.getString('local_alert_levels');
 
       if (alertLevelsJson != null) {
-        final alertLevels = List<Map<String, dynamic>>.from(
+        final parsed = List<Map<String, dynamic>>.from(
           jsonDecode(alertLevelsJson).map((x) => Map<String, dynamic>.from(x)),
         );
-        print('✅ Loaded ${alertLevels.length} alert levels from local storage');
+        setState(() {
+          alertLevels = parsed;
+        });
+        print('✅ Loaded ${parsed.length} alert levels from local storage');
       } else {
         // Use fallback alert levels
-        alertLevels = [];
+        setState(() {
+          alertLevels = [];
+        });
         print('⚠️ No local alert levels found, using fallback data');
       }
     } catch (e) {
       print('❌ Error loading local alert levels: $e');
       // Use fallback alert levels
-      alertLevels = [];
+      setState(() {
+        alertLevels = [];
+      });
       print('⚠️ Using fallback alert levels due to error');
     }
-  }
+  } // Load local reports with proper filtering support
 
-  // Load local reports with proper filtering support
   Future<void> _loadLocalReports() async {
     try {
       List<Map<String, dynamic>> allReports = [];
@@ -240,7 +311,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'id': report.id,
           'description': report.description,
           'alertLevels': report.alertLevels,
-          'emailAddresses': report.emailAddresses,
+          'emails': report.emails,
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
@@ -260,7 +331,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'id': report.id,
           'description': report.description ?? report.name ?? 'Fraud Report',
           'alertLevels': report.alertLevels,
-          'emailAddresses': report.emails,
+          'emails': report.emails,
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
@@ -280,8 +351,8 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         allReports.add({
           'id': report.id,
           'description': report.malwareType ?? 'Malware Report',
-          'alertLevels': report.alertSeverityLevel,
-          'emailAddresses': null,
+          'alertLevels': report.alertLevels,
+          'emails': null,
           'phoneNumbers': null,
           'website': null,
           'createdAt': report.date,
@@ -488,73 +559,40 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   // Load alert levels from backend
   Future<void> _loadAlertLevels() async {
     try {
-      print('🔍 Fetching alert levels from backend API...');
+      print('🔍 Fetching alert levels via ApiService.fetchAlertLevels()...');
+      final levels = await _apiService.fetchAlertLevels();
 
-      // Call the backend API to get alert levels
-      final response = await _apiService.get('api/v1/alert-level');
-      print('🔍 Alert levels API response: ${response.data}');
+      setState(() {
+        alertLevels = levels;
+      });
 
-      if (response.data != null && response.data is List) {
-        final alertLevelsData = List<Map<String, dynamic>>.from(response.data);
-        // Filter only active alert levels
-        final activeAlertLevels = alertLevelsData
-            .where((level) => level['isActive'] == true)
-            .toList();
-
-        setState(() {
-          alertLevels = activeAlertLevels;
-        });
-
-        print(
-          '✅ Loaded ${activeAlertLevels.length} active alert levels from backend',
-        );
-        print('🔍 Alert levels data: $activeAlertLevels');
-
-        // Save alert levels locally for offline use
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(
-            'local_alert_levels',
-            jsonEncode(activeAlertLevels),
-          );
-          print('✅ Alert levels saved locally for offline use');
-        } catch (e) {
-          print('⚠️ Failed to save alert levels locally: $e');
+      print('✅ Loaded ${levels.length} alert levels');
+      if (levels.isNotEmpty) {
+        print('🔍 First alert level: ${levels.first}');
+        print('🔍 Raw alert levels data:');
+        for (int i = 0; i < levels.length; i++) {
+          final level = levels[i];
+          print('🔍   ${i + 1}. Raw data: $level');
+          print('🔍      - _id: ${level['_id']}');
+          print('🔍      - id: ${level['id']}');
+          print('🔍      - name: ${level['name']}');
         }
-      } else if (response.data != null && response.data is Map) {
-        // Handle case where response is wrapped in an object
-        final data = response.data as Map<String, dynamic>;
-        if (data.containsKey('data') && data['data'] is List) {
-          final alertLevelsData = List<Map<String, dynamic>>.from(data['data']);
-          final activeAlertLevels = alertLevelsData
-              .where((level) => level['isActive'] == true)
-              .toList();
-
-          setState(() {
-            alertLevels = activeAlertLevels;
-          });
-
+        print('🔍 All alert levels:');
+        for (int i = 0; i < levels.length; i++) {
+          final level = levels[i];
           print(
-            '✅ Loaded ${activeAlertLevels.length} active alert levels from backend (wrapped response)',
+            '🔍   ${i + 1}. ID: ${level['_id'] ?? level['id']}, Name: ${level['name']}',
           );
-          print('🔍 Alert levels data: $activeAlertLevels');
-
-          // Save alert levels locally for offline use
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(
-              'local_alert_levels',
-              jsonEncode(activeAlertLevels),
-            );
-            print('✅ Alert levels saved locally for offline use');
-          } catch (e) {
-            print('⚠️ Failed to save alert levels locally: $e');
-          }
-        } else {
-          throw Exception('Unexpected response format: ${response.data}');
         }
-      } else {
-        throw Exception('Invalid response from alert levels API');
+      }
+
+      // Save alert levels locally for offline use
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('local_alert_levels', jsonEncode(levels));
+        print('✅ Alert levels saved locally for offline use');
+      } catch (e) {
+        print('⚠️ Failed to save alert levels locally: $e');
       }
     } catch (e) {
       print('❌ Error loading alert levels from backend: $e');
@@ -886,10 +924,19 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
     if (categoryIds.isNotEmpty) {
       _loadTypesByCategory(categoryIds);
+      _loadDeviceFilters();
     } else {
       // If no categories selected, load all types
+
       _loadAllReportTypes();
+
+      setState(() {
+        _deviceTypes = [];
+        _detectTypes = [];
+        _operatingSystems = [];
+      });
     }
+    ;
   }
 
   Future<void> _fetchSelectedCategoryData(List<String> categoryIds) async {
@@ -1326,6 +1373,166 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         (item) => item['name']?.toString() ?? 'Unknown',
                       ),
                       const SizedBox(height: 16),
+                      const SizedBox(height: 16),
+                      _buildMultiSelectDropdown(
+                        'Device Type',
+                        _deviceTypes,
+                        _selectedDeviceTypeId == null
+                            ? <String>[]
+                            : <String>[_selectedDeviceTypeId!],
+                        (values) => setState(
+                          () => _selectedDeviceTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ?? item['deviceTypeName'] ?? 'Device')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMultiSelectDropdown(
+                        'Detect Type',
+                        _detectTypes,
+                        _selectedDetectTypeId == null
+                            ? <String>[]
+                            : <String>[_selectedDetectTypeId!],
+                        (values) => setState(
+                          () => _selectedDetectTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ?? item['detectTypeName'] ?? 'Detect')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMultiSelectDropdown(
+                        'Operating System',
+                        _operatingSystems,
+                        _selectedOperatingSystemId == null
+                            ? <String>[]
+                            : <String>[_selectedOperatingSystemId!],
+                        (values) => setState(
+                          () => _selectedOperatingSystemId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ??
+                                    item['operatingSystemName'] ??
+                                    'OS')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
+                      // Date range pickers
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.shade50,
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.date_range,
+                                  color: Colors.black54,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Date range',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                if (_startDate != null || _endDate != null)
+                                  TextButton.icon(
+                                    onPressed: () => setState(() {
+                                      _startDate = null;
+                                      _endDate = null;
+                                    }),
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    label: const Text('Clear'),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      final picked = await showDatePicker(
+                                        context: context,
+                                        initialDate:
+                                            _startDate ?? DateTime.now(),
+                                        firstDate: DateTime(2000),
+                                        lastDate: DateTime(2100),
+                                      );
+                                      if (picked != null) {
+                                        setState(() {
+                                          _startDate = DateTime(
+                                            picked.year,
+                                            picked.month,
+                                            picked.day,
+                                          );
+                                          if (_endDate != null &&
+                                              _endDate!.isBefore(_startDate!)) {
+                                            _endDate = null;
+                                          }
+                                        });
+                                      }
+                                    },
+                                    child: Text(
+                                      _startDate == null
+                                          ? 'Start date'
+                                          : 'From: ${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      final picked = await showDatePicker(
+                                        context: context,
+                                        initialDate:
+                                            _endDate ??
+                                            (_startDate ?? DateTime.now()),
+                                        firstDate: DateTime(2000),
+                                        lastDate: DateTime(2100),
+                                      );
+                                      if (picked != null) {
+                                        setState(() {
+                                          _endDate = DateTime(
+                                            picked.year,
+                                            picked.month,
+                                            picked.day,
+                                            23,
+                                            59,
+                                            59,
+                                          );
+                                        });
+                                      }
+                                    },
+                                    child: Text(
+                                      _endDate == null
+                                          ? 'End date'
+                                          : 'To: ${_endDate!.year}-${_endDate!.month.toString().padLeft(2, '0')}-${_endDate!.day.toString().padLeft(2, '0')}',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
 
                       const SizedBox(height: 16),
 
@@ -1346,7 +1553,6 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                 hasSelectedCategory: false,
                                 isOffline: _isOffline,
                                 localReports: _localReports,
-                                severityLevels: alertLevels,
                               ),
                             ),
                           );

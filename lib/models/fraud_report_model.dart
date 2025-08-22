@@ -42,7 +42,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   String? name; // maps to createdBy
 
   @HiveField(12)
-  String? keycloakUserId; // maps to keycloackUserId
+  String? keycloackUserId; // maps to keycloackUserId (matching online API)
 
   @HiveField(13)
   String? fraudsterName;
@@ -57,24 +57,27 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   String? companyName;
 
   @HiveField(17)
-  List<String> socialMediaHandles; // maps to mediaHandles
+  List<String> mediaHandles; // maps to mediaHandles (matching online API)
 
   @HiveField(18)
-  DateTime? incidentDateTime; // maps to incidentDate
+  DateTime? incidentDate; // maps to incidentDate (matching online API)
 
   @HiveField(19)
-  double? amountInvolved; // maps to moneyLost
+  double? moneyLost; // maps to moneyLost (matching online API)
 
   @HiveField(20)
-  List<String> voiceMessages; // maps to voiceMessages
+  List<String> voiceMessages; // maps to voiceMessages (matching online API)
 
   @HiveField(21)
-  String? currency; // maps to currency
+  List<String> videofiles; // maps to videofiles (matching online API)
 
   @HiveField(22)
-  int? minAge; // maps to age.min
+  String? currency; // maps to currency
 
   @HiveField(23)
+  int? minAge; // maps to age.min
+
+  @HiveField(24)
   int? maxAge; // maps to age.max
 
   FraudReportModel({
@@ -90,15 +93,16 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     this.screenshots = const [],
     this.documents = const [],
     this.name,
-    this.keycloakUserId,
+    this.keycloackUserId,
     this.fraudsterName,
     this.phoneNumbers = const [],
     this.emails = const [],
     this.companyName,
-    this.socialMediaHandles = const [],
-    this.incidentDateTime,
-    this.amountInvolved,
+    this.mediaHandles = const [],
+    this.incidentDate,
+    this.moneyLost,
     this.voiceMessages = const [],
+    this.videofiles = const [],
     this.currency,
     this.minAge,
     this.maxAge,
@@ -118,7 +122,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     'reportCategoryId': reportCategoryId,
     'reportTypeId': reportTypeId,
     'alertLevels': alertLevels,
-    'keycloackUserId': keycloakUserId,
+    'keycloackUserId': keycloackUserId,
     'location': {
       'type': 'Point',
       'coordinates': [
@@ -128,13 +132,13 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     },
     'phoneNumbers': phoneNumbers,
     'emails': emails,
-    'mediaHandles': socialMediaHandles,
+    'mediaHandles': mediaHandles,
     'website': website,
     'currency': currency ?? 'INR', // Use currency from model or default to INR
-    'moneyLost': amountInvolved?.toString(),
+    'moneyLost': moneyLost?.toString(),
     'reportOutcome': true, // Default value, should be made configurable
     'description': description,
-    'incidentDate': incidentDateTime?.toIso8601String(),
+    'incidentDate': incidentDate?.toIso8601String(),
     'fraudsterName': fraudsterName,
     'companyName': companyName,
     'createdBy': name, // Using name as createdBy for now
@@ -142,6 +146,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     'screenshots': screenshots,
     'voiceMessages': voiceMessages,
     'documents': documents,
+    'videofiles': videofiles,
     'age': {'min': minAge, 'max': maxAge},
   };
 
@@ -166,25 +171,27 @@ class FraudReportModel extends HiveObject implements SyncableReport {
         (json['screenshots'] as List?)?.map((e) => e.toString()).toList() ?? [],
     documents:
         (json['documents'] as List?)?.map((e) => e.toString()).toList() ?? [],
-    keycloakUserId: json['keycloackUserId'],
+    keycloackUserId: json['keycloackUserId'],
     fraudsterName: json['fraudsterName'],
     phoneNumbers:
         (json['phoneNumbers'] as List?)?.map((e) => e.toString()).toList() ??
         [],
     emails: (json['emails'] as List?)?.map((e) => e.toString()).toList() ?? [],
     companyName: json['companyName'],
-    socialMediaHandles:
+    mediaHandles:
         (json['mediaHandles'] as List?)?.map((e) => e.toString()).toList() ??
         [],
-    incidentDateTime: json['incidentDate'] != null
+    incidentDate: json['incidentDate'] != null
         ? DateTime.tryParse(json['incidentDate'])
         : null,
-    amountInvolved: json['moneyLost'] != null
+    moneyLost: json['moneyLost'] != null
         ? double.tryParse(json['moneyLost'].toString())
         : null,
     voiceMessages:
         (json['voiceMessages'] as List?)?.map((e) => e.toString()).toList() ??
         [],
+    videofiles:
+        (json['videofiles'] as List?)?.map((e) => e.toString()).toList() ?? [],
     currency: json['currency'],
     minAge: json['age'] != null ? json['age']['min'] : null,
     maxAge: json['age'] != null ? json['age']['max'] : null,
@@ -203,15 +210,16 @@ class FraudReportModel extends HiveObject implements SyncableReport {
     bool? isSynced,
     List<String>? screenshots,
     List<String>? documents,
-    String? keycloakUserId,
+    String? keycloackUserId,
     String? fraudsterName,
     List<String>? phoneNumbers,
     List<String>? emails,
     String? companyName,
-    List<String>? socialMediaHandles,
-    DateTime? incidentDateTime,
-    double? amountInvolved,
+    List<String>? mediaHandles,
+    DateTime? incidentDate,
+    double? moneyLost,
     List<String>? voiceMessages,
+    List<String>? videofiles,
     String? currency,
     int? minAge,
     int? maxAge,
@@ -229,15 +237,16 @@ class FraudReportModel extends HiveObject implements SyncableReport {
       isSynced: isSynced ?? this.isSynced,
       screenshots: screenshots ?? this.screenshots,
       documents: documents ?? this.documents,
-      keycloakUserId: keycloakUserId ?? this.keycloakUserId,
+      keycloackUserId: keycloackUserId ?? this.keycloackUserId,
       fraudsterName: fraudsterName ?? this.fraudsterName,
       phoneNumbers: phoneNumbers ?? this.phoneNumbers,
       emails: emails ?? this.emails,
       companyName: companyName ?? this.companyName,
-      socialMediaHandles: socialMediaHandles ?? this.socialMediaHandles,
-      incidentDateTime: incidentDateTime ?? this.incidentDateTime,
-      amountInvolved: amountInvolved ?? this.amountInvolved,
+      mediaHandles: mediaHandles ?? this.mediaHandles,
+      incidentDate: incidentDate ?? this.incidentDate,
+      moneyLost: moneyLost ?? this.moneyLost,
       voiceMessages: voiceMessages ?? this.voiceMessages,
+      videofiles: videofiles ?? this.videofiles,
       currency: currency ?? this.currency,
       minAge: minAge ?? this.minAge,
       maxAge: maxAge ?? this.maxAge,

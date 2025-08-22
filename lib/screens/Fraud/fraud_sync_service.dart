@@ -2,7 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../models/fraud_report_model.dart';
 import 'fraud_local_service.dart';
 import 'fraud_remote_service.dart';
-
+import 'fraud_report_service.dart';
 import 'dart:io';
 
 class FraudSyncService {
@@ -42,24 +42,16 @@ class FraudSyncService {
         for (String path in report.screenshots) {
           try {
             screenshots.add(File(path));
-          } catch (e) {
-
-          }
+          } catch (e) {}
         }
 
         for (String path in report.documents) {
           try {
             documents.add(File(path));
-          } catch (e) {
-
-          }
+          } catch (e) {}
         }
 
-        bool success = await _remoteService.sendReport(
-          report,
-          screenshots: screenshots.isNotEmpty ? screenshots : null,
-          documents: documents.isNotEmpty ? documents : null,
-        );
+        bool success = await FraudReportService.sendToBackend(report);
         if (success) {
           report.isSynced = true;
           await _localService.updateReport(report);

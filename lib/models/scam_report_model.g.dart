@@ -26,28 +26,29 @@ class ScamReportModelAdapter extends TypeAdapter<ScamReportModel> {
       createdAt: fields[6] as DateTime?,
       updatedAt: fields[7] as DateTime?,
       isSynced: fields[8] as bool?,
-      screenshotPaths: (fields[9] as List).cast<String>(),
-      documentPaths: (fields[10] as List).cast<String>(),
+      screenshots: (fields[9] as List).cast<String>(),
+      documents: (fields[10] as List).cast<String>(),
       name: fields[11] as String?,
-      keycloakUserId: fields[12] as String?,
+      keycloackUserId: fields[12] as String?,
       scammerName: fields[13] as String?,
       phoneNumbers: (fields[14] as List?)?.cast<String>(),
-      emailAddresses: (fields[15] as List?)?.cast<String>(),
-      socialMediaHandles: (fields[16] as List?)?.cast<String>(),
-      incidentDateTime: fields[17] as DateTime?,
-      amountLost: fields[18] as double?,
+      emails: (fields[15] as List?)?.cast<String>(),
+      mediaHandles: (fields[16] as List?)?.cast<String>(),
+      incidentDate: fields[17] as DateTime?,
+      moneyLost: fields[18] as double?,
       currency: fields[19] as String?,
-      voiceRecordings: (fields[20] as List).cast<String>(),
-      methodOfContactId: fields[21] as String?,
-      minAge: fields[22] as int?,
-      maxAge: fields[23] as int?,
+      voiceMessages: (fields[20] as List).cast<String>(),
+      videofiles: (fields[21] as List).cast<String>(),
+      methodOfContactId: fields[22] as String?,
+      minAge: fields[23] as int?,
+      maxAge: fields[24] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ScamReportModel obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -67,34 +68,36 @@ class ScamReportModelAdapter extends TypeAdapter<ScamReportModel> {
       ..writeByte(8)
       ..write(obj.isSynced)
       ..writeByte(9)
-      ..write(obj.screenshotPaths)
+      ..write(obj.screenshots)
       ..writeByte(10)
-      ..write(obj.documentPaths)
+      ..write(obj.documents)
       ..writeByte(11)
       ..write(obj.name)
       ..writeByte(12)
-      ..write(obj.keycloakUserId)
+      ..write(obj.keycloackUserId)
       ..writeByte(13)
       ..write(obj.scammerName)
       ..writeByte(14)
       ..write(obj.phoneNumbers)
       ..writeByte(15)
-      ..write(obj.emailAddresses)
+      ..write(obj.emails)
       ..writeByte(16)
-      ..write(obj.socialMediaHandles)
+      ..write(obj.mediaHandles)
       ..writeByte(17)
-      ..write(obj.incidentDateTime)
+      ..write(obj.incidentDate)
       ..writeByte(18)
-      ..write(obj.amountLost)
+      ..write(obj.moneyLost)
       ..writeByte(19)
       ..write(obj.currency)
       ..writeByte(20)
-      ..write(obj.voiceRecordings)
+      ..write(obj.voiceMessages)
       ..writeByte(21)
-      ..write(obj.methodOfContactId)
+      ..write(obj.videofiles)
       ..writeByte(22)
-      ..write(obj.minAge)
+      ..write(obj.methodOfContactId)
       ..writeByte(23)
+      ..write(obj.minAge)
+      ..writeByte(24)
       ..write(obj.maxAge);
   }
 

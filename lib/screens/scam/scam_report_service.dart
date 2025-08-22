@@ -1,7 +1,9 @@
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
+import '../../services/dio_service.dart';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 
 import '../../models/scam_report_model.dart';
 import '../../config/api_config.dart';
@@ -13,23 +15,37 @@ class ScamReportService {
   static final _box = Hive.box<ScamReportModel>('scam_reports');
   static final ApiService _apiService = ApiService();
 
+  // Get ObjectId for alert level name
+  static String? _getAlertLevelObjectId(String? alertLevelName) {
+    if (alertLevelName == null || alertLevelName.isEmpty) return null;
+
+    // Map alert level names to their ObjectIds
+    final alertLevelMap = {
+      'Critical': '68873fe402621a53392dc7a2',
+      'High': '688738b2357d9e4bb381b5ba',
+      'Medium': '6891c8fe05d97b83f1ae9800',
+      'Low': '6887488fdc01fe5e05839d88',
+    };
+
+    return alertLevelMap[alertLevelName];
+  }
+
   static Future<void> saveReport(ScamReportModel report) async {
     // Get current user ID from JWT token
     final keycloakUserId = await JwtService.getCurrentUserId();
 
     // Run diagnostics if no user ID found (device-specific issue)
     if (keycloakUserId == null) {
-
       await JwtService.diagnoseTokenStorage();
     }
 
     if (keycloakUserId != null) {
-      report = report.copyWith(keycloakUserId: keycloakUserId);
+      report = report.copyWith(keycloackUserId: keycloakUserId);
     } else {
       // Fallback for device-specific issues
 
       report = report.copyWith(
-        keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
+        keycloackUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
       );
     }
 
@@ -44,7 +60,6 @@ class ScamReportService {
     // Always save to local storage first (offline-first approach)
     await _box.add(report);
 
-
     // AUTOMATIC DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving new scam report...');
     // await removeDuplicateScamReports();
@@ -52,7 +67,6 @@ class ScamReportService {
     // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
-
       try {
         // Initialize reference service before syncing
         await ReportReferenceService.initialize();
@@ -65,38 +79,30 @@ class ScamReportService {
           final updated = report.copyWith(isSynced: true);
           await _box.put(key, updated);
 
-
           // AUTOMATIC BACKEND DUPLICATE CLEANUP after syncing
 
           await _apiService.removeDuplicateScamFraudReports();
-        } else {
-
-        }
-      } catch (e) {
-
-      }
-    } else {
-
-    }
+        } else {}
+      } catch (e) {}
+    } else {}
   }
 
   static Future<void> saveReportOffline(ScamReportModel report) async {
     // Get current user ID from JWT token
     final keycloakUserId = await JwtService.getCurrentUserId();
     if (keycloakUserId != null) {
-      report = report.copyWith(keycloakUserId: keycloakUserId);
+      report = report.copyWith(keycloackUserId: keycloakUserId);
     } else {
       // Fallback for device-specific issues
 
       report = report.copyWith(
-        keycloakUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
+        keycloackUserId: 'device_user_${DateTime.now().millisecondsSinceEpoch}',
       );
     }
 
     // Save the new report first
     print('Saving scam report to local storage: ${report.toJson()}');
     await _box.add(report);
-
 
     // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
     // print('🧹 Auto-cleaning duplicates after saving offline scam report...');
@@ -109,13 +115,10 @@ class ScamReportService {
     final uniqueReports = <ScamReportModel>[];
     final seenKeys = <String>{};
 
-
-
-
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
       final key =
-          '${report.phoneNumbers?.join(',')}_${report.emailAddresses?.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+          '${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
 
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
@@ -138,21 +141,18 @@ class ScamReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-
-    } else {
-
-    }
+    } else {}
   }
 
   static Future<void> syncReports() async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity == ConnectivityResult.none) {
-
       return;
     }
 
-    // Initialize reference service before syncing
+    print('🔄 Starting scam reports sync from ScamReportService...');
 
+    // Initialize reference service before syncing
     await ReportReferenceService.initialize();
 
     final box = Hive.box<ScamReportModel>('scam_reports');
@@ -160,29 +160,57 @@ class ScamReportService {
         .where((r) => r.isSynced != true)
         .toList();
 
+    print('📊 Found ${unsyncedReports.length} unsynced reports to process');
 
+    int syncedCount = 0;
+    int failedCount = 0;
 
-    for (var report in unsyncedReports) {
+    for (int i = 0; i < unsyncedReports.length; i++) {
+      var report = unsyncedReports[i];
+      final previousLocalId = report.id;
+      print(
+        '🔄 Processing report ${i + 1}/${unsyncedReports.length}: ID ${report.id}',
+      );
+
       try {
-
         final success = await ScamReportService.sendToBackend(report);
         if (success) {
-          // Mark as synced
-          final key = box.keyAt(box.values.toList().indexOf(report));
+          // Mark as synced - use the report ID directly as the key
           final updated = report.copyWith(isSynced: true);
-          await box.put(key, updated);
+          // Write under server id if it was updated, otherwise keep previous id
+          final targetKey = updated.id ?? previousLocalId;
+          await box.put(targetKey, updated);
+          // If server returned a different id, remove the old key to avoid duplicates
+          if (previousLocalId != null &&
+              updated.id != null &&
+              previousLocalId != updated.id) {
+            await box.delete(previousLocalId);
+            print(
+              '🔁 Re-keyed local report from $previousLocalId to ${updated.id}',
+            );
+          }
+          syncedCount++;
           print(
-            '✅ Successfully synced report with type ID: ${report.reportTypeId}',
+            '✅ Successfully synced report ${report.id} with type ID: ${report.reportTypeId}',
           );
         } else {
-
+          failedCount++;
+          print('❌ Failed to sync report ${report.id}');
         }
       } catch (e) {
-
+        failedCount++;
+        print('❌ Error syncing report ${report.id}: $e');
       }
     }
 
+    print(
+      '📊 ScamReportService sync completed: $syncedCount synced, $failedCount failed',
+    );
 
+    // Verify the sync status
+    final finalUnsynced = box.values.where((r) => r.isSynced != true).length;
+    final finalSynced = box.values.where((r) => r.isSynced == true).length;
+    print('📊 Final status: $finalSynced synced, $finalUnsynced still pending');
   }
 
   static Future<bool> sendToBackend(ScamReportModel report) async {
@@ -191,8 +219,6 @@ class ScamReportService {
       final reportCategoryId = ReportReferenceService.getReportCategoryId(
         'scam',
       );
-
-
 
       print(
         '  - reportTypeId: ${report.reportTypeId} (from selected dropdown)',
@@ -205,12 +231,12 @@ class ScamReportService {
             ? reportCategoryId
             : (report.reportCategoryId ?? 'scam_category_id'),
         'reportTypeId': report.reportTypeId ?? 'scam_type_id',
-        'alertLevels': report.alertLevels ?? '',
+        'alertLevels': _getAlertLevelObjectId(report.alertLevels) ?? '',
         'severity':
             report.alertLevels ??
             '', // Also send as severity for backend compatibility
         'phoneNumbers': report.phoneNumbers?.join(',') ?? '',
-        'emailAddresses': report.emailAddresses?.join(',') ?? '',
+        'emails': report.emails?.join(',') ?? '',
         'website': report.website ?? '',
         'description': report.description ?? '',
         'createdAt':
@@ -220,28 +246,26 @@ class ScamReportService {
             report.updatedAt?.toIso8601String() ??
             DateTime.now().toIso8601String(),
         'keycloackUserId':
-            report.keycloakUserId ?? 'anonymous_user', // Fallback for no auth
+            report.keycloackUserId ?? 'anonymous_user', // Fallback for no auth
+        'createdBy': report.name ?? 'anonymous_user', // Add createdBy field
         'name': report.name ?? 'Scam Report',
         'currency': report.currency ?? 'INR',
-        'moneyLost': report.amountLost?.toString() ?? '0.0',
+        'moneyLost': report.moneyLost?.toString() ?? '0.0',
         'age': report.minAge != null && report.maxAge != null
             ? {'min': report.minAge, 'max': report.maxAge}
             : null,
-        'screenshotUrls': report.screenshotPaths ?? [],
-        'documentUrls': report.documentPaths ?? [],
-        'voiceMessageUrls': [], // Scam reports don't typically have voice files
+        'screenshots': report.screenshots ?? [],
+        'documents': report.documents ?? [],
+        'voiceMessages': [], // Scam reports don't typically have voice files
       };
 
       // Debug age values
 
       final ageData = reportData['age'] as Map<String, dynamic>?;
 
-
-
       // Remove age field if it's null to avoid sending null values to backend
       if (reportData['age'] == null) {
         reportData.remove('age');
-
       }
 
       // Handle methodOfContact properly - only add if it's a valid ObjectId
@@ -259,15 +283,9 @@ class ScamReportService {
             '⚠️ Skipping invalid methodOfContact ID: ${report.methodOfContactId} (not a valid ObjectId)',
           );
         }
-      } else {
-
-      }
-
+      } else {}
 
       print('📤 Report data: ${jsonEncode(reportData)}');
-
-
-
 
       print(
         '🔍 Alert level in reportData type: ${reportData['alertLevels'].runtimeType}',
@@ -293,8 +311,6 @@ class ScamReportService {
       print('🔍 Full reportData keys: ${reportData.keys.toList()}');
       print('🔍 Full reportData values: ${reportData.values.toList()}');
 
-
-
       print(
         '🔍 Alert level is empty in report: ${report.alertLevels?.isEmpty}',
       );
@@ -311,46 +327,58 @@ class ScamReportService {
         '🔍 DEBUG - URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
       );
 
-      final requestBody = jsonEncode(reportData);
+      // Use DioService with AuthInterceptor so Authorization header is attached automatically
       print(
         '🔍 DEBUG - Request URL: ${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
       );
-      print(
-        '🔍 DEBUG - Request headers: {"Content-Type": "application/json", "Accept": "application/json"}',
+      final dioResponse = await dioService.reportsPost(
+        ApiConfig.scamReportsEndpoint,
+        data: reportData,
       );
 
+      print('🔍 DEBUG - Response status: ${dioResponse.statusCode}');
+      print('🔍 DEBUG - Response body: ${dioResponse.data}');
+      print('🔍 DEBUG - Response headers: ${dioResponse.headers}');
 
-
-      final response = await http.post(
-        Uri.parse(
-          '${ApiConfig.reportsBaseUrl}${ApiConfig.scamReportsEndpoint}',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: requestBody,
-      );
-
-
-
-
-      print(
-        '🔍 DEBUG - Response content-type: ${response.headers['content-type']}',
-      );
-      print(
-        '🔍 DEBUG - Response content-length: ${response.headers['content-length']}',
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-
+      if (dioResponse.statusCode == 200 || dioResponse.statusCode == 201) {
+        print(
+          '✅ Report sent successfully with status: ${dioResponse.statusCode}',
+        );
+        // Try to capture server id and timestamps from response
+        try {
+          final data = dioResponse.data is Map<String, dynamic>
+              ? dioResponse.data as Map<String, dynamic>
+              : (dioResponse.data is String
+                    ? (jsonDecode(dioResponse.data as String)
+                          as Map<String, dynamic>)
+                    : <String, dynamic>{});
+          final serverId = data['_id'] ?? data['id'];
+          final createdAt = data['createdAt'];
+          final updatedAt = data['updatedAt'];
+          if (serverId != null && serverId is String && serverId.isNotEmpty) {
+            report.id = serverId;
+          }
+          if (createdAt is String) {
+            report.createdAt = DateTime.tryParse(createdAt) ?? report.createdAt;
+          }
+          if (updatedAt is String) {
+            report.updatedAt = DateTime.tryParse(updatedAt) ?? report.updatedAt;
+          }
+        } catch (_) {}
         return true;
       } else {
-
+        print('❌ Report failed with status: ${dioResponse.statusCode}');
+        print('❌ Response body: ${dioResponse.data}');
         return false;
       }
     } catch (e) {
-
+      print('❌ DEBUG - Exception in sendToBackend: $e');
+      print('❌ DEBUG - Exception type: ${e.runtimeType}');
+      if (e is DioException) {
+        print('❌ DEBUG - DioException response: ${e.response?.data}');
+        print('❌ DEBUG - DioException status: ${e.response?.statusCode}');
+        print('❌ DEBUG - DioException message: ${e.message}');
+      }
       return false;
     }
   }
@@ -361,7 +389,6 @@ class ScamReportService {
   }
 
   static List<ScamReportModel> getLocalReports() {
-
     final reports = _box.values.toList();
 
     return reports;
@@ -373,10 +400,12 @@ class ScamReportService {
 
     for (int i = 0; i < reports.length; i++) {
       final report = reports[i];
-      if (report.keycloakUserId == null) {
+      if (report.keycloackUserId == null) {
         final keycloakUserId = await JwtService.getCurrentUserId();
         if (keycloakUserId != null) {
-          final updatedReport = report.copyWith(keycloakUserId: keycloakUserId);
+          final updatedReport = report.copyWith(
+            keycloackUserId: keycloakUserId,
+          );
           final key = box.keyAt(i);
           await box.put(key, updatedReport);
         }
@@ -390,13 +419,10 @@ class ScamReportService {
     final uniqueReports = <ScamReportModel>[];
     final seenKeys = <String>{};
 
-
-
-
     for (var report in allReports) {
       // More comprehensive key including all relevant fields
       final key =
-          '${report.phoneNumbers?.join(',') ?? ''}_${report.emailAddresses?.join(',') ?? ''}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
+          '${report.phoneNumbers?.join(',') ?? ''}_${report.emails?.join(',') ?? ''}_${report.description}_${report.reportTypeId}_${report.reportCategoryId}_${report.createdAt?.millisecondsSinceEpoch}';
 
       if (!seenKeys.contains(key)) {
         seenKeys.add(key);
@@ -419,10 +445,7 @@ class ScamReportService {
       for (var report in uniqueReports) {
         await box.add(report);
       }
-
-    } else {
-
-    }
+    } else {}
   }
 
   static Future<List<Map<String, dynamic>>> fetchReportTypes() async {
@@ -443,18 +466,13 @@ class ScamReportService {
 
   // NUCLEAR OPTION - Clear all data and start fresh
   static Future<void> clearAllData() async {
-
     await _box.clear();
-
   }
 
   // TARGETED DUPLICATE REMOVAL - Only removes exact duplicates
   static Future<void> removeDuplicateScamReports() async {
     try {
-
-
       final allReports = _box.values.toList();
-
 
       // Group by unique identifiers to find duplicates
       final Map<String, List<ScamReportModel>> groupedReports = {};
@@ -462,7 +480,7 @@ class ScamReportService {
       for (var report in allReports) {
         // Create unique key based on phone, email, description, and alertLevels
         final phone = report.phoneNumbers?.join(',') ?? '';
-        final email = report.emailAddresses?.join(',') ?? '';
+        final email = report.emails?.join(',') ?? '';
         final description = report.description ?? '';
         final alertLevels = report.alertLevels ?? '';
 
@@ -479,8 +497,6 @@ class ScamReportService {
       for (var entry in groupedReports.entries) {
         final reports = entry.value;
         if (reports.length > 1) {
-
-
           // Sort by creation date (oldest first)
           reports.sort((a, b) {
             final aDate = a.createdAt ?? DateTime.now();
@@ -493,29 +509,18 @@ class ScamReportService {
             final key = _box.keyAt(_box.values.toList().indexOf(reports[i]));
             await _box.delete(key);
             duplicatesRemoved++;
-
           }
         }
       }
-
-
-
-
-
-    } catch (e) {
-
-    }
+    } catch (e) {}
   }
 
   // Comprehensive offline sync method with retry mechanism
   static Future<void> syncOfflineReports() async {
-
-
     try {
       // Step 1: Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity == ConnectivityResult.none) {
-
         throw Exception('No internet connection available');
       }
 
@@ -536,7 +541,6 @@ class ScamReportService {
       );
 
       if (offlineReports.isEmpty) {
-
         return;
       }
 
@@ -572,7 +576,6 @@ class ScamReportService {
               await box.put(key, updated);
               successCount++;
               reportSynced = true;
-
             } else {
               retryCount++;
               print(
@@ -609,11 +612,7 @@ class ScamReportService {
           'Some reports failed to sync: $failureCount failed, $successCount succeeded',
         );
       }
-
-
     } catch (e) {
-
-
       rethrow;
     }
   }

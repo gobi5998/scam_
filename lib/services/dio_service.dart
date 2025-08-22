@@ -27,12 +27,12 @@ class DioService {
   }
 
   void _initClients() {
-    // Auth API (for authentication endpoints)
+    // Auth API (for authentication endpoints) - Special timeout for auth
     authApi = Dio(
       BaseOptions(
         baseUrl: ApiConfig.authBaseUrl,
-        connectTimeout: const Duration(seconds: ApiConfig.connectTimeout),
-        receiveTimeout: const Duration(seconds: ApiConfig.receiveTimeout),
+        connectTimeout: const Duration(seconds: 8), // Faster timeout for auth
+        receiveTimeout: const Duration(seconds: 8), // Faster timeout for auth
         contentType: 'application/json',
       ),
     );

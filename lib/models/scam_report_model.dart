@@ -31,16 +31,16 @@ class ScamReportModel extends HiveObject {
   bool? isSynced;
 
   @HiveField(9)
-  List<String> screenshotPaths; // maps to screenshots
+  List<String> screenshots; // maps to screenshots (matching online API)
 
   @HiveField(10)
-  List<String> documentPaths; // maps to documents
+  List<String> documents; // maps to documents (matching online API)
 
   @HiveField(11)
   String? name; // maps to createdBy
 
   @HiveField(12)
-  String? keycloakUserId; // maps to keycloackUserId
+  String? keycloackUserId; // maps to keycloackUserId (matching online API)
 
   @HiveField(13)
   String? scammerName;
@@ -49,30 +49,33 @@ class ScamReportModel extends HiveObject {
   List<String>? phoneNumbers;
 
   @HiveField(15)
-  List<String>? emailAddresses; // maps to emails
+  List<String>? emails; // maps to emails (matching online API)
 
   @HiveField(16)
-  List<String>? socialMediaHandles; // maps to mediaHandles
+  List<String>? mediaHandles; // maps to mediaHandles (matching online API)
 
   @HiveField(17)
-  DateTime? incidentDateTime; // maps to incidentDate
+  DateTime? incidentDate; // maps to incidentDate (matching online API)
 
   @HiveField(18)
-  double? amountLost; // maps to moneyLost
+  double? moneyLost; // maps to moneyLost (matching online API)
 
   @HiveField(19)
   String? currency; // maps to currency
 
   @HiveField(20)
-  List<String> voiceRecordings; // maps to voiceMessages
+  List<String> voiceMessages; // maps to voiceMessages (matching online API)
 
   @HiveField(21)
-  String? methodOfContactId; // maps to methodOfContact
+  List<String> videofiles; // maps to videofiles (matching online API)
 
   @HiveField(22)
-  int? minAge; // maps to age.min
+  String? methodOfContactId; // maps to methodOfContact
 
   @HiveField(23)
+  int? minAge; // maps to age.min
+
+  @HiveField(24)
   int? maxAge; // maps to age.max
 
   // Add other fields as needed
@@ -87,26 +90,27 @@ class ScamReportModel extends HiveObject {
     this.createdAt,
     this.updatedAt,
     this.isSynced = false,
-    this.screenshotPaths = const [],
-    this.documentPaths = const [],
+    this.screenshots = const [],
+    this.documents = const [],
     this.name,
-    this.keycloakUserId,
+    this.keycloackUserId,
     this.scammerName,
     this.phoneNumbers,
-    this.emailAddresses,
-    this.socialMediaHandles,
-    this.incidentDateTime,
-    this.amountLost,
+    this.emails,
+    this.mediaHandles,
+    this.incidentDate,
+    this.moneyLost,
     this.currency,
-    this.voiceRecordings = const [],
+    this.voiceMessages = const [],
+    this.videofiles = const [],
     this.methodOfContactId,
     this.minAge,
     this.maxAge,
   }) {
     // Initialize arrays if they are null
     phoneNumbers ??= [];
-    emailAddresses ??= [];
-    socialMediaHandles ??= [];
+    emails ??= [];
+    mediaHandles ??= [];
   }
 
   Map<String, dynamic> toJson() => {
@@ -114,7 +118,7 @@ class ScamReportModel extends HiveObject {
     'reportCategoryId': reportCategoryId,
     'reportTypeId': reportTypeId,
     'alertLevels': alertLevels,
-    'keycloackUserId': keycloakUserId,
+    'keycloackUserId': keycloackUserId,
     'location': {
       'type': 'Point',
       'coordinates': [
@@ -123,19 +127,20 @@ class ScamReportModel extends HiveObject {
       ], // Default coordinates, should be updated with actual location
     },
     'phoneNumbers': phoneNumbers ?? [],
-    'emails': emailAddresses ?? [],
-    'mediaHandles': socialMediaHandles ?? [],
+    'emails': emails ?? [],
+    'mediaHandles': mediaHandles ?? [],
     'website': website,
     'currency': currency ?? 'INR', // Use selected currency or default to INR
-    'moneyLost': amountLost?.toString(),
+    'moneyLost': moneyLost?.toString(),
     'reportOutcome': true, // Default value, should be made configurable
     'description': description,
-    'incidentDate': incidentDateTime?.toIso8601String(),
+    'incidentDate': incidentDate?.toIso8601String(),
     'scammerName': scammerName,
     'createdBy': name, // Using name as createdBy for now
-    'screenshots': screenshotPaths,
-    'voiceMessages': voiceRecordings,
-    'documents': documentPaths,
+    'screenshots': screenshots,
+    'voiceMessages': voiceMessages,
+    'documents': documents,
+    'videofiles': videofiles,
     'methodOfContact': methodOfContactId,
     'age': {'min': minAge, 'max': maxAge},
   };
@@ -157,31 +162,33 @@ class ScamReportModel extends HiveObject {
         ? DateTime.tryParse(json['updatedAt'])
         : null,
     isSynced: json['isSynced'] ?? false,
-    screenshotPaths:
+    screenshots:
         (json['screenshots'] as List?)?.map((e) => e.toString()).toList() ?? [],
-    documentPaths:
+    documents:
         (json['documents'] as List?)?.map((e) => e.toString()).toList() ?? [],
-    keycloakUserId: json['keycloackUserId'],
+    keycloackUserId: json['keycloackUserId'],
     scammerName: json['scammerName'],
     phoneNumbers:
         (json['phoneNumbers'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[],
-    emailAddresses:
+    emails:
         (json['emails'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[],
-    socialMediaHandles:
+    mediaHandles:
         (json['mediaHandles'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[],
-    incidentDateTime: json['incidentDate'] != null
+    incidentDate: json['incidentDate'] != null
         ? DateTime.tryParse(json['incidentDate'])
         : null,
-    amountLost: json['moneyLost'] != null
+    moneyLost: json['moneyLost'] != null
         ? double.tryParse(json['moneyLost'].toString())
         : null,
     currency: json['currency'],
-    voiceRecordings:
+    voiceMessages:
         (json['voiceMessages'] as List?)?.map((e) => e.toString()).toList() ??
         [],
+    videofiles:
+        (json['videofiles'] as List?)?.map((e) => e.toString()).toList() ?? [],
     methodOfContactId: json['methodOfContact'],
     minAge: json['age'] != null ? json['age']['min'] : null,
     maxAge: json['age'] != null ? json['age']['max'] : null,
@@ -198,16 +205,17 @@ class ScamReportModel extends HiveObject {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isSynced,
-    List<String>? screenshotPaths,
-    List<String>? documentPaths,
-    String? keycloakUserId,
+    List<String>? screenshots,
+    List<String>? documents,
+    String? keycloackUserId,
     String? scammerName,
     List<String>? phoneNumbers,
-    List<String>? emailAddresses,
-    List<String>? socialMediaHandles,
-    DateTime? incidentDateTime,
-    double? amountLost,
-    List<String>? voiceRecordings,
+    List<String>? emails,
+    List<String>? mediaHandles,
+    DateTime? incidentDate,
+    double? moneyLost,
+    List<String>? voiceMessages,
+    List<String>? videofiles,
     String? methodOfContactId,
   }) {
     return ScamReportModel(
@@ -221,16 +229,17 @@ class ScamReportModel extends HiveObject {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isSynced: isSynced ?? this.isSynced,
-      screenshotPaths: screenshotPaths ?? this.screenshotPaths,
-      documentPaths: documentPaths ?? this.documentPaths,
-      keycloakUserId: keycloakUserId ?? this.keycloakUserId,
+      screenshots: screenshots ?? this.screenshots,
+      documents: documents ?? this.documents,
+      keycloackUserId: keycloackUserId ?? this.keycloackUserId,
       scammerName: scammerName ?? this.scammerName,
       phoneNumbers: phoneNumbers ?? this.phoneNumbers,
-      emailAddresses: emailAddresses ?? this.emailAddresses,
-      socialMediaHandles: socialMediaHandles ?? this.socialMediaHandles,
-      incidentDateTime: incidentDateTime ?? this.incidentDateTime,
-      amountLost: amountLost ?? this.amountLost,
-      voiceRecordings: voiceRecordings ?? this.voiceRecordings,
+      emails: emails ?? this.emails,
+      mediaHandles: mediaHandles ?? this.mediaHandles,
+      incidentDate: incidentDate ?? this.incidentDate,
+      moneyLost: moneyLost ?? this.moneyLost,
+      voiceMessages: voiceMessages ?? this.voiceMessages,
+      videofiles: videofiles ?? this.videofiles,
       methodOfContactId: methodOfContactId ?? this.methodOfContactId,
     );
   }

@@ -22,7 +22,7 @@ class ViewPendingReports extends StatelessWidget {
           final report = pending[i];
           return ListTile(
             title: Text(report.phoneNumbers?.join(',') ?? ''),
-            subtitle: Text(report.emailAddresses?.join(',') ?? ''),
+            subtitle: Text(report.emails?.join(',') ?? ''),
             trailing: Icon(Icons.sync_problem, color: Colors.orange),
           );
         },

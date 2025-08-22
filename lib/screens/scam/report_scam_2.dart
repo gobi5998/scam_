@@ -53,8 +53,8 @@ class _ReportScam2State extends State<ReportScam2> {
     // Debug: Print received data
     print('🔍 Received report data in Step 2:');
     print('🔍 - Phone Numbers: ${widget.report.phoneNumbers}');
-    print('🔍 - Email Addresses: ${widget.report.emailAddresses}');
-    print('🔍 - Social Media Handles: ${widget.report.socialMediaHandles}');
+    print('🔍 - Email Addresses: ${widget.report.emails}');
+    print('🔍 - Social Media Handles: ${widget.report.mediaHandles}');
     print('🔍 - Report ID: ${widget.report.id}');
     print('🔍 - Report JSON: ${widget.report.toJson()}');
   }
@@ -302,26 +302,26 @@ class _ReportScam2State extends State<ReportScam2> {
             alertLevelId, // This should be the alert level ID, not name
         'keycloackUserId':
             await JwtService.getCurrentUserId() ??
-            widget.report.keycloakUserId ??
+            widget.report.keycloackUserId ??
             '',
         'createdBy':
             await JwtService.getCurrentUserEmail() ??
             await JwtService.getCurrentUserId() ??
-            widget.report.keycloakUserId ??
+            widget.report.keycloackUserId ??
             '',
         'isActive': true,
         'location': await _getCurrentLocation(), // Dynamic coordinates
         'phoneNumbers': widget.report.phoneNumbers ?? [],
-        'emails': widget.report.emailAddresses ?? [],
-        'mediaHandles': widget.report.socialMediaHandles ?? [],
+        'emails': widget.report.emails ?? [],
+        'mediaHandles': widget.report.mediaHandles ?? [],
         'methodOfContact': widget.report.methodOfContactId ?? '',
         'website': widget.report.website ?? '',
         'currency': widget.report.currency ?? 'INR',
-        'moneyLost': widget.report.amountLost?.toString() ?? '0',
+        'moneyLost': widget.report.moneyLost?.toString() ?? '0',
         'reportOutcome': false,
         'description': widget.report.description ?? '',
         'incidentDate':
-            widget.report.incidentDateTime?.toUtc().toIso8601String() ??
+            widget.report.incidentDate?.toUtc().toIso8601String() ??
             DateTime.now().toUtc().toIso8601String(),
         'scammerName': widget.report.scammerName ?? '',
         'age': {'min': widget.report.minAge, 'max': widget.report.maxAge},
@@ -352,19 +352,19 @@ class _ReportScam2State extends State<ReportScam2> {
         '🚀 Media Handles: ${formData['mediaHandles']} (type: ${formData['mediaHandles'].runtimeType})',
       );
       print('🚀 Phone Numbers from widget: ${widget.report.phoneNumbers}');
-      print('🚀 Emails from widget: ${widget.report.emailAddresses}');
+      print('🚀 Emails from widget: ${widget.report.emails}');
       print(
-        '🚀 Media Handles from widget: ${widget.report.socialMediaHandles}',
+        '🚀 Media Handles from widget: ${widget.report.mediaHandles}',
       );
 
       // Validate arrays are not empty
       if (widget.report.phoneNumbers?.isEmpty ?? true) {
         print('⚠️ Warning: Phone numbers array is empty');
       }
-      if (widget.report.emailAddresses?.isEmpty ?? true) {
+      if (widget.report.emails?.isEmpty ?? true) {
         print('⚠️ Warning: Email addresses array is empty');
       }
-      if (widget.report.socialMediaHandles?.isEmpty ?? true) {
+      if (widget.report.mediaHandles?.isEmpty ?? true) {
         print('⚠️ Warning: Social media handles array is empty');
       }
       print('🚀 Screenshots: ${formData['screenshots']}');
@@ -375,9 +375,9 @@ class _ReportScam2State extends State<ReportScam2> {
       // Create updated report model with all data including uploaded files
       final updatedReport = widget.report.copyWith(
         alertLevels: alertLevel,
-        screenshotPaths: screenshots,
-        documentPaths: documents,
-        voiceRecordings: voiceMessages,
+        screenshots: screenshots,
+        documents: documents,
+        voiceMessages: voiceMessages,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
@@ -426,8 +426,8 @@ class _ReportScam2State extends State<ReportScam2> {
         print('🔍 - Alert Level: ${latestReport.alertLevels}');
         print('🔍 - Created At: ${latestReport.createdAt}');
         print('🔍 - Is Synced: ${latestReport.isSynced}');
-        print('🔍 - Screenshot Paths: ${latestReport.screenshotPaths}');
-        print('🔍 - Document Paths: ${latestReport.documentPaths}');
+        print('🔍 - Screenshot Paths: ${latestReport.screenshots}');
+        print('🔍 - Document Paths: ${latestReport.documents}');
       }
 
       // Test thread database visibility
@@ -640,8 +640,8 @@ class _ReportScam2State extends State<ReportScam2> {
       print('🧪   - Alert Level: ${latestReport.alertLevels}');
       print('🧪   - Created At: ${latestReport.createdAt}');
       print('🧪   - Is Synced: ${latestReport.isSynced}');
-      print('🧪   - Screenshot Paths: ${latestReport.screenshotPaths}');
-      print('🧪   - Document Paths: ${latestReport.documentPaths}');
+      print('🧪   - Screenshot Paths: ${latestReport.screenshots}');
+      print('🧪   - Document Paths: ${latestReport.documents}');
     } else {
       print('🧪 - No reports found in thread box.');
     }

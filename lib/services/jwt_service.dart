@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'token_storage.dart';
 
 class JwtService {
   static const String _tokenKey = 'auth_token';
@@ -21,7 +22,6 @@ class JwtService {
 
       return payloadMap;
     } catch (e) {
-
       return null;
     }
   }
@@ -60,28 +60,57 @@ class JwtService {
       }
       return null;
     } catch (e) {
-
       return null;
     }
   }
 
   static Future<String?> getCurrentUserId() async {
     try {
-      final token = await getTokenWithFallback();
-
-
-
-
-      if (token != null) {
-        final userId = getUserIdFromToken(token);
-
-        return userId;
+      final token = await TokenStorage.getAccessToken();
+      if (token == null || token.isEmpty) {
+        print('❌ No access token found for user ID extraction');
+        return null;
       }
 
+      print('🔍 Extracting user ID from JWT token...');
+      print('🔍 Token length: ${token.length}');
+      print('🔍 Token preview: ${token.substring(0, 50)}...');
 
-      return null;
+      final decoded = decodeToken(token);
+      print('🔍 Decoded JWT payload: $decoded');
+
+      if (decoded == null) {
+        print('❌ Failed to decode JWT token');
+        return null;
+      }
+
+      // Try different possible field names for user ID
+      final userId =
+          decoded['sub'] ??
+          decoded['user_id'] ??
+          decoded['userId'] ??
+          decoded['id'] ??
+          decoded['user']?['id'] ??
+          decoded['user']?['sub'];
+
+      if (userId != null) {
+        print('✅ Extracted user ID: $userId');
+        return userId.toString();
+      } else {
+        print('❌ No user ID found in JWT payload');
+        print('🔍 Available fields: ${decoded.keys.toList()}');
+
+        // Try to get email as fallback
+        final email = decoded['email'] ?? decoded['preferred_username'];
+        if (email != null) {
+          print('✅ Using email as user ID: $email');
+          return email.toString();
+        }
+
+        return null;
+      }
     } catch (e) {
-
+      print('❌ Error extracting user ID from JWT: $e');
       return null;
     }
   }
@@ -94,23 +123,19 @@ class JwtService {
       String? token = prefs.getString(_tokenKey);
 
       if (token != null && token.isNotEmpty) {
-
         return token;
       }
 
       // Try backup token storage
       token = prefs.getString(_backupTokenKey);
       if (token != null && token.isNotEmpty) {
-
         // Restore to primary storage
         await prefs.setString(_tokenKey, token);
         return token;
       }
 
-
       return null;
     } catch (e) {
-
       return null;
     }
   }
@@ -125,10 +150,8 @@ class JwtService {
       // Also save to backup storage for device compatibility
       await prefs.setString(_backupTokenKey, token);
 
-
       return true;
     } catch (e) {
-
       return false;
     }
   }
@@ -141,10 +164,8 @@ class JwtService {
       await prefs.remove(_tokenKey);
       await prefs.remove(_backupTokenKey);
 
-
       return true;
     } catch (e) {
-
       return false;
     }
   }
@@ -166,7 +187,6 @@ class JwtService {
 
       return true; // If no expiration, assume valid
     } catch (e) {
-
       return false;
     }
   }
@@ -229,7 +249,6 @@ class JwtService {
     } catch (e) {
       diagnostics['errors'].add('General error: $e');
     }
-
 
     return diagnostics;
   }
