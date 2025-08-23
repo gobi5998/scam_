@@ -21,6 +21,8 @@ import '../../services/offline_cache_service.dart';
 import '../scam/scam_sync_service.dart';
 import '../scam/scam_local_service.dart';
 import '../scam/scam_report_service.dart';
+import '../Fraud/fraud_local_service.dart';
+import '../malware/malware_local_service.dart';
 import '../../config/api_config.dart';
 import 'report_detail_view.dart';
 import '../../custom/offline_file_upload.dart';
@@ -69,6 +71,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Current time variables
   String _currentTime = '';
   Timer? _timer;
+  Timer? _autoSyncTimer;
+  Timer? _duplicateCleanupTimer;
 
   List<Map<String, dynamic>> _filteredReports = [];
   List<ReportModel> _typedReports = [];
@@ -94,14 +98,34 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     // Initialize current time
     _updateCurrentTime();
     _startTimer();
+
+    _loadFilteredReports();
+
+    // Auto-remove duplicates on page load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _removeAllDuplicates();
+    });
+
+    // START AUTOMATIC BACKGROUND SYNC AND DUPLICATE CLEANUP
+    _startAutomaticBackgroundSync();
+    _startAutomaticDuplicateCleanup();
+
+    // IMMEDIATE AUTOMATIC SYNC AND CLEANUP FOR EXISTING DUPLICATES
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('🚀 IMMEDIATE AUTOMATIC SYNC AND CLEANUP STARTING...');
+      await _removeAllDuplicatesAggressively();
+      await _performAutomaticSync();
+      print('✅ IMMEDIATE AUTOMATIC SYNC AND CLEANUP COMPLETED');
+    });
   }
 
   Future<void> _initializeData() async {
     // Load category and type names first
     await _loadCategoryAndTypeNames();
 
-    // Auto-cleanup duplicates
-    await _autoCleanupDuplicates();
+    // AUTOMATIC AGGRESSIVE DUPLICATE REMOVAL on app startup
+    print('🧹 AUTOMATIC DUPLICATE CLEANUP ON APP STARTUP...');
+    await _removeAllDuplicatesAggressively();
 
     // Test API connection
     await _testApiConnection();
@@ -139,6 +163,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
     // Create a map to track unique reports by ID
     final Map<String, Map<String, dynamic>> uniqueReports = {};
+    final Set<String> seenContentKeys = {}; // Track content-based duplicates
 
     for (var report in reports) {
       final reportId =
@@ -163,11 +188,18 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           }
         }
       } else {
-        // For reports without ID, use description and creation date as key
-        final key = '${report['description']}_${report['createdAt']}';
-        if (!uniqueReports.containsKey(key)) {
-          uniqueReports[key] = report;
-          print('✅ Added report without ID: $key');
+        // For reports without ID, create a content-based key
+        final description = report['description']?.toString() ?? '';
+        final type = report['type']?.toString() ?? '';
+        final createdAt = report['createdAt']?.toString() ?? '';
+        final contentKey = '${type}_${description}_$createdAt';
+
+        if (!seenContentKeys.contains(contentKey)) {
+          seenContentKeys.add(contentKey);
+          uniqueReports[contentKey] = report;
+          print('✅ Added report without ID using content key: $contentKey');
+        } else {
+          print('⏭️ Skipped content duplicate: $contentKey');
         }
       }
     }
@@ -463,101 +495,101 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     try {
       print('🔧 Force syncing pending reports directly...');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Force syncing pending reports...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Force syncing pending reports...'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
-      // Get current sync status
-      final syncStatus = await _getSyncStatusSummary();
-      final pendingCount = syncStatus['pending'] ?? 0;
+      // First, clean up any existing duplicates
+      await _removeAllDuplicates();
+
+      // Get pending counts before sync
+      final scamPending = await ScamLocalService().getPendingReports();
+      final fraudPending = await FraudLocalService().getPendingReports();
+      final malwarePending = await MalwareLocalService().getPendingReports();
+      final pendingCount =
+          scamPending.length + fraudPending.length + malwarePending.length;
 
       print('📊 Found $pendingCount pending reports to force sync');
 
       if (pendingCount == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ No pending reports to sync'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        print('✅ No pending reports to sync');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ No pending reports to sync'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
         return;
       }
 
-      // Debug: Examine all reports in detail
-      print('🔍 DEBUGGING: Examining all reports in detail...');
-      await _debugExamineAllReports();
-
       // Force sync using sync services with detailed logging
       print('🔄 Force syncing scam reports...');
-      try {
-        await ScamReportService.syncReports();
-        print('✅ Scam sync completed');
-      } catch (e) {
-        print('❌ Scam sync failed: $e');
-      }
+      await ScamSyncService().syncReports();
 
       print('🔄 Force syncing fraud reports...');
-      try {
-        await FraudReportService.syncReports();
-        print('✅ Fraud sync completed');
-      } catch (e) {
-        print('❌ Fraud sync failed: $e');
-      }
+      await FraudReportService.syncReports();
 
       print('🔄 Force syncing malware reports...');
-      try {
-        await MalwareReportService.syncReports();
-        print('✅ Malware sync completed');
-      } catch (e) {
-        print('❌ Malware sync failed: $e');
-      }
+      await MalwareReportService.syncReports();
+
+      // Clean up duplicates after sync
+      await _removeAllDuplicates();
 
       // Check sync status after force sync
-      final newSyncStatus = await _getSyncStatusSummary();
-      final newPendingCount = newSyncStatus['pending'] ?? 0;
-      final syncedCount = newSyncStatus['synced'] ?? 0;
+      final newScamPending = await ScamLocalService().getPendingReports();
+      final newFraudPending = await FraudLocalService().getPendingReports();
+      final newMalwarePending = await MalwareLocalService().getPendingReports();
+      final newPendingCount =
+          newScamPending.length +
+          newFraudPending.length +
+          newMalwarePending.length;
+      final syncedCount = pendingCount - newPendingCount;
 
       print(
         '📊 After force sync: $newPendingCount pending, $syncedCount synced',
       );
 
-      if (newPendingCount == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ All pending reports force synced successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '⚠️ $newPendingCount reports still pending after force sync',
+      if (mounted) {
+        if (newPendingCount == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ All pending reports force synced successfully!'),
+              backgroundColor: Colors.green,
             ),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '⚠️ $newPendingCount reports still pending after force sync',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
 
-      // Refresh the UI to show updated sync status
-      setState(() {});
+      // Refresh the UI
+      _loadFilteredReports();
 
       print('✅ Force sync process completed');
     } catch (e) {
       print('❌ Error force syncing pending reports: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error force syncing: $e'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error force syncing: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -618,6 +650,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   Future<void> _directSyncPendingReports() async {
     try {
       print('🔧 Direct syncing pending reports manually...');
+
+      // First, clean up any existing duplicates
+      await _removeAllDuplicates();
 
       // First, check and fix authentication
       print('🔍 Checking authentication status...');
@@ -731,6 +766,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       print(
         '📊 Direct sync completed: $totalSynced synced, $totalFailed failed',
       );
+
+      // Clean up duplicates after sync
+      await _removeAllDuplicates();
 
       // Check final status
       final finalSyncStatus = await _getSyncStatusSummary();
@@ -854,19 +892,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         ),
       );
 
-      // Sync all report types
-      await ScamReportService.syncReports();
-      await FraudReportService.syncReports();
-      await MalwareReportService.syncReports();
+      // Use enhanced sync with duplicate prevention
+      await _syncWithEnhancedDuplicatePrevention();
 
       // Sync offline files
       final fileSyncResult = await OfflineFileUploadService.syncOfflineFiles();
       if (fileSyncResult['success'] && fileSyncResult['synced'] > 0) {
         print('✅ Synced ${fileSyncResult['synced']} offline files');
       }
-
-      // Refresh the UI
-      setState(() {});
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1168,6 +1201,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   void dispose() {
     _scrollController.dispose();
     _timer?.cancel();
+    _autoSyncTimer?.cancel();
+    _duplicateCleanupTimer?.cancel();
     super.dispose();
   }
 
@@ -1175,6 +1210,75 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       _loadMoreData();
+    }
+  }
+
+  // AUTOMATIC BACKGROUND SYNC - Runs every 30 seconds
+  void _startAutomaticBackgroundSync() {
+    print('🔄 Starting automatic background sync...');
+    _autoSyncTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+      try {
+        print('🔄 Automatic background sync running...');
+        await _performAutomaticSync();
+      } catch (e) {
+        print('❌ Error in automatic background sync: $e');
+      }
+    });
+  }
+
+  // AUTOMATIC DUPLICATE CLEANUP - Runs every 60 seconds
+  void _startAutomaticDuplicateCleanup() {
+    print('🧹 Starting automatic duplicate cleanup...');
+    _duplicateCleanupTimer = Timer.periodic(Duration(seconds: 60), (
+      timer,
+    ) async {
+      try {
+        print('🧹 Automatic duplicate cleanup running...');
+        await _removeAllDuplicatesAggressively();
+        // Refresh the UI after cleanup
+        if (mounted) {
+          await _loadFilteredReports();
+        }
+      } catch (e) {
+        print('❌ Error in automatic duplicate cleanup: $e');
+      }
+    });
+  }
+
+  // PERFORM AUTOMATIC SYNC
+  Future<void> _performAutomaticSync() async {
+    try {
+      print('🔄 Performing automatic sync...');
+
+      // Check connectivity
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        print('📱 No internet connection, skipping automatic sync');
+        return;
+      }
+
+      // Clean duplicates before sync
+      await _removeAllDuplicatesAggressively();
+
+      // Sync all report types automatically
+      await ScamReportService.syncReports();
+      await FraudReportService.syncReports();
+      await MalwareReportService.syncReports();
+
+      // Clean duplicates after sync
+      await _removeAllDuplicatesAggressively();
+
+      // Refresh UI if mounted
+      if (mounted) {
+        await _loadFilteredReports();
+        setState(() {
+          // Update sync status
+        });
+      }
+
+      print('✅ Automatic sync completed successfully');
+    } catch (e) {
+      print('❌ Error during automatic sync: $e');
     }
   }
 
@@ -1821,13 +1925,348 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     try {
       print('🧹 Auto-cleanup duplicates...');
 
-      // Clean local duplicates for scam and fraud reports
-      await ScamReportService.removeDuplicateScamReports();
-      await FraudReportService.removeDuplicateFraudReports();
+      // Aggressive duplicate removal for offline sync data
+      await _removeAllDuplicatesAggressively();
 
       print('✅ Auto-cleanup completed');
     } catch (e) {
       print('❌ Error during auto-cleanup: $e');
+    }
+  }
+
+  // Aggressive duplicate removal that completely eliminates duplicates
+  Future<void> _removeAllDuplicatesAggressively() async {
+    try {
+      print('🧹 AGGRESSIVE DUPLICATE REMOVAL STARTING...');
+
+      // Get all reports from all sources
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Before aggressive cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Step 1: Remove duplicates aggressively from each box
+      await _removeDuplicatesAggressivelyFromBox(scamBox, 'scam');
+      await _removeDuplicatesAggressivelyFromBox(fraudBox, 'fraud');
+      await _removeDuplicatesAggressivelyFromBox(malwareBox, 'malware');
+
+      // Step 2: Cross-box duplicate removal
+      await _removeCrossBoxDuplicates();
+
+      // Step 3: Fix any null IDs
+      await _fixNullIdsInAllBoxes();
+
+      print('📊 After aggressive cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      print('✅ AGGRESSIVE DUPLICATE REMOVAL COMPLETED');
+    } catch (e) {
+      print('❌ Error during aggressive duplicate removal: $e');
+    }
+  }
+
+  // Aggressive duplicate removal from a specific box
+  Future<void> _removeDuplicatesAggressivelyFromBox(
+    dynamic box,
+    String type,
+  ) async {
+    try {
+      final allReports = box.values.toList();
+      final uniqueReports = <String, dynamic>{};
+      final duplicates = <String>[];
+      final seenContentKeys = <String>{};
+
+      print(
+        '🔍 Processing ${allReports.length} $type reports for aggressive duplicate removal...',
+      );
+
+      for (final report in allReports) {
+        // Create a comprehensive content key
+        String contentKey;
+        if (type == 'scam') {
+          final description =
+              report.description?.toString().toLowerCase().trim() ?? '';
+          final alertLevel =
+              report.alertLevels?.toString().toLowerCase().trim() ?? '';
+          final phones = report.phoneNumbers?.join(',') ?? '';
+          final emails = report.emails?.join(',') ?? '';
+          final website = report.website?.toString().toLowerCase().trim() ?? '';
+          contentKey =
+              '${description}_${alertLevel}_${phones}_${emails}_$website';
+        } else if (type == 'fraud') {
+          final name = report.name?.toString().toLowerCase().trim() ?? '';
+          final alertLevel =
+              report.alertLevels?.toString().toLowerCase().trim() ?? '';
+          final phones = report.phoneNumbers?.join(',') ?? '';
+          final emails = report.emails?.join(',') ?? '';
+          final website = report.website?.toString().toLowerCase().trim() ?? '';
+          contentKey = '${name}_${alertLevel}_${phones}_${emails}_$website';
+        } else if (type == 'malware') {
+          final name = report.name?.toString().toLowerCase().trim() ?? '';
+          final malwareType =
+              report.malwareType?.toString().toLowerCase().trim() ?? '';
+          final fileName =
+              report.fileName?.toString().toLowerCase().trim() ?? '';
+          contentKey = '${name}_${malwareType}_$fileName';
+        } else {
+          contentKey =
+              '${report.id}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        }
+
+        // Check for content-based duplicates
+        if (seenContentKeys.contains(contentKey)) {
+          duplicates.add(contentKey);
+          print('🗑️ Found content duplicate in $type reports: $contentKey');
+          continue;
+        }
+
+        seenContentKeys.add(contentKey);
+
+        // Use report ID as key for unique reports
+        final reportId =
+            report.id?.toString() ??
+            DateTime.now().millisecondsSinceEpoch.toString();
+        if (uniqueReports.containsKey(reportId)) {
+          duplicates.add(reportId);
+          print('🗑️ Found ID duplicate in $type reports: $reportId');
+          continue;
+        }
+
+        uniqueReports[reportId] = report;
+      }
+
+      if (duplicates.isNotEmpty) {
+        print('🧹 Found ${duplicates.length} duplicates in $type reports');
+
+        // Clear the box completely
+        await box.clear();
+
+        // Add back only unique reports
+        for (final report in uniqueReports.values) {
+          await box.put(report.id, report);
+        }
+
+        print(
+          '🧹 AGGRESSIVELY cleaned up $type reports - removed ${duplicates.length} duplicates',
+        );
+      } else {
+        print('✅ No duplicates found in $type reports');
+      }
+    } catch (e) {
+      print('❌ Error removing duplicates aggressively from $type reports: $e');
+    }
+  }
+
+  // Remove duplicates across different boxes
+  Future<void> _removeCrossBoxDuplicates() async {
+    try {
+      print('🔍 Removing cross-box duplicates...');
+
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      // Collect all reports with their content signatures
+      final allContentSignatures = <String, List<Map<String, dynamic>>>{};
+
+      // Process scam reports
+      for (var report in scamBox.values) {
+        final signature = _createContentSignature(report, 'scam');
+        allContentSignatures.putIfAbsent(signature, () => []).add({
+          'type': 'scam',
+          'report': report,
+          'box': scamBox,
+        });
+      }
+
+      // Process fraud reports
+      for (var report in fraudBox.values) {
+        final signature = _createContentSignature(report, 'fraud');
+        allContentSignatures.putIfAbsent(signature, () => []).add({
+          'type': 'fraud',
+          'report': report,
+          'box': fraudBox,
+        });
+      }
+
+      // Process malware reports
+      for (var report in malwareBox.values) {
+        final signature = _createContentSignature(report, 'malware');
+        allContentSignatures.putIfAbsent(signature, () => []).add({
+          'type': 'malware',
+          'report': report,
+          'box': malwareBox,
+        });
+      }
+
+      // Remove duplicates, keeping only the first occurrence
+      int removedCount = 0;
+      for (var entry in allContentSignatures.entries) {
+        if (entry.value.length > 1) {
+          // Keep the first one, remove the rest
+          for (int i = 1; i < entry.value.length; i++) {
+            final duplicate = entry.value[i];
+            await duplicate['box'].delete(duplicate['report'].id);
+            removedCount++;
+            print(
+              '🗑️ Removed cross-box duplicate: ${duplicate['type']} - ${duplicate['report'].id}',
+            );
+          }
+        }
+      }
+
+      print('✅ Removed $removedCount cross-box duplicates');
+    } catch (e) {
+      print('❌ Error removing cross-box duplicates: $e');
+    }
+  }
+
+  // Create a content signature for duplicate detection
+  String _createContentSignature(dynamic report, String type) {
+    if (type == 'scam') {
+      final description =
+          report.description?.toString().toLowerCase().trim() ?? '';
+      final alertLevel =
+          report.alertLevels?.toString().toLowerCase().trim() ?? '';
+      final phones = report.phoneNumbers?.join(',') ?? '';
+      final emails = report.emails?.join(',') ?? '';
+      final website = report.website?.toString().toLowerCase().trim() ?? '';
+      return '${description}_${alertLevel}_${phones}_${emails}_$website';
+    } else if (type == 'fraud') {
+      final name = report.name?.toString().toLowerCase().trim() ?? '';
+      final alertLevel =
+          report.alertLevels?.toString().toLowerCase().trim() ?? '';
+      final phones = report.phoneNumbers?.join(',') ?? '';
+      final emails = report.emails?.join(',') ?? '';
+      final website = report.website?.toString().toLowerCase().trim() ?? '';
+      return '${name}_${alertLevel}_${phones}_${emails}_$website';
+    } else if (type == 'malware') {
+      final name = report.name?.toString().toLowerCase().trim() ?? '';
+      final malwareType =
+          report.malwareType?.toString().toLowerCase().trim() ?? '';
+      final fileName = report.fileName?.toString().toLowerCase().trim() ?? '';
+      return '${name}_${malwareType}_$fileName';
+    }
+    return report.id?.toString() ?? '';
+  }
+
+  // Nuclear cleanup - completely clear and rebuild database
+  Future<void> _nuclearCleanup() async {
+    try {
+      print(
+        '☢️ NUCLEAR CLEANUP STARTING - This will completely clear the database!',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '⚠️ Nuclear cleanup starting - this will clear all data!',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Clear all Hive boxes completely
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Before nuclear cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Clear all boxes
+      await scamBox.clear();
+      await fraudBox.clear();
+      await malwareBox.clear();
+
+      print('📊 After nuclear cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Refresh the UI
+      await _loadFilteredReports();
+
+      print('✅ NUCLEAR CLEANUP COMPLETED - All data cleared!');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('☢️ Nuclear cleanup completed - all data cleared!'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error during nuclear cleanup: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during nuclear cleanup: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // Fix null IDs in all Hive boxes
+  Future<void> _fixNullIdsInAllBoxes() async {
+    try {
+      print('🔧 Fixing null IDs in all boxes...');
+
+      // Fix scam reports
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final scamReports = scamBox.values.toList();
+      for (var report in scamReports) {
+        if (report.id == null || report.id!.isEmpty) {
+          final newId = DateTime.now().millisecondsSinceEpoch.toString();
+          final fixedReport = report.copyWith(id: newId);
+          await scamBox.put(newId, fixedReport);
+          print('🔧 Fixed scam report ID: $newId');
+        }
+      }
+
+      // Fix fraud reports
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final fraudReports = fraudBox.values.toList();
+      for (var report in fraudReports) {
+        if (report.id == null || report.id!.isEmpty) {
+          final newId = DateTime.now().millisecondsSinceEpoch.toString();
+          final fixedReport = report.copyWith(id: newId);
+          await fraudBox.put(newId, fixedReport);
+          print('🔧 Fixed fraud report ID: $newId');
+        }
+      }
+
+      // Fix malware reports
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+      final malwareReports = malwareBox.values.toList();
+      for (var report in malwareReports) {
+        if (report.id == null || report.id!.isEmpty) {
+          final newId = DateTime.now().millisecondsSinceEpoch.toString();
+          final fixedReport = report.copyWith(id: newId);
+          await malwareBox.put(newId, fixedReport);
+          print('🔧 Fixed malware report ID: $newId');
+        }
+      }
+
+      print('✅ Null ID fixing completed');
+    } catch (e) {
+      print('❌ Error fixing null IDs: $e');
     }
   }
 
@@ -1841,6 +2280,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           _hasMoreData = true;
         });
       }
+
+      // Step 1: Clean up duplicates before loading data
+      await _removeAllDuplicatesAggressively();
 
       List<Map<String, dynamic>> reports = [];
 
@@ -2383,10 +2825,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
   Future<List<Map<String, dynamic>>> _getLocalReports() async {
     List<Map<String, dynamic>> allReports = [];
+    final Set<String> seenIds = {}; // Track seen IDs to prevent duplicates
 
     // Get scam reports
     final scamBox = Hive.box<ScamReportModel>('scam_reports');
     for (var report in scamBox.values) {
+      // Skip if we've already seen this ID
+      if (report.id != null && seenIds.contains(report.id)) {
+        print('🔄 Skipping duplicate scam report ID: ${report.id}');
+        continue;
+      }
+
+      if (report.id != null) {
+        seenIds.add(report.id!);
+      }
+
       final categoryName =
           _resolveCategoryName(report.reportCategoryId ?? 'scam_category') ??
           'Report Scam';
@@ -2415,12 +2868,26 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'createdBy': report.name,
         'scammerName': report
             .description, // Use description as scammerName for local scam reports
+        'screenshots': report.screenshots ?? [],
+        'documents': report.documents ?? [],
+        'voiceMessages': report.voiceMessages ?? [],
+        'videofiles': report.videofiles ?? [],
       });
     }
 
     // Get fraud reports
     final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
     for (var report in fraudBox.values) {
+      // Skip if we've already seen this ID
+      if (report.id != null && seenIds.contains(report.id)) {
+        print('🔄 Skipping duplicate fraud report ID: ${report.id}');
+        continue;
+      }
+
+      if (report.id != null) {
+        seenIds.add(report.id!);
+      }
+
       final categoryName =
           _resolveCategoryName(report.reportCategoryId ?? 'fraud_category') ??
           'Report Fraud';
@@ -2450,12 +2917,26 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'createdBy': report.name,
         'scammerName':
             report.name, // Use name as scammerName for local fraud reports
+        'screenshots': report.screenshots ?? [],
+        'documents': report.documents ?? [],
+        'voiceMessages': report.voiceMessages ?? [],
+        'videofiles': report.videofiles ?? [],
       });
     }
 
     // Get malware reports
     final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
     for (var report in malwareBox.values) {
+      // Skip if we've already seen this ID
+      if (report.id != null && seenIds.contains(report.id)) {
+        print('🔄 Skipping duplicate malware report ID: ${report.id}');
+        continue;
+      }
+
+      if (report.id != null) {
+        seenIds.add(report.id!);
+      }
+
       final categoryName =
           _resolveCategoryName('malware_category') ?? 'Report Malware';
       final typeName = _resolveTypeName('malware_type') ?? 'Malware Report';
@@ -2491,9 +2972,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'deviceTypeId': report.deviceTypeId,
         'detectTypeId': report.detectTypeId,
         'operatingSystemName': report.operatingSystemName,
+        'screenshots': report.screenshots ?? [],
+        'documents': report.documents ?? [],
+        'voiceMessages': report.voiceMessages ?? [],
+        'videofiles': report.videofiles ?? [],
       });
     }
 
+    print('📊 Local reports loaded: ${allReports.length} unique reports');
     return allReports;
   }
 
@@ -2763,35 +3249,62 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       return true;
     }
 
+    // Debug logging for evidence detection
+    final screenshots = report['screenshots'];
+    final documents = report['documents'];
+    final voiceMessages = report['voiceMessages'];
+    final videofiles = report['videofiles'];
+
+    print('🔍 Evidence check for report ${report['id']}:');
+    print('🔍 - Type: $type');
+    print('🔍 - Screenshots: $screenshots (${_isNotEmpty(screenshots)})');
+    print('🔍 - Documents: $documents (${_isNotEmpty(documents)})');
+    print(
+      '🔍 - Voice Messages: $voiceMessages (${_isNotEmpty(voiceMessages)})',
+    );
+    print('🔍 - Video Files: $videofiles (${_isNotEmpty(videofiles)})');
+
     // Dynamic evidence checking based on report type
     switch (type?.toString().toLowerCase()) {
       case 'scam':
       case 'report scam':
-        return _isNotEmpty(report['screenshots']) ||
+        final hasEvidence =
+            _isNotEmpty(report['screenshots']) ||
             _isNotEmpty(report['documents']) ||
             _isNotEmpty(report['voiceMessages']) ||
             _isNotEmpty(report['videofiles']);
+        print('🔍 - Scam report has evidence: $hasEvidence');
+        return hasEvidence;
 
       case 'fraud':
       case 'report fraud':
-        return _isNotEmpty(report['screenshots']) ||
+        final hasEvidence =
+            _isNotEmpty(report['screenshots']) ||
             _isNotEmpty(report['documents']) ||
             _isNotEmpty(report['voiceMessages']) ||
             _isNotEmpty(report['videofiles']);
+        print('🔍 - Fraud report has evidence: $hasEvidence');
+        return hasEvidence;
 
       case 'malware':
       case 'report malware':
-        return _isNotEmpty(report['screenshots']) ||
+        final hasEvidence =
+            _isNotEmpty(report['screenshots']) ||
             _isNotEmpty(report['documents']) ||
             _isNotEmpty(report['voiceMessages']) ||
             _isNotEmpty(report['videofiles']);
+        print('🔍 - Malware report has evidence: $hasEvidence');
+        return hasEvidence;
 
       default:
         // For unknown types, check all possible evidence fields
-        return _isNotEmpty(report['screenshots']) ||
+        final hasEvidence =
+            _isNotEmpty(report['screenshots']) ||
             _isNotEmpty(report['documents']) ||
             _isNotEmpty(report['voiceMessages']) ||
             _isNotEmpty(report['videofiles']);
+        print('🔍 - Unknown type report has evidence: $hasEvidence');
+        return hasEvidence;
     }
   }
 
@@ -3411,7 +3924,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                             runSpacing: 4,
                             children: [
                               TextButton(
-                                onPressed: () => _triggerManualSync(),
+                                onPressed: () async {
+                                  print(
+                                    '🔄 Manual sync button pressed - triggering automatic sync...',
+                                  );
+                                  await _performAutomaticSync();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🔄 Automatic sync completed',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
                                 child: Text(
                                   'Sync',
                                   style: TextStyle(
@@ -3431,117 +3958,22 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: () => _fixOfflineReports(),
-                                child: Text(
-                                  'Fix',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.red.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _refreshTokens(),
-                                child: Text(
-                                  'Refresh',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.purple.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _forceSyncPendingReports(),
-                                child: Text(
-                                  'Force',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.green.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _directSyncPendingReports(),
-                                child: Text(
-                                  'Direct',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.indigo.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _testAuthentication(),
-                                child: Text(
-                                  'Test Auth',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.teal.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _handleBackendTimeout(),
-                                child: Text(
-                                  'Fix Timeout',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.deepOrange.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _debugTokenStorage(),
-                                child: Text(
-                                  'Debug Tokens',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.brown.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _postLoginSync(),
-                                child: Text(
-                                  'Post-Login',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.pink.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _testTokenManagement(),
-                                child: Text(
-                                  'Token Mgmt',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.cyan.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _testBackendResponse(),
-                                child: Text(
-                                  'Test Backend',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.amber.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _testSyncProcess(),
-                                child: Text(
-                                  'Test Sync',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.purple.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _cleanupDuplicates(),
+                                onPressed: () async {
+                                  print(
+                                    '🧹 Manual cleanup button pressed - triggering automatic cleanup...',
+                                  );
+                                  await _removeAllDuplicatesAggressively();
+                                  await _loadFilteredReports();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🧹 Automatic duplicate cleanup completed',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
                                 child: Text(
                                   'Clean Dups',
                                   style: TextStyle(
@@ -3551,33 +3983,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: () => _fixNullIds(),
+                                onPressed: () => _nuclearCleanup(),
                                 child: Text(
-                                  'Fix IDs',
+                                  'Nuclear',
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    _fixMissingAlertLevelsEnhanced(),
-                                child: Text(
-                                  'Fix Alert',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.teal.shade700,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _debugSyncFailure(),
-                                child: Text(
-                                  'Debug Sync',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.indigo.shade700,
+                                    color: Colors.purple.shade700,
                                   ),
                                 ),
                               ),
@@ -4488,6 +4899,625 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           duration: Duration(seconds: 3),
         ),
       );
+    }
+  }
+
+  // Comprehensive duplicate removal function
+  Future<void> _removeAllDuplicates() async {
+    try {
+      print('🧹 Starting comprehensive duplicate removal...');
+
+      // Get all reports from all sources
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Before cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Remove duplicates from each box
+      await _removeDuplicatesFromBox(scamBox, 'scam');
+      await _removeDuplicatesFromBox(fraudBox, 'fraud');
+      await _removeDuplicatesFromBox(malwareBox, 'malware');
+
+      // Fix any null IDs that might have been created
+      await _fixNullIdsInAllBoxes();
+
+      print('📊 After cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Duplicate removal completed'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('❌ Error during duplicate removal: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error removing duplicates: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Permanent duplicate removal function for offline sync data
+  Future<void> _removeAllDuplicatesPermanently() async {
+    try {
+      print('🧹 Starting PERMANENT duplicate removal for offline sync data...');
+
+      // Get all reports from all sources
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Before permanent cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Remove duplicates permanently from each box
+      await _removeDuplicatesPermanentlyFromBox(scamBox, 'scam');
+      await _removeDuplicatesPermanentlyFromBox(fraudBox, 'fraud');
+      await _removeDuplicatesPermanentlyFromBox(malwareBox, 'malware');
+
+      // Fix any null IDs that might have been created
+      await _fixNullIdsInAllBoxes();
+
+      print('📊 After permanent cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      print('✅ PERMANENT duplicate removal completed');
+    } catch (e) {
+      print('❌ Error during permanent duplicate removal: $e');
+    }
+  }
+
+  // Permanent duplicate removal for offline sync data
+  Future<void> _removeDuplicatesPermanentlyFromBox(
+    dynamic box,
+    String type,
+  ) async {
+    try {
+      final allReports = box.values.toList();
+      final uniqueReports = <String, dynamic>{};
+      final duplicates = <String>[];
+      final nullIdReports = <dynamic>[];
+      final seenContentKeys = <String>{}; // Track content-based duplicates
+
+      print(
+        '🔍 Processing ${allReports.length} $type reports for PERMANENT duplicate removal...',
+      );
+
+      for (final report in allReports) {
+        // Handle null IDs first
+        if (report.id == null || report.id.toString().isEmpty) {
+          nullIdReports.add(report);
+          print(
+            '⚠️ Found $type report with null ID: ${report.name ?? report.description}',
+          );
+          continue;
+        }
+
+        // Create content-based key for more aggressive duplicate detection
+        String contentKey;
+        if (type == 'scam') {
+          contentKey =
+              '${report.description?.toLowerCase().trim()}_${report.alertLevels?.toLowerCase().trim()}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}';
+        } else if (type == 'fraud') {
+          contentKey =
+              '${report.name?.toLowerCase().trim()}_${report.alertLevels?.toLowerCase().trim()}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}';
+        } else if (type == 'malware') {
+          contentKey =
+              '${report.name?.toLowerCase().trim()}_${report.malwareType?.toLowerCase().trim()}_${report.fileName?.toLowerCase().trim()}';
+        } else {
+          contentKey =
+              '${report.id}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        }
+
+        // Check for content-based duplicates first
+        if (seenContentKeys.contains(contentKey)) {
+          duplicates.add(contentKey);
+          print('🗑️ Found content duplicate in $type reports: $contentKey');
+          continue;
+        }
+
+        seenContentKeys.add(contentKey);
+
+        // Create a more robust unique key based on content and metadata
+        String key;
+        if (type == 'scam') {
+          key =
+              '${report.description}_${report.alertLevels}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        } else if (type == 'fraud') {
+          key =
+              '${report.name}_${report.alertLevels}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        } else if (type == 'malware') {
+          key =
+              '${report.name}_${report.malwareType}_${report.date?.millisecondsSinceEpoch ?? 0}';
+        } else {
+          key = '${report.id}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        }
+
+        if (uniqueReports.containsKey(key)) {
+          duplicates.add(key);
+          // Keep the one with the latest timestamp and valid ID
+          final existing = uniqueReports[key]!;
+          final existingTime = type == 'malware'
+              ? existing.date
+              : existing.createdAt;
+          final currentTime = type == 'malware'
+              ? report.date
+              : report.createdAt;
+
+          // Prefer the one with a valid ID and isSynced=true
+          if (existing.id == null && report.id != null) {
+            uniqueReports[key] = report;
+          } else if (existing.id != null && report.id == null) {
+            // Keep existing
+          } else if (report.isSynced == true && existing.isSynced != true) {
+            // Prefer synced reports
+            uniqueReports[key] = report;
+          } else if (currentTime.isAfter(existingTime)) {
+            uniqueReports[key] = report;
+          }
+        } else {
+          uniqueReports[key] = report;
+        }
+      }
+
+      // Handle null ID reports by assigning new IDs
+      if (nullIdReports.isNotEmpty) {
+        print(
+          '🔧 Assigning new IDs to ${nullIdReports.length} $type reports with null IDs...',
+        );
+        for (final report in nullIdReports) {
+          final newId = DateTime.now().millisecondsSinceEpoch.toString();
+          report.id = newId;
+          print(
+            '🔧 Assigned new ID $newId to $type report: ${report.name ?? report.description}',
+          );
+        }
+      }
+
+      if (duplicates.isNotEmpty || nullIdReports.isNotEmpty) {
+        print(
+          '🧹 Found ${duplicates.length} duplicates and ${nullIdReports.length} null ID reports in $type reports',
+        );
+
+        // Clear the box and add back only unique reports
+        await box.clear();
+
+        // Add back unique reports
+        for (final report in uniqueReports.values) {
+          await box.put(report.id, report);
+        }
+
+        // Add back null ID reports with new IDs
+        for (final report in nullIdReports) {
+          await box.put(report.id, report);
+        }
+
+        print(
+          '🧹 PERMANENTLY cleaned up $type reports - removed ${duplicates.length} duplicates, fixed ${nullIdReports.length} null IDs',
+        );
+      } else {
+        print('✅ No duplicates or null IDs found in $type reports');
+      }
+    } catch (e) {
+      print('❌ Error removing duplicates permanently from $type reports: $e');
+    }
+  }
+
+  // Enhanced sync function that prevents duplicates during sync
+  Future<void> _syncWithEnhancedDuplicatePrevention() async {
+    try {
+      print('🔄 Starting sync with enhanced duplicate prevention...');
+
+      // Step 1: Aggressive cleanup before sync
+      print('🧹 Step 1: Aggressive duplicate cleanup before sync...');
+      await _removeAllDuplicatesAggressively();
+
+      // Step 2: Perform sync operations with duplicate prevention
+      print('🔄 Step 2: Performing sync operations...');
+      await _syncReportsWithDuplicatePrevention();
+
+      // Step 3: Aggressive cleanup after sync
+      print('🧹 Step 3: Aggressive duplicate cleanup after sync...');
+      await _removeAllDuplicatesAggressively();
+
+      // Step 4: Final verification and cleanup
+      print('🔍 Step 4: Final verification and cleanup...');
+      await _finalDuplicateVerification();
+
+      print('✅ Sync with duplicate prevention completed');
+
+      // Refresh the UI
+      await _loadFilteredReports();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '✅ Sync completed with aggressive duplicate prevention',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('❌ Error during sync with duplicate prevention: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Sync error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Final verification and cleanup after sync
+  Future<void> _finalDuplicateVerification() async {
+    try {
+      print('🔍 Final duplicate verification starting...');
+
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 Final verification - Current counts:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // One more aggressive cleanup to ensure no duplicates remain
+      await _removeAllDuplicatesAggressively();
+
+      print('📊 Final verification - After cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      print('✅ Final duplicate verification completed');
+    } catch (e) {
+      print('❌ Error during final duplicate verification: $e');
+    }
+  }
+
+  // Sync reports with duplicate prevention
+  Future<void> _syncReportsWithDuplicatePrevention() async {
+    try {
+      print('🔄 Syncing reports with duplicate prevention...');
+
+      // Sync scam reports
+      await ScamSyncService().syncReports();
+      print('✅ Scam reports synced');
+
+      // Sync fraud reports
+      await FraudReportService.syncReports();
+      print('✅ Fraud reports synced');
+
+      // Sync malware reports
+      await MalwareReportService.syncReports();
+      print('✅ Malware reports synced');
+
+      print('✅ All reports synced with duplicate prevention');
+    } catch (e) {
+      print('❌ Error syncing reports: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _removeDuplicatesFromBox(dynamic box, String type) async {
+    try {
+      final allReports = box.values.toList();
+      final uniqueReports = <String, dynamic>{};
+      final duplicates = <String>[];
+      final nullIdReports = <dynamic>[];
+
+      print(
+        '🔍 Processing ${allReports.length} $type reports for duplicates...',
+      );
+
+      for (final report in allReports) {
+        // Handle null IDs first
+        if (report.id == null || report.id.toString().isEmpty) {
+          nullIdReports.add(report);
+          print(
+            '⚠️ Found $type report with null ID: ${report.name ?? report.description}',
+          );
+          continue;
+        }
+
+        // Create a more robust unique key based on content and metadata
+        String key;
+        if (type == 'scam') {
+          key =
+              '${report.description}_${report.alertLevels}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        } else if (type == 'fraud') {
+          key =
+              '${report.name}_${report.alertLevels}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        } else if (type == 'malware') {
+          key =
+              '${report.name}_${report.malwareType}_${report.date?.millisecondsSinceEpoch ?? 0}';
+        } else {
+          key = '${report.id}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
+        }
+
+        if (uniqueReports.containsKey(key)) {
+          duplicates.add(key);
+          // Keep the one with the latest timestamp and valid ID
+          final existing = uniqueReports[key]!;
+          final existingTime = type == 'malware'
+              ? existing.date
+              : existing.createdAt;
+          final currentTime = type == 'malware'
+              ? report.date
+              : report.createdAt;
+
+          // Prefer the one with a valid ID
+          if (existing.id == null && report.id != null) {
+            uniqueReports[key] = report;
+          } else if (existing.id != null && report.id == null) {
+            // Keep existing
+          } else if (currentTime.isAfter(existingTime)) {
+            uniqueReports[key] = report;
+          }
+        } else {
+          uniqueReports[key] = report;
+        }
+      }
+
+      // Handle null ID reports by assigning new IDs
+      if (nullIdReports.isNotEmpty) {
+        print(
+          '🔧 Assigning new IDs to ${nullIdReports.length} $type reports with null IDs...',
+        );
+        for (final report in nullIdReports) {
+          final newId = DateTime.now().millisecondsSinceEpoch.toString();
+          report.id = newId;
+          print(
+            '🔧 Assigned new ID $newId to $type report: ${report.name ?? report.description}',
+          );
+        }
+      }
+
+      if (duplicates.isNotEmpty || nullIdReports.isNotEmpty) {
+        print(
+          '🧹 Found ${duplicates.length} duplicates and ${nullIdReports.length} null ID reports in $type reports',
+        );
+
+        // Clear the box and add back only unique reports
+        await box.clear();
+
+        // Add back unique reports
+        for (final report in uniqueReports.values) {
+          await box.put(report.id, report);
+        }
+
+        // Add back null ID reports with new IDs
+        for (final report in nullIdReports) {
+          await box.put(report.id, report);
+        }
+
+        print(
+          '🧹 Cleaned up $type reports - removed ${duplicates.length} duplicates, fixed ${nullIdReports.length} null IDs',
+        );
+      } else {
+        print('✅ No duplicates or null IDs found in $type reports');
+      }
+    } catch (e) {
+      print('❌ Error removing duplicates from $type reports: $e');
+    }
+  }
+
+  // Enhanced sync function that prevents duplicates
+  Future<void> _syncWithDuplicatePrevention() async {
+    try {
+      print('🔄 Starting sync with duplicate prevention...');
+
+      // First, clean up any existing duplicates
+      await _removeAllDuplicates();
+
+      // Then perform sync operations
+      await ScamSyncService().syncReports();
+      await FraudReportService.syncReports();
+      await MalwareReportService.syncReports();
+
+      // Clean up again after sync to prevent new duplicates
+      await _removeAllDuplicates();
+
+      print('✅ Sync with duplicate prevention completed');
+
+      // Refresh the UI
+      _loadFilteredReports();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Sync completed with duplicate prevention'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('❌ Error during sync with duplicate prevention: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Sync error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Function to prevent duplicates during report creation
+  Future<void> _preventDuplicateCreation(
+    String reportType,
+    dynamic newReport,
+  ) async {
+    try {
+      print('🛡️ Preventing duplicate creation for $reportType report...');
+
+      dynamic box;
+      if (reportType == 'scam') {
+        box = Hive.box<ScamReportModel>('scam_reports');
+      } else if (reportType == 'fraud') {
+        box = Hive.box<FraudReportModel>('fraud_reports');
+      } else if (reportType == 'malware') {
+        box = Hive.box<MalwareReportModel>('malware_reports');
+      } else {
+        return;
+      }
+
+      final existingReports = box.values.toList();
+      bool isDuplicate = false;
+
+      for (final existingReport in existingReports) {
+        // Check for duplicates based on content and timestamp
+        if (_isDuplicateReport(newReport, existingReport, reportType)) {
+          isDuplicate = true;
+          print(
+            '⚠️ Duplicate detected for $reportType report: ${newReport.name ?? newReport.description}',
+          );
+          break;
+        }
+      }
+
+      if (isDuplicate) {
+        print('🛡️ Preventing duplicate $reportType report creation');
+        throw Exception(
+          'Duplicate report detected. This report already exists.',
+        );
+      }
+
+      print('✅ No duplicates detected for $reportType report');
+    } catch (e) {
+      print('❌ Error preventing duplicate creation: $e');
+      rethrow;
+    }
+  }
+
+  // Enhanced duplicate prevention for offline sync data
+  Future<void> _preventOfflineSyncDuplicates() async {
+    try {
+      print('🛡️ Preventing offline sync duplicates...');
+
+      // Get all reports from all sources
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      // Check for duplicates across all boxes
+      final allReports = <Map<String, dynamic>>[];
+
+      // Add scam reports
+      for (var report in scamBox.values) {
+        allReports.add({
+          'id': report.id,
+          'type': 'scam',
+          'content':
+              '${report.description}_${report.alertLevels}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}',
+          'createdAt': report.createdAt,
+          'isSynced': report.isSynced,
+          'report': report,
+        });
+      }
+
+      // Add fraud reports
+      for (var report in fraudBox.values) {
+        allReports.add({
+          'id': report.id,
+          'type': 'fraud',
+          'content':
+              '${report.name}_${report.alertLevels}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}',
+          'createdAt': report.createdAt,
+          'isSynced': report.isSynced,
+          'report': report,
+        });
+      }
+
+      // Add malware reports
+      for (var report in malwareBox.values) {
+        allReports.add({
+          'id': report.id,
+          'type': 'malware',
+          'content': '${report.name}_${report.malwareType}_${report.fileName}',
+          'createdAt': report.date,
+          'isSynced': report.isSynced,
+          'report': report,
+        });
+      }
+
+      // Find and remove duplicates
+      final seenContent = <String>{};
+      final duplicates = <dynamic>[];
+
+      for (var reportData in allReports) {
+        final content = reportData['content'].toString().toLowerCase().trim();
+
+        if (seenContent.contains(content)) {
+          duplicates.add(reportData['report']);
+          print('🗑️ Found duplicate content: $content');
+        } else {
+          seenContent.add(content);
+        }
+      }
+
+      // Remove duplicates from their respective boxes
+      if (duplicates.isNotEmpty) {
+        print('🧹 Removing ${duplicates.length} duplicate reports...');
+
+        for (var duplicate in duplicates) {
+          if (duplicate is ScamReportModel) {
+            await scamBox.delete(duplicate.id);
+          } else if (duplicate is FraudReportModel) {
+            await fraudBox.delete(duplicate.id);
+          } else if (duplicate is MalwareReportModel) {
+            await malwareBox.delete(duplicate.id);
+          }
+        }
+
+        print('✅ Removed ${duplicates.length} duplicate reports');
+      } else {
+        print('✅ No duplicates found');
+      }
+    } catch (e) {
+      print('❌ Error preventing offline sync duplicates: $e');
+    }
+  }
+
+  // Helper function to check if two reports are duplicates
+  bool _isDuplicateReport(dynamic report1, dynamic report2, String type) {
+    try {
+      // Check if they have the same content and were created within 5 minutes of each other
+      final timeDiff =
+          (report1.createdAt?.millisecondsSinceEpoch ?? 0) -
+          (report2.createdAt?.millisecondsSinceEpoch ?? 0);
+      final isWithinTimeWindow = timeDiff.abs() < 300000; // 5 minutes
+
+      if (!isWithinTimeWindow) return false;
+
+      // Check content similarity based on report type
+      if (type == 'scam') {
+        return report1.description == report2.description &&
+            report1.alertLevels == report2.alertLevels;
+      } else if (type == 'fraud') {
+        return report1.name == report2.name &&
+            report1.alertLevels == report2.alertLevels;
+      } else if (type == 'malware') {
+        return report1.name == report2.name &&
+            report1.malwareType == report2.malwareType;
+      }
+
+      return false;
+    } catch (e) {
+      print('❌ Error checking duplicate reports: $e');
+      return false;
     }
   }
 }

@@ -38,6 +38,10 @@ class FraudReportService {
     // Always save to local storage first (offline-first approach)
     await _box.add(report);
 
+    // AUTOMATIC DUPLICATE CLEANUP after saving
+    print('🧹 Auto-cleaning duplicates after saving new fraud report...');
+    await cleanDuplicates();
+
     // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity != ConnectivityResult.none) {
@@ -72,6 +76,10 @@ class FraudReportService {
     // Save the new report first
     print('Saving fraud report to local storage: ${report.toSyncJson()}');
     await _box.add(report);
+
+    // AUTOMATIC DUPLICATE CLEANUP after saving offline
+    print('🧹 Auto-cleaning duplicates after saving offline fraud report...');
+    await cleanDuplicates();
   }
 
   static Future<void> cleanDuplicates() async {
@@ -118,6 +126,10 @@ class FraudReportService {
 
     print('🔄 Starting fraud reports sync...');
 
+    // AUTOMATIC DUPLICATE CLEANUP BEFORE SYNC
+    print('🧹 Automatic duplicate cleanup before fraud sync...');
+    await cleanDuplicates();
+
     try {
       final pendingReports = _box.values
           .where((report) => !report.isSynced)
@@ -149,6 +161,10 @@ class FraudReportService {
       print('📊 - Total pending: ${pendingReports.length}');
       print('📊 - Synced: $syncedCount');
       print('📊 - Failed: $failedCount');
+
+      // AUTOMATIC DUPLICATE CLEANUP AFTER SYNC
+      print('🧹 Automatic duplicate cleanup after fraud sync...');
+      await cleanDuplicates();
     } catch (e) {
       print('❌ Error during fraud sync: $e');
     }

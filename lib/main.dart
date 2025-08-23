@@ -505,14 +505,17 @@ void main() async {
     // Remove duplicates from local storage
     await ScamReportService.removeDuplicateScamReports();
     await FraudReportService.removeDuplicateFraudReports();
+    await MalwareReportService.removeDuplicateMalwareReports();
 
     // Remove duplicates from backend (only if online)
     final startupConnectivity = await Connectivity().checkConnectivity();
     if (startupConnectivity != ConnectivityResult.none) {
       await ApiService().removeDuplicateScamFraudReports();
     }
+
+    print('✅ Startup duplicate removal completed');
   } catch (e) {
-    // Error during startup duplicate removal
+    print('❌ Error during startup duplicate removal: $e');
   }
 
   // Initial sync if online

@@ -60,9 +60,9 @@ class ScamReportService {
     // Always save to local storage first (offline-first approach)
     await _box.add(report);
 
-    // AUTOMATIC DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
-    // print('🧹 Auto-cleaning duplicates after saving new scam report...');
-    // await removeDuplicateScamReports();
+    // AUTOMATIC DUPLICATE CLEANUP after saving
+    print('🧹 Auto-cleaning duplicates after saving new scam report...');
+    await cleanDuplicates();
 
     // Try to sync if online
     final connectivity = await Connectivity().checkConnectivity();
@@ -104,9 +104,9 @@ class ScamReportService {
     print('Saving scam report to local storage: ${report.toJson()}');
     await _box.add(report);
 
-    // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving - TEMPORARILY DISABLED FOR TESTING
-    // print('🧹 Auto-cleaning duplicates after saving offline scam report...');
-    // await removeDuplicateScamReports();
+    // AUTOMATIC TARGETED DUPLICATE CLEANUP after saving
+    print('🧹 Auto-cleaning duplicates after saving offline scam report...');
+    await cleanDuplicates();
   }
 
   static Future<void> cleanDuplicates() async {
@@ -154,6 +154,10 @@ class ScamReportService {
 
     // Initialize reference service before syncing
     await ReportReferenceService.initialize();
+
+    // AUTOMATIC DUPLICATE CLEANUP BEFORE SYNC
+    print('🧹 Automatic duplicate cleanup before scam sync...');
+    await cleanDuplicates();
 
     final box = Hive.box<ScamReportModel>('scam_reports');
     final unsyncedReports = box.values
@@ -206,6 +210,10 @@ class ScamReportService {
     print(
       '📊 ScamReportService sync completed: $syncedCount synced, $failedCount failed',
     );
+
+    // AUTOMATIC DUPLICATE CLEANUP AFTER SYNC
+    print('🧹 Automatic duplicate cleanup after scam sync...');
+    await cleanDuplicates();
 
     // Verify the sync status
     final finalUnsynced = box.values.where((r) => r.isSynced != true).length;

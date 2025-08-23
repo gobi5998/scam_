@@ -387,9 +387,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       );
       print('🚀 Phone Numbers from widget: ${widget.report.phoneNumbers}');
       print('🚀 Emails from widget: ${widget.report.emails}');
-      print(
-        '🚀 Media Handles from widget: ${widget.report.mediaHandles}',
-      );
+      print('🚀 Media Handles from widget: ${widget.report.mediaHandles}');
 
       // Validate arrays are not empty
       if (widget.report.phoneNumbers?.isEmpty ?? true) {
@@ -568,15 +566,51 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
 
   // Add method to validate form before submission
   bool _validateForm() {
+    // Check connectivity first
+    bool isOffline = false;
+    Connectivity().checkConnectivity().then((result) {
+      isOffline = result == ConnectivityResult.none;
+    });
+
+    // Always validate required fields regardless of connectivity
+    List<String> missingFields = [];
+
     if (alertLevel == null || alertLevel!.isEmpty) {
+      missingFields.add('Alert Severity Level');
+    }
+
+    // Check if we have any files uploaded
+    bool hasFiles = false;
+    if (_fileUploadKey.currentState != null) {
+      final state = _fileUploadKey.currentState!;
+      final uploadedFiles = state.getCurrentUploadedFiles();
+      final totalFiles =
+          (uploadedFiles['screenshots']?.length ?? 0) +
+          (uploadedFiles['documents']?.length ?? 0) +
+          (uploadedFiles['voiceMessages']?.length ?? 0) +
+          (uploadedFiles['videofiles']?.length ?? 0);
+      hasFiles = totalFiles > 0;
+    }
+
+    if (!hasFiles) {
+      missingFields.add('Evidence Files (at least one file required)');
+    }
+
+    // Show appropriate error message
+    if (missingFields.isNotEmpty) {
+      String errorMessage = 'Please provide the following required fields:\n';
+      errorMessage += missingFields.map((field) => '• $field').join('\n');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please select an alert severity level'),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
         ),
       );
       return false;
     }
+
     return true;
   }
 
