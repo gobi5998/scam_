@@ -6,6 +6,7 @@ import 'package:security_alert/screens/menu/profile_page.dart';
 import 'package:security_alert/screens/menu/ratepage.dart';
 import 'package:security_alert/screens/menu/shareApp.dart';
 import 'package:security_alert/screens/menu/theard_database.dart';
+import 'package:security_alert/screens/due_diligence_wrapper.dart';
 import 'package:security_alert/screens/menu/thread_database_listpage.dart';
 import 'package:security_alert/screens/menu/filter_page.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
@@ -228,6 +229,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         '/filter': (context) => AuthGuard(child: ThreadDatabaseFilterPage()),
+        '/due-diligence': (context) => AuthGuard(child: DueDiligenceWrapper()),
         '/subscription': (context) => AuthGuard(child: SubscriptionPlansPage()),
         '/rate': (context) => AuthGuard(child: Ratepage()),
         '/share': (context) => AuthGuard(child: Shareapp()),
@@ -239,6 +241,7 @@ class MyApp extends StatelessWidget {
             AuthGuard(child: ReportMalware1(categoryId: 'malware_category')),
         '/fraud-report': (context) =>
             AuthGuard(child: ReportFraudStep1(categoryId: 'fraud_category')),
+        
       },
     );
   }

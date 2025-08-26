@@ -1,10 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/login.dart';
+import 'package:dio/dio.dart';
+import '../services/api_service.dart';
 
-class EmailVerifyScreen extends StatelessWidget {
+class EmailVerifyScreen extends StatefulWidget {
   final String email;
 
   const EmailVerifyScreen({Key? key, required this.email}) : super(key: key);
+
+  @override
+  State<EmailVerifyScreen> createState() => _EmailVerifyScreenState();
+}
+
+class _EmailVerifyScreenState extends State<EmailVerifyScreen> {
+  bool _isResending = false;
+  String _message = '';
+  bool _isSuccess = false;
+
+  Future<void> _resendVerificationEmail() async {
+    setState(() {
+      _isResending = true;
+      _message = '';
+      _isSuccess = false;
+    });
+
+    try {
+      print('🔄 Resending verification email to: ${widget.email}');
+      
+      final apiService = ApiService();
+      final response = await apiService.resendVerificationEmail(widget.email);
+      
+      setState(() {
+        _isResending = false;
+        _isSuccess = true;
+        _message = 'Verification email sent successfully! Please check your inbox.';
+      });
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_message),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+    } catch (e) {
+      print('❌ Error resending verification email: $e');
+      
+      setState(() {
+        _isResending = false;
+        _isSuccess = false;
+        _message = 'Failed to resend verification email. Please try again.';
+      });
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_message),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +115,7 @@ class EmailVerifyScreen extends StatelessWidget {
               ),
               SizedBox(height: 8),
               Text(
-                email,
+                widget.email,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -65,37 +124,37 @@ class EmailVerifyScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 24),
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.blue.shade600,
-                          size: 20,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'What to do next:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-
-                  ],
-                ),
-              ),
+              // Container(
+              //   padding: EdgeInsets.all(16),
+              //   decoration: BoxDecoration(
+              //     color: Colors.blue.shade50,
+              //     borderRadius: BorderRadius.circular(8),
+              //     border: Border.all(color: Colors.blue.shade200),
+              //   ),
+              //   child: Column(
+              //     children: [
+              //       Row(
+              //         children: [
+              //           Icon(
+              //             Icons.info_outline,
+              //             color: Colors.blue.shade600,
+              //             size: 20,
+              //           ),
+              //           SizedBox(width: 8),
+              //           Text(
+              //             'What to do next:',
+              //             style: TextStyle(
+              //               fontWeight: FontWeight.w600,
+              //               color: Colors.blue.shade800,
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //       SizedBox(height: 12),
+              //
+              //     ],
+              //   ),
+              // ),
               SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -119,14 +178,30 @@ class EmailVerifyScreen extends StatelessWidget {
               ),
               SizedBox(height: 16),
               TextButton(
-                onPressed: () {
-                  // Navigate back to reset password request screen
-                  Navigator.of(context).pop();
-                },
-                child: Text(
-                  'Didn\'t receive the email?',
-                  style: TextStyle(color: Color(0xFF185ABC)),
-                ),
+                onPressed: _isResending ? null : _resendVerificationEmail,
+                child: _isResending
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF185ABC)),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Resending...',
+                            style: TextStyle(color: Color(0xFF185ABC)),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        'Didn\'t receive the email?',
+                        style: TextStyle(color: Color(0xFF185ABC)),
+                      ),
               ),
             ],
           ),

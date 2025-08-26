@@ -217,6 +217,13 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
                     textColor: Colors.grey[800],
                     iconColor: const Color(0xFF064FAD),
                   ),
+                  DrawerMenuItem(
+                    ImagePath: ImagePath.dueDiligence,
+                    label: 'Due Diligence',
+                    routeName: '/due-diligence',
+                    textColor: Colors.grey[800],
+                    iconColor: const Color(0xFF064FAD),
+                  ),
                   const Spacer(),
                   // Logout Section - Positioned at bottom of menu area
                   ListTile(

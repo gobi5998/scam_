@@ -1,12 +1,13 @@
   import 'package:dio/dio.dart';
-  import 'package:shared_preferences/shared_preferences.dart';
-  import '../config/api_config.dart';
-  import '../models/filter_model.dart';
-  import 'jwt_service.dart';
-  import 'dio_service.dart';
-  import 'token_storage.dart';
-  import 'dart:convert'; // Added for json.decode
-  import 'offline_cache_service.dart';
+import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
+import '../models/filter_model.dart';
+import 'jwt_service.dart';
+import 'dio_service.dart';
+import 'token_storage.dart';
+import 'dart:convert'; // Added for json.decode
+import 'offline_cache_service.dart';
   // connectivity_plus is not used directly here
 
   class ApiService {
@@ -296,6 +297,126 @@
         'api/v1/auth/forgot-password',
         data: {'email': email},
       );
+    }
+
+    // Get categories with subcategories
+    Future<Map<String, dynamic>> getCategoriesWithSubcategories() async {
+      try {
+        print('🔄 Fetching categories with subcategories...');
+        
+        final response = await _dioService.mainApi.get(
+          '/api/v1/reports/categories/with-subcategories',
+        );
+        
+        print('✅ Categories response status: ${response.statusCode}');
+        print('✅ Categories response data: ${response.data}');
+        
+        if (response.statusCode == 200) {
+          print('✅ Categories fetched successfully');
+          return response.data;
+        } else {
+          throw Exception('Failed to fetch categories: ${response.statusCode}');
+        }
+      } on DioException catch (e) {
+        print('❌ Error fetching categories: ${e.message}');
+        print('❌ Response data: ${e.response?.data}');
+        print('❌ Status code: ${e.response?.statusCode}');
+        throw Exception('Failed to fetch categories: ${e.message}');
+      }
+    }
+
+    // Upload due diligence file
+    Future<Map<String, dynamic>> uploadDueDiligenceFile(
+      File file,
+      String reportId,
+      String categoryId,
+      String subcategoryId,
+    ) async {
+      try {
+        print('🔄 Uploading due diligence file...');
+        print('📁 File: ${file.path}');
+        print('📋 Report ID: $reportId');
+        print('🏷️ Category ID: $categoryId');
+        print('📝 Subcategory ID: $subcategoryId');
+        
+        // Create form data
+        final formData = FormData.fromMap({
+          'file': await MultipartFile.fromFile(
+            file.path,
+            filename: file.path.split('/').last,
+          ),
+          'reportId': reportId,
+          'categoryId': categoryId,
+          'subcategoryId': subcategoryId,
+        });
+        
+        final response = await _dioService.fileUploadApi.post(
+          'api/v1/due-diligence/upload?reportId=$reportId',
+          data: formData,
+        );
+        
+        print('✅ Upload response status: ${response.statusCode}');
+        print('✅ Upload response data: ${response.data}');
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          print('✅ File uploaded successfully');
+          
+          // Handle different response types
+          if (response.data is Map<String, dynamic>) {
+            return response.data;
+          } else if (response.data is String) {
+            return {'message': response.data, 'status': 'success'};
+          } else {
+            return {'data': response.data, 'status': 'success'};
+          }
+        } else {
+          throw Exception('Failed to upload file: ${response.statusCode}');
+        }
+      } on DioException catch (e) {
+        print('❌ Error uploading file: ${e.message}');
+        print('❌ Response data: ${e.response?.data}');
+        print('❌ Status code: ${e.response?.statusCode}');
+        throw Exception('Failed to upload file: ${e.message}');
+      }
+    }
+
+    // Resend verification email method
+    Future<Map<String, dynamic>> resendVerificationEmail(String email) async {
+      try {
+        print('🔄 Resending verification email to: $email');
+        
+        final response = await _dioService.authPost(
+          '/api/v1/auth/resend-verification-email',
+          data: {
+            'email': email,
+          },
+        );
+        
+        print('✅ Resend verification email response status: ${response.statusCode}');
+        print('✅ Resend verification email response data: ${response.data}');
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          print('✅ Verification email resent successfully');
+          
+          // Handle different response types
+          if (response.data is Map<String, dynamic>) {
+            return response.data;
+          } else if (response.data is String) {
+            // If response is a string, wrap it in a map
+            return {'message': response.data, 'status': 'success'};
+          } else {
+            // For any other type, convert to map
+            return {'data': response.data, 'status': 'success'};
+          }
+        } else {
+          throw Exception('Failed to resend verification email: ${response.statusCode}');
+        }
+      } on DioException catch (e) {
+        print('❌ Error resending verification email: ${e.message}');
+        print('❌ Response data: ${e.response?.data}');
+        print('❌ Status code: ${e.response?.statusCode}');
+        throw Exception('Failed to resend verification email: ${e.message}');
+      }
     }
 
     // Change password method
