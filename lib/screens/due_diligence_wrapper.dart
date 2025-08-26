@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
+import '../custom/customButton.dart';
 
 class DueDiligenceWrapper extends StatefulWidget {
   final String? reportId;
@@ -79,30 +80,28 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
       final XFile? file = await picker.pickMedia();
       
       if (file != null) {
-        // Show dialog to get document number
+        // Show dialog to get document number (optional)
         final documentNumber = await _showDocumentNumberDialog();
         
-        if (documentNumber != null && documentNumber.isNotEmpty) {
-          final fileData = FileData(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            file: File(file.path),
-            fileName: file.path.split('/').last,
-            fileType: file.mimeType ?? 'unknown',
-            documentNumber: documentNumber,
-            uploadTime: DateTime.now(),
-          );
-          
-          setState(() {
-            uploadedFiles[categoryId]![subcategoryId]!.add(fileData);
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('File added: ${fileData.fileName}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        final fileData = FileData(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          file: File(file.path),
+          fileName: file.path.split('/').last,
+          fileType: file.mimeType ?? 'unknown',
+          documentNumber: documentNumber ?? '',
+          uploadTime: DateTime.now(),
+        );
+        
+        setState(() {
+          uploadedFiles[categoryId]![subcategoryId]!.add(fileData);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File added: ${fileData.fileName}'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,11 +120,11 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Enter Document Number'),
+          title: const Text('Enter Document Number (Optional)'),
           content: TextField(
             decoration: const InputDecoration(
               labelText: 'Document Number',
-              hintText: 'Enter document number (e.g., DOC-001)',
+              hintText: 'Enter document number (e.g., DOC-001) - Optional',
               border: OutlineInputBorder(),
             ),
             onChanged: (value) {
@@ -195,6 +194,93 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
     );
   }
 
+  void _submitDueDiligence() {
+    // Check if any files are uploaded
+    bool hasFiles = false;
+    for (var category in categories) {
+      for (var subcategory in category.subcategories) {
+        if (uploadedFiles[category.id]?[subcategory.id]?.isNotEmpty == true) {
+          hasFiles = true;
+          break;
+        }
+      }
+      if (hasFiles) break;
+    }
+
+    if (!hasFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please upload at least one file before submitting'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Submit Due Diligence'),
+          content: const Text('Are you sure you want to submit the due diligence report?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _confirmSubmit();
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmSubmit() {
+    // Here you would implement the actual submission logic
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Due Diligence submitted successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    
+    // Navigate back or show success screen
+    Navigator.of(context).pop();
+  }
+
+  void _cancelDueDiligence() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Cancel Due Diligence'),
+          content: const Text('Are you sure you want to cancel? All uploaded files will be lost.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('No, Continue'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Yes, Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,35 +308,75 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
+      body: Column(
+        children: [
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : errorMessage != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              errorMessage!,
+                              style: const TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _loadCategories,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: categories.map((category) {
+                            return _buildCategorySection(category);
+                          }).toList(),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadCategories,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: categories.map((category) {
-                      return _buildCategorySection(category);
-                    }).toList(),
-                  ),
+          ),
+          // Submit/Cancel Buttons
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  spreadRadius: 1,
+                  blurRadius: 3,
+                  offset: const Offset(0, -1),
                 ),
+              ],
+            ),
+            child: Row(
+              children: [
+                                 Expanded(
+                   child: CustomButton(
+                     onPressed: () async => _cancelDueDiligence(),
+                     text: 'Cancel',
+                     fontWeight: FontWeight.w600,
+                   ),
+                 ),
+                 const SizedBox(width: 16),
+                 Expanded(
+                   child: CustomButton(
+                     onPressed: () async => _submitDueDiligence(),
+                     text: 'Submit',
+                     fontWeight: FontWeight.w600,
+                   ),
+                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -517,7 +643,9 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                       ),
                     ),
                     Text(
-                      'Doc #: ${fileData.documentNumber} | Type: ${fileData.fileType}',
+                      fileData.documentNumber.isNotEmpty 
+                          ? 'Doc #: ${fileData.documentNumber} | Type: ${fileData.fileType}'
+                          : 'Type: ${fileData.fileType}',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 10,
