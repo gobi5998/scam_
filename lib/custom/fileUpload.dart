@@ -42,7 +42,7 @@ class FileUploadConfig {
     this.allowedvideoExtensions = const ['mp4'],
     this.maxFileSize =
         5, // 5MB default for screenshots (server nginx limit appears to be lower)
-    this.maxvideoSize=50,
+    this.maxvideoSize = 50,
     this.customUploadUrl,
     this.additionalHeaders,
   });
@@ -114,11 +114,30 @@ class FileUploadService {
     final fileSize = await file.length();
     final fileName = file.path.split('/').last.toLowerCase();
     final fileSizeMB = fileSize / (1024 * 1024);
-    
+
     // Different size limits for different file types
     int maxSizeMB;
     if (fileName.endsWith('.mp4') ||
-         fileName.endsWith('.mov') || fileName.endsWith('.avi') || fileName.endsWith('.mkv') || fileName.endsWith('.webm') || fileName.endsWith('.flv') || fileName.endsWith('.wmv') || fileName.endsWith('.mpg') || fileName.endsWith('.mpeg') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p')) {
+        fileName.endsWith('.mov') ||
+        fileName.endsWith('.avi') ||
+        fileName.endsWith('.mkv') ||
+        fileName.endsWith('.webm') ||
+        fileName.endsWith('.flv') ||
+        fileName.endsWith('.wmv') ||
+        fileName.endsWith('.mpg') ||
+        fileName.endsWith('.mpeg') ||
+        fileName.endsWith('.m4v') ||
+        fileName.endsWith('.m4a') ||
+        fileName.endsWith('.m4b') ||
+        fileName.endsWith('.m4p') ||
+        fileName.endsWith('.m4v') ||
+        fileName.endsWith('.m4a') ||
+        fileName.endsWith('.m4b') ||
+        fileName.endsWith('.m4p') ||
+        fileName.endsWith('.m4v') ||
+        fileName.endsWith('.m4a') ||
+        fileName.endsWith('.m4b') ||
+        fileName.endsWith('.m4p')) {
       maxSizeMB = 50; // 50MB for video files
     } else {
       maxSizeMB = config.maxFileSize; // 5MB for other files
@@ -586,11 +605,11 @@ class FileUploadWidget extends StatefulWidget {
   final Function(String)? onError;
 
   const FileUploadWidget({
-    Key? key,
+    super.key,
     required this.config,
     required this.onFilesUploaded,
     this.onError,
-  }) : super(key: key);
+  });
 
   @override
   State<FileUploadWidget> createState() => FileUploadWidgetState();
@@ -754,19 +773,21 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   // Pick images
   Future<void> _pickImages() async {
     print('📸 Picking images...');
-    
+
     // Check if already at limit
     if (selectedImages.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Maximum 5 screenshots allowed. Please remove some screenshots first.'),
+          content: Text(
+            'Maximum 5 screenshots allowed. Please remove some screenshots first.',
+          ),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
       return;
     }
-    
+
     // Show current selection status
     // if (selectedImages.isNotEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
@@ -777,106 +798,113 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     //     ),
     //   );
     // }
-    
+
     final images = await _picker.pickMultiImage();
-    if (images != null) {
-      print('📸 Selected ${images.length} images');
-      
-      // Validate file sizes before adding
-      List<File> validImages = [];
-      List<String> oversizedFiles = [];
-      List<String> duplicateFiles = [];
-      
-      for (var image in images) {
-        final file = File(image.path);
-        final fileSize = await file.length();
-        final fileSizeMB = fileSize / (1024 * 1024);
-        
-        // Check if file is already selected
-        bool isDuplicate = selectedImages.any((selectedFile) => 
-          selectedFile.path == file.path || 
-          selectedFile.path.split('/').last == file.path.split('/').last
-        );
-        
-        if (isDuplicate) {
-          duplicateFiles.add(file.path.split('/').last);
-          continue;
-        }
-        
-        if (fileSizeMB > 5.0) {
-          oversizedFiles.add('${image.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
-        } else {
-          validImages.add(file);
-        }
-      }
-      
-      // Calculate how many more images can be added
-      int remainingSlots = 5 - selectedImages.length;
-      int imagesToAdd = validImages.length > remainingSlots ? remainingSlots : validImages.length;
-      
-      setState(() {
-        selectedImages.addAll(validImages.take(imagesToAdd));
-      });
-      
-      print('📸 Total images selected: ${selectedImages.length}');
-      
-      // Show warnings for duplicate files
-      if (duplicateFiles.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      
-      // Show warnings for oversized files
-      if (oversizedFiles.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-      
-      // Show warning if some images were not added due to limit
-      if (validImages.length > remainingSlots) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Only ${remainingSlots} more screenshots allowed. ${validImages.length - remainingSlots} images were not added.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+    print('📸 Selected ${images.length} images');
+
+    // Validate file sizes before adding
+    List<File> validImages = [];
+    List<String> oversizedFiles = [];
+    List<String> duplicateFiles = [];
+
+    for (var image in images) {
+      final file = File(image.path);
+      final fileSize = await file.length();
+      final fileSizeMB = fileSize / (1024 * 1024);
+
+      // Check if file is already selected
+      bool isDuplicate = selectedImages.any(
+        (selectedFile) =>
+            selectedFile.path == file.path ||
+            selectedFile.path.split('/').last == file.path.split('/').last,
+      );
+
+      if (isDuplicate) {
+        duplicateFiles.add(file.path.split('/').last);
+        continue;
       }
 
-      // Auto-upload if enabled
-      if (widget.config.autoUpload) {
-        _autoUploadFiles();
+      if (fileSizeMB > 5.0) {
+        oversizedFiles.add(
+          '${image.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)',
+        );
+      } else {
+        validImages.add(file);
       }
-    } else {
-      print('📸 No images selected');
+    }
+
+    // Calculate how many more images can be added
+    int remainingSlots = 5 - selectedImages.length;
+    int imagesToAdd = validImages.length > remainingSlots
+        ? remainingSlots
+        : validImages.length;
+
+    setState(() {
+      selectedImages.addAll(validImages.take(imagesToAdd));
+    });
+
+    print('📸 Total images selected: ${selectedImages.length}');
+
+    // Show warnings for duplicate files
+    if (duplicateFiles.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Skipped duplicates: ${duplicateFiles.join(', ')}'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    // Show warnings for oversized files
+    if (oversizedFiles.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Files too large (max 5MB): ${oversizedFiles.join(', ')}',
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+
+    // Show warning if some images were not added due to limit
+    if (validImages.length > remainingSlots) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only ${remainingSlots} more screenshots allowed. ${validImages.length - remainingSlots} images were not added.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+
+    // Auto-upload if enabled
+    if (widget.config.autoUpload) {
+      _autoUploadFiles();
     }
   }
 
   // Pick documents
   Future<void> _pickDocuments() async {
     print('📄 Picking documents...');
-    
+
     // Check if already at limit
     if (selectedDocuments.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Maximum 5 documents allowed. Please remove some documents first.'),
+          content: Text(
+            'Maximum 5 documents allowed. Please remove some documents first.',
+          ),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
       return;
     }
-    
+
     // Show current selection status
     // if (selectedDocuments.isNotEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
@@ -887,7 +915,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     //     ),
     //   );
     // }
-    
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -896,47 +924,52 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
     if (result != null) {
       print('📄 Selected ${result.files.length} documents');
-      
+
       // Validate file sizes and check for duplicates
       List<File> validDocuments = [];
       List<String> oversizedFiles = [];
       List<String> duplicateFiles = [];
-      
+
       for (var filePath in result.paths) {
         if (filePath != null) {
           final file = File(filePath);
           final fileSize = await file.length();
           final fileSizeMB = fileSize / (1024 * 1024);
-          
+
           // Check if file is already selected
-          bool isDuplicate = selectedDocuments.any((selectedFile) => 
-            selectedFile.path == file.path || 
-            selectedFile.path.split('/').last == file.path.split('/').last
+          bool isDuplicate = selectedDocuments.any(
+            (selectedFile) =>
+                selectedFile.path == file.path ||
+                selectedFile.path.split('/').last == file.path.split('/').last,
           );
-          
+
           if (isDuplicate) {
             duplicateFiles.add(file.path.split('/').last);
             continue;
           }
-          
+
           if (fileSizeMB > 5.0) {
-            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+            oversizedFiles.add(
+              '${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)',
+            );
           } else {
             validDocuments.add(file);
           }
         }
       }
-      
+
       // Calculate how many more documents can be added
       int remainingSlots = 5 - selectedDocuments.length;
-      int documentsToAdd = validDocuments.length > remainingSlots ? remainingSlots : validDocuments.length;
-      
+      int documentsToAdd = validDocuments.length > remainingSlots
+          ? remainingSlots
+          : validDocuments.length;
+
       setState(() {
         selectedDocuments.addAll(validDocuments.take(documentsToAdd));
       });
-      
+
       print('📄 Total documents selected: ${selectedDocuments.length}');
-      
+
       // Show warnings for duplicate files
       if (duplicateFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -947,23 +980,27 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           ),
         );
       }
-      
+
       // Show warnings for oversized files
       if (oversizedFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            content: Text(
+              'Files too large (max 5MB): ${oversizedFiles.join(', ')}',
+            ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
-      
+
       // Show warning if some documents were not added due to limit
       if (validDocuments.length > remainingSlots) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Only ${remainingSlots} more documents allowed. ${validDocuments.length - remainingSlots} documents were not added.'),
+            content: Text(
+              'Only $remainingSlots more documents allowed. ${validDocuments.length - remainingSlots} documents were not added.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -981,19 +1018,21 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
   // Pick voice files
   Future<void> _pickVoiceFiles() async {
     print('🎵 Picking voice files...');
-    
+
     // Check if already at limit
     if (selectedVoiceFiles.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Maximum 5 voice files allowed. Please remove some voice files first.'),
+          content: Text(
+            'Maximum 5 voice files allowed. Please remove some voice files first.',
+          ),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
       return;
     }
-    
+
     // Show current selection status
     // if (selectedVoiceFiles.isNotEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
@@ -1004,7 +1043,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     //     ),
     //   );
     // }
-    
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -1013,47 +1052,52 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
     if (result != null) {
       print('🎵 Selected ${result.files.length} voice files');
-      
+
       // Validate file sizes and check for duplicates
       List<File> validVoiceFiles = [];
       List<String> oversizedFiles = [];
       List<String> duplicateFiles = [];
-      
+
       for (var filePath in result.paths) {
         if (filePath != null) {
           final file = File(filePath);
           final fileSize = await file.length();
           final fileSizeMB = fileSize / (1024 * 1024);
-          
+
           // Check if file is already selected
-          bool isDuplicate = selectedVoiceFiles.any((selectedFile) => 
-            selectedFile.path == file.path || 
-            selectedFile.path.split('/').last == file.path.split('/').last
+          bool isDuplicate = selectedVoiceFiles.any(
+            (selectedFile) =>
+                selectedFile.path == file.path ||
+                selectedFile.path.split('/').last == file.path.split('/').last,
           );
-          
+
           if (isDuplicate) {
             duplicateFiles.add(file.path.split('/').last);
             continue;
           }
-          
+
           if (fileSizeMB > 5.0) {
-            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+            oversizedFiles.add(
+              '${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)',
+            );
           } else {
             validVoiceFiles.add(file);
           }
         }
       }
-      
+
       // Calculate how many more voice files can be added
       int remainingSlots = 5 - selectedVoiceFiles.length;
-      int voiceFilesToAdd = validVoiceFiles.length > remainingSlots ? remainingSlots : validVoiceFiles.length;
-      
+      int voiceFilesToAdd = validVoiceFiles.length > remainingSlots
+          ? remainingSlots
+          : validVoiceFiles.length;
+
       setState(() {
         selectedVoiceFiles.addAll(validVoiceFiles.take(voiceFilesToAdd));
       });
-      
+
       print('🎵 Total voice files selected: ${selectedVoiceFiles.length}');
-      
+
       // Show warnings for duplicate files
       if (duplicateFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1064,23 +1108,27 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           ),
         );
       }
-      
+
       // Show warnings for oversized files
       if (oversizedFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Files too large (max 5MB): ${oversizedFiles.join(', ')}'),
+            content: Text(
+              'Files too large (max 5MB): ${oversizedFiles.join(', ')}',
+            ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
-      
+
       // Show warning if some voice files were not added due to limit
       if (validVoiceFiles.length > remainingSlots) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Only ${remainingSlots} more voice files allowed. ${validVoiceFiles.length - remainingSlots} voice files were not added.'),
+            content: Text(
+              'Only $remainingSlots more voice files allowed. ${validVoiceFiles.length - remainingSlots} voice files were not added.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1097,19 +1145,21 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
   Future<void> _pickVideoFiles() async {
     print('🎬 Picking video files...');
-    
+
     // Check if already at limit
     if (selectedVideoFiles.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Maximum 5 video files allowed. Please remove some video files first.'),
+          content: Text(
+            'Maximum 5 video files allowed. Please remove some video files first.',
+          ),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
       return;
     }
-    
+
     // Show current selection status
     // if (selectedVideoFiles.isNotEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
@@ -1120,7 +1170,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     //     ),
     //   );
     // }
-    
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -1129,47 +1179,53 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
     if (result != null) {
       print('🎬 Selected ${result.files.length} video files');
-      
+
       // Validate file sizes and check for duplicates
       List<File> validVideoFiles = [];
       List<String> oversizedFiles = [];
       List<String> duplicateFiles = [];
-      
+
       for (var filePath in result.paths) {
         if (filePath != null) {
           final file = File(filePath);
           final fileSize = await file.length();
           final fileSizeMB = fileSize / (1024 * 1024);
-          
+
           // Check if file is already selected
-          bool isDuplicate = selectedVideoFiles.any((selectedFile) => 
-            selectedFile.path == file.path || 
-            selectedFile.path.split('/').last == file.path.split('/').last
+          bool isDuplicate = selectedVideoFiles.any(
+            (selectedFile) =>
+                selectedFile.path == file.path ||
+                selectedFile.path.split('/').last == file.path.split('/').last,
           );
-          
+
           if (isDuplicate) {
             duplicateFiles.add(file.path.split('/').last);
             continue;
           }
-          
-          if (fileSizeMB > 50.0) { // 50MB limit for video files
-            oversizedFiles.add('${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)');
+
+          if (fileSizeMB > 50.0) {
+            // 50MB limit for video files
+            oversizedFiles.add(
+              '${file.path.split('/').last} (${fileSizeMB.toStringAsFixed(2)}MB)',
+            );
           } else {
             validVideoFiles.add(file);
           }
         }
       }
-      
+
       // Calculate how many more video files can be added
       int remainingSlots = 5 - selectedVideoFiles.length;
-      int videoFilesToAdd = validVideoFiles.length > remainingSlots ? remainingSlots : validVideoFiles.length;
-      
+      int videoFilesToAdd = validVideoFiles.length > remainingSlots
+          ? remainingSlots
+          : validVideoFiles.length;
+
       setState(() {
         selectedVideoFiles.addAll(validVideoFiles.take(videoFilesToAdd));
       });
-      
+
       print('🎬 Total video files selected: ${selectedVideoFiles.length}');
-      
+
       // Show warnings for duplicate files
       if (duplicateFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1180,23 +1236,27 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           ),
         );
       }
-      
+
       // Show warnings for oversized files
       if (oversizedFiles.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Files too large (max 50MB): ${oversizedFiles.join(', ')}'),
+            content: Text(
+              'Files too large (max 50MB): ${oversizedFiles.join(', ')}',
+            ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
-      
+
       // Show warning if some video files were not added due to limit
       if (validVideoFiles.length > remainingSlots) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Only ${remainingSlots} more video files allowed. ${validVideoFiles.length - remainingSlots} video files were not added.'),
+            content: Text(
+              'Only $remainingSlots more video files allowed. ${validVideoFiles.length - remainingSlots} video files were not added.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1269,11 +1329,30 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         final fileSize = file.lengthSync();
         final fileName = file.path.split('/').last.toLowerCase();
         final fileSizeMB = (fileSize / (1024 * 1024));
-        
+
         // Different size limits for different file types
         int maxSizeMB;
         if (fileName.endsWith('.mp4') ||
-         fileName.endsWith('.mov') || fileName.endsWith('.avi') || fileName.endsWith('.mkv') || fileName.endsWith('.webm') || fileName.endsWith('.flv') || fileName.endsWith('.wmv') || fileName.endsWith('.mpg') || fileName.endsWith('.mpeg') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p') || fileName.endsWith('.m4v') || fileName.endsWith('.m4a') || fileName.endsWith('.m4b') || fileName.endsWith('.m4p')) {
+            fileName.endsWith('.mov') ||
+            fileName.endsWith('.avi') ||
+            fileName.endsWith('.mkv') ||
+            fileName.endsWith('.webm') ||
+            fileName.endsWith('.flv') ||
+            fileName.endsWith('.wmv') ||
+            fileName.endsWith('.mpg') ||
+            fileName.endsWith('.mpeg') ||
+            fileName.endsWith('.m4v') ||
+            fileName.endsWith('.m4a') ||
+            fileName.endsWith('.m4b') ||
+            fileName.endsWith('.m4p') ||
+            fileName.endsWith('.m4v') ||
+            fileName.endsWith('.m4a') ||
+            fileName.endsWith('.m4b') ||
+            fileName.endsWith('.m4p') ||
+            fileName.endsWith('.m4v') ||
+            fileName.endsWith('.m4a') ||
+            fileName.endsWith('.m4b') ||
+            fileName.endsWith('.m4p')) {
           maxSizeMB = 50; // 50MB for video files
         } else {
           maxSizeMB = widget.config.maxFileSize; // 5MB for other files
@@ -1298,7 +1377,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     try {
       final fileSize = await file.length();
       final fileSizeMB = fileSize / (1024 * 1024);
-      
+
       if (fileSizeMB > 5.0) {
         return false;
       }
@@ -1317,9 +1396,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           child: Container(
             width: MediaQuery.of(context).size.width * 0.9,
             height: MediaQuery.of(context).size.height * 0.8,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
             child: Column(
               children: [
                 // Header with file info
@@ -1364,7 +1441,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                 ),
                 // Image display
                 Expanded(
-                  child: Container(
+                  child: SizedBox(
                     width: double.infinity,
                     child: Image.file(
                       file,
@@ -1754,8 +1831,10 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
 
   // Get total selected count
   int _getTotalSelectedCount() {
-    return selectedImages.length + selectedDocuments.length + 
-           selectedVoiceFiles.length + selectedVideoFiles.length;
+    return selectedImages.length +
+        selectedDocuments.length +
+        selectedVoiceFiles.length +
+        selectedVideoFiles.length;
   }
 
   // Show current selection summary (individual file type)
@@ -1764,7 +1843,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     String title;
     IconData icon;
     String typeName;
-    
+
     switch (fileType) {
       case 'documents':
         files = selectedDocuments;
@@ -1790,7 +1869,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
         icon = Icons.image;
         typeName = 'screenshots';
     }
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1802,7 +1881,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
               Text(title),
             ],
           ),
-          content: Container(
+          content: SizedBox(
             width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1835,28 +1914,34 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(4),
-                            child: fileType == null 
-                              ? Image.file(
-                                  file,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[200],
-                                      child: Icon(Icons.image_not_supported, size: 20),
-                                    );
-                                  },
-                                )
-                              : Container(
-                                  color: Colors.grey[200],
-                                  child: Icon(
-                                    fileType == 'documents' ? Icons.description :
-                                    fileType == 'voice' ? Icons.mic :
-                                    fileType == 'video' ? Icons.video_file :
-                                    Icons.file_present,
-                                    size: 20,
-                                    color: Colors.grey[600],
+                            child: fileType == null
+                                ? Image.file(
+                                    file,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.grey[200],
+                                        child: Icon(
+                                          Icons.image_not_supported,
+                                          size: 20,
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    color: Colors.grey[200],
+                                    child: Icon(
+                                      fileType == 'documents'
+                                          ? Icons.description
+                                          : fileType == 'voice'
+                                          ? Icons.mic
+                                          : fileType == 'video'
+                                          ? Icons.video_file
+                                          : Icons.file_present,
+                                      size: 20,
+                                      color: Colors.grey[600],
+                                    ),
                                   ),
-                                ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1906,12 +1991,16 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                               _showCurrentSelection(fileType);
                             }
                           },
-                          icon: Icon(Icons.remove_circle, color: Colors.red, size: 20),
+                          icon: Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -2105,42 +2194,51 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                   ],
                 ),
                 title: Text(
-                  selectedImages.length >= 5 
-                    ? 'Screenshots (Limit Reached)' 
-                    : 'Add Screenshots',
+                  selectedImages.length >= 5
+                      ? 'Screenshots (Limit Reached)'
+                      : 'Add Screenshots',
                   style: TextStyle(
-                    color: selectedImages.length >= 5 ? Colors.grey[600] : Colors.black,
+                    color: selectedImages.length >= 5
+                        ? Colors.grey[600]
+                        : Colors.black,
                   ),
                 ),
                 subtitle: Text(
                   selectedImages.length >= 6
-                    ? 'Maximum 5 screenshots selected. Remove some to add more.'
-                    : 'Selected: ${selectedImages.length}/5 (Max 5MB each)'
-                      '${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+                      ? 'Maximum 5 screenshots selected. Remove some to add more.'
+                      : 'Selected: ${selectedImages.length}/5 (Max 5MB each)'
+                            '${selectedImages.isNotEmpty ? ' (${selectedImages.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
                   style: TextStyle(
-                    color: selectedImages.length >= 5 ? Colors.red : Colors.grey[600],
+                    color: selectedImages.length >= 5
+                        ? Colors.red
+                        : Colors.grey[600],
                   ),
                 ),
                 trailing: selectedImages.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.remove_red_eye_sharp, color: Colors.blue),
-                      onPressed: _showCurrentSelection,
-                      tooltip: 'View current selection',
-                    )
-                  : null,
-                onTap: selectedImages.length >= 5 
-                  ? () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Maximum 5 screenshots reached. Please remove some first.'),
-                          backgroundColor: Colors.red,
-                          duration: Duration(seconds: 2),
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.remove_red_eye_sharp,
+                          color: Colors.blue,
                         ),
-                      );
-                    }
-                  : _pickImages,
+                        onPressed: _showCurrentSelection,
+                        tooltip: 'View current selection',
+                      )
+                    : null,
+                onTap: selectedImages.length >= 5
+                    ? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Maximum 5 screenshots reached. Please remove some first.',
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : _pickImages,
               ),
-              
+
               // Show selected images with previews
               // if (selectedImages.isNotEmpty) ...[
               //   const Divider(),
@@ -2267,11 +2365,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           child: ListTile(
             leading: Stack(
               children: [
-                Image.asset(
-                  'assets/image/doc.png',
-                  width: 40,
-                  height: 40,
-                ),
+                Image.asset('assets/image/doc.png', width: 40, height: 40),
                 if (selectedDocuments.isNotEmpty)
                   Positioned(
                     right: 0,
@@ -2295,40 +2389,46 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
               ],
             ),
             title: Text(
-              selectedDocuments.length >= 5 
-                ? 'Documents (Limit Reached)' 
-                : 'Add Documents',
+              selectedDocuments.length >= 5
+                  ? 'Documents (Limit Reached)'
+                  : 'Add Documents',
               style: TextStyle(
-                color: selectedDocuments.length >= 5 ? Colors.grey[600] : Colors.black,
+                color: selectedDocuments.length >= 5
+                    ? Colors.grey[600]
+                    : Colors.black,
               ),
             ),
             subtitle: Text(
               selectedDocuments.length >= 6
-                ? 'Maximum 5 documents selected. Remove some to add more.'
-                : 'Selected: ${selectedDocuments.length}/5 (Max 5MB each)'
-                  '${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+                  ? 'Maximum 5 documents selected. Remove some to add more.'
+                  : 'Selected: ${selectedDocuments.length}/5 (Max 5MB each)'
+                        '${selectedDocuments.isNotEmpty ? ' (${selectedDocuments.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
               style: TextStyle(
-                color: selectedDocuments.length >= 6 ? Colors.red : Colors.grey[600],
+                color: selectedDocuments.length >= 6
+                    ? Colors.red
+                    : Colors.grey[600],
               ),
             ),
             trailing: selectedDocuments.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.remove_red_eye_sharp, color: Colors.blue),
-                  onPressed: () => _showCurrentSelection('documents'),
-                  tooltip: 'View current selection',
-                )
-              : null,
-            onTap: selectedDocuments.length >= 5 
-              ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Maximum 5 documents reached. Please remove some first.'),
-                      backgroundColor: Colors.red,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              : _pickDocuments,
+                ? IconButton(
+                    icon: Icon(Icons.remove_red_eye_sharp, color: Colors.blue),
+                    onPressed: () => _showCurrentSelection('documents'),
+                    tooltip: 'View current selection',
+                  )
+                : null,
+            onTap: selectedDocuments.length >= 5
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Maximum 5 documents reached. Please remove some first.',
+                        ),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                : _pickDocuments,
           ),
         ),
 
@@ -2351,11 +2451,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           child: ListTile(
             leading: Stack(
               children: [
-                Image.asset(
-                  'assets/image/voice.png',
-                  width: 40,
-                  height: 40,
-                ),
+                Image.asset('assets/image/voice.png', width: 40, height: 40),
                 if (selectedVoiceFiles.isNotEmpty)
                   Positioned(
                     right: 0,
@@ -2379,40 +2475,46 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
               ],
             ),
             title: Text(
-              selectedVoiceFiles.length >= 5 
-                ? 'Voice Messages (Limit Reached)' 
-                : 'Add Voice Messages',
+              selectedVoiceFiles.length >= 5
+                  ? 'Voice Messages (Limit Reached)'
+                  : 'Add Voice Messages',
               style: TextStyle(
-                color: selectedVoiceFiles.length >= 5 ? Colors.grey[600] : Colors.black,
+                color: selectedVoiceFiles.length >= 5
+                    ? Colors.grey[600]
+                    : Colors.black,
               ),
             ),
             subtitle: Text(
               selectedVoiceFiles.length >= 5
-                ? 'Maximum 5 voice files selected. Remove some to add more.'
-                : 'Selected: ${selectedVoiceFiles.length}/5 (Max 5MB each)'
-                  '${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+                  ? 'Maximum 5 voice files selected. Remove some to add more.'
+                  : 'Selected: ${selectedVoiceFiles.length}/5 (Max 5MB each)'
+                        '${selectedVoiceFiles.isNotEmpty ? ' (${selectedVoiceFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
               style: TextStyle(
-                color: selectedVoiceFiles.length >= 5 ? Colors.red : Colors.grey[600],
+                color: selectedVoiceFiles.length >= 5
+                    ? Colors.red
+                    : Colors.grey[600],
               ),
             ),
             trailing: selectedVoiceFiles.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.remove_red_eye_sharp, color: Colors.black),
-                  onPressed: () => _showCurrentSelection('voice'),
-                  tooltip: 'View current selection',
-                )
-              : null,
-            onTap: selectedVoiceFiles.length >= 5 
-              ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Maximum 5 voice files reached. Please remove some first.'),
-                      backgroundColor: Colors.red,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              : _pickVoiceFiles,
+                ? IconButton(
+                    icon: Icon(Icons.remove_red_eye_sharp, color: Colors.black),
+                    onPressed: () => _showCurrentSelection('voice'),
+                    tooltip: 'View current selection',
+                  )
+                : null,
+            onTap: selectedVoiceFiles.length >= 5
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Maximum 5 voice files reached. Please remove some first.',
+                        ),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                : _pickVoiceFiles,
           ),
         ),
 
@@ -2434,11 +2536,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
           child: ListTile(
             leading: Stack(
               children: [
-                Image.asset(
-                  'assets/image/video.png',
-                  width: 40,
-                  height: 40,
-                ),
+                Image.asset('assets/image/video.png', width: 40, height: 40),
                 if (selectedVideoFiles.isNotEmpty)
                   Positioned(
                     right: 0,
@@ -2462,40 +2560,46 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
               ],
             ),
             title: Text(
-              selectedVideoFiles.length >= 5 
-                ? 'Videos (Limit Reached)' 
-                : 'Add Videos',
+              selectedVideoFiles.length >= 5
+                  ? 'Videos (Limit Reached)'
+                  : 'Add Videos',
               style: TextStyle(
-                color: selectedVideoFiles.length >= 5 ? Colors.grey[600] : Colors.black,
+                color: selectedVideoFiles.length >= 5
+                    ? Colors.grey[600]
+                    : Colors.black,
               ),
             ),
             subtitle: Text(
               selectedVideoFiles.length >= 5
-                ? 'Maximum 5 video files selected. Remove some to add more.'
-                : 'Selected: ${selectedVideoFiles.length}/5 (Max 50MB each)'
-                  '${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
+                  ? 'Maximum 5 video files selected. Remove some to add more.'
+                  : 'Selected: ${selectedVideoFiles.length}/5 (Max 50MB each)'
+                        '${selectedVideoFiles.isNotEmpty ? ' (${selectedVideoFiles.map((f) => _getFileSizeDisplay(f)).join(', ')})' : ''}',
               style: TextStyle(
-                color: selectedVideoFiles.length >= 5 ? Colors.red : Colors.grey[600],
+                color: selectedVideoFiles.length >= 5
+                    ? Colors.red
+                    : Colors.grey[600],
               ),
             ),
             trailing: selectedVideoFiles.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.remove_red_eye_sharp, color: Colors.blue),
-                  onPressed: () => _showCurrentSelection('video'),
-                  tooltip: 'View current selection',
-                )
-              : null,
-            onTap: selectedVideoFiles.length >= 5 
-              ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Maximum 5 video files reached. Please remove some first.'),
-                      backgroundColor: Colors.red,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              : _pickVideoFiles,
+                ? IconButton(
+                    icon: Icon(Icons.remove_red_eye_sharp, color: Colors.blue),
+                    onPressed: () => _showCurrentSelection('video'),
+                    tooltip: 'View current selection',
+                  )
+                : null,
+            onTap: selectedVideoFiles.length >= 5
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Maximum 5 video files reached. Please remove some first.',
+                        ),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                : _pickVideoFiles,
           ),
         ),
 

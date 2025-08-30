@@ -32,8 +32,9 @@ class ReportsFilter {
     if (reportTypeId != null) params['reportTypeId'] = reportTypeId;
     if (deviceTypeId != null) params['deviceTypeId'] = deviceTypeId;
     if (detectTypeId != null) params['detectTypeId'] = detectTypeId;
-    if (operatingSystemName != null)
+    if (operatingSystemName != null) {
       params['operatingSystemName'] = operatingSystemName;
+    }
     if (search != null && search!.isNotEmpty) {
       params['search'] = search;
     }

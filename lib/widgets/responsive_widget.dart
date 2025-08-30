@@ -7,11 +7,11 @@ class ResponsiveWidget extends StatelessWidget {
   final Widget? desktop;
 
   const ResponsiveWidget({
-    Key? key,
+    super.key,
     required this.mobile,
     this.tablet,
     this.desktop,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +38,7 @@ class ResponsiveScaffold extends StatelessWidget {
   final bool extendBody;
   final bool extendBodyBehindAppBar;
   final Color? backgroundColor;
+  @override
   final GlobalKey<ScaffoldState>? key;
   final bool resizeToAvoidBottomInset;
 
@@ -78,12 +79,12 @@ class ResponsiveContainer extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
 
   const ResponsiveContainer({
-    Key? key,
+    super.key,
     required this.child,
     this.maxWidth,
     this.padding,
     this.margin,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

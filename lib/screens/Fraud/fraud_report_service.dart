@@ -399,7 +399,7 @@ class FraudReportService {
         final description = report.description ?? '';
         final alertLevels = report.alertLevels ?? '';
 
-        final uniqueKey = '${phone}_${email}_${description}_${alertLevels}';
+        final uniqueKey = '${phone}_${email}_${description}_$alertLevels';
 
         if (!groupedReports.containsKey(uniqueKey)) {
           groupedReports[uniqueKey] = [];
@@ -488,13 +488,13 @@ class FraudReportService {
             } else {
               retryCount++;
               print(
-                '❌ FRAUD-SYNC: Failed to sync report ${report.id} (attempt ${retryCount})',
+                '❌ FRAUD-SYNC: Failed to sync report ${report.id} (attempt $retryCount)',
               );
             }
           } catch (e) {
             retryCount++;
             print(
-              '❌ FRAUD-SYNC: Error syncing report ${report.id} (attempt ${retryCount}): $e',
+              '❌ FRAUD-SYNC: Error syncing report ${report.id} (attempt $retryCount): $e',
             );
           }
         }

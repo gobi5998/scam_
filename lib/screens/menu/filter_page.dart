@@ -12,6 +12,8 @@ import '../../models/fraud_report_model.dart';
 import '../../models/malware_report_model.dart';
 
 class FilterPage extends StatefulWidget {
+  const FilterPage({super.key});
+
   @override
   State<FilterPage> createState() => _FilterPageState();
 }

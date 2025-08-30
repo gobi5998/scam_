@@ -88,20 +88,6 @@ class AuthProvider with ChangeNotifier {
       _isLoggedIn = true;
       _errorMessage = '';
 
-      // Check if biometric is available but not yet enabled
-      final prefs = await SharedPreferences.getInstance();
-      final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
-
-      if (!bioEnabled) {
-        // Check if biometric is available on device
-        final isBiometricAvailable =
-            await BiometricService.isBiometricAvailable();
-        if (isBiometricAvailable) {
-          // Set a flag to show biometric setup dialog
-          await prefs.setBool('show_biometric_setup', true);
-        }
-      }
-
       return true;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -149,10 +135,6 @@ class AuthProvider with ChangeNotifier {
 
       _isLoggedIn = true;
       _errorMessage = '';
-
-      // Enable biometric after successful registration
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('biometric_enabled', true);
 
       return true;
     } catch (e) {
@@ -229,6 +211,17 @@ class AuthProvider with ChangeNotifier {
         }
       }
     } catch (e) {
+      await _clearAllData();
+    }
+  }
+
+  // Handle successful biometric authentication
+  Future<void> onBiometricAuthSuccess() async {
+    try {
+      await restoreLoginState();
+      print('✅ Biometric authentication successful');
+    } catch (e) {
+      print('❌ Error restoring login state after biometric auth: $e');
       await _clearAllData();
     }
   }

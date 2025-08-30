@@ -42,7 +42,7 @@ class ScamSyncService {
         for (FileModel fileModel in report.screenshots) {
           try {
             final path = fileModel.uploadPath ?? fileModel.displayUrl;
-            if (path != null && path.isNotEmpty) {
+            if (path.isNotEmpty) {
               screenshots.add(File(path));
             }
           } catch (e) {
@@ -53,7 +53,7 @@ class ScamSyncService {
         for (FileModel fileModel in report.documents) {
           try {
             final path = fileModel.uploadPath ?? fileModel.displayUrl;
-            if (path != null && path.isNotEmpty) {
+            if (path.isNotEmpty) {
               documents.add(File(path));
             }
           } catch (e) {

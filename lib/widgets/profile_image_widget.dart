@@ -10,13 +10,13 @@ class ProfileImageWidget extends StatelessWidget {
   final Color? backgroundColor;
 
   const ProfileImageWidget({
-    Key? key,
+    super.key,
     this.imageUrl,
     this.radius = 50,
     this.fallbackAssetPath = '',
     this.border,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   /// Clear cache for a specific URL (now using Image.network, so this is for compatibility)
   static void clearCache(String? url) {

@@ -38,7 +38,7 @@ class ThreadDatabaseListPage extends StatefulWidget {
   final String? operatingSystemName;
 
   const ThreadDatabaseListPage({
-    Key? key,
+    super.key,
     required this.searchQuery,
     this.selectedTypes = const [],
     this.selectedSeverities = const [],
@@ -55,7 +55,7 @@ class ThreadDatabaseListPage extends StatefulWidget {
     this.deviceTypeId,
     this.detectTypeId,
     this.operatingSystemName,
-  }) : super(key: key);
+  });
 
   @override
   State<ThreadDatabaseListPage> createState() => _ThreadDatabaseListPageState();
@@ -78,8 +78,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   List<ReportModel> _typedReports = [];
   Set<int> syncingIndexes = {};
 
-  Map<String, String> _typeIdToName = {};
-  Map<String, String> _categoryIdToName = {};
+  final Map<String, String> _typeIdToName = {};
+  final Map<String, String> _categoryIdToName = {};
 
   int _currentPage = 1;
   final int _pageSize = 20;
@@ -1500,7 +1500,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           }
           return false;
         }).toList();
-        print('🔍 Device type filter: ${beforeCount} -> ${base.length} reports');
+        print('🔍 Device type filter: $beforeCount -> ${base.length} reports');
       }
 
       if (widget.detectTypeId != null && widget.detectTypeId!.isNotEmpty) {
@@ -1516,7 +1516,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           }
           return false;
         }).toList();
-        print('🔍 Detect type filter: ${beforeCount} -> ${base.length} reports');
+        print('🔍 Detect type filter: $beforeCount -> ${base.length} reports');
       }
 
       if (widget.operatingSystemName != null && widget.operatingSystemName!.isNotEmpty) {
@@ -1532,7 +1532,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           }
           return false;
         }).toList();
-        print('🔍 Operating system filter: ${beforeCount} -> ${base.length} reports');
+        print('🔍 Operating system filter: $beforeCount -> ${base.length} reports');
       }
 
       // Date filter
@@ -1679,13 +1679,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
     if (widget.hasSearchQuery && widget.searchQuery.isNotEmpty) {
       final searchTerm = widget.searchQuery.toLowerCase();
-      print('🔍 Search filter: "${searchTerm}" on ${filtered.length} reports');
+      print('🔍 Search filter: "$searchTerm" on ${filtered.length} reports');
 
       filtered = filtered.where((report) {
         // Optimized search - check fields in order of likelihood
         final scammerName = report['scammerName']?.toString().toLowerCase();
-        if (scammerName != null && scammerName.contains(searchTerm))
+        if (scammerName != null && scammerName.contains(searchTerm)) {
           return true;
+        }
 
         final emails = report['emails']?.toString().toLowerCase();
         if (emails != null && emails.contains(searchTerm)) return true;
@@ -1703,19 +1704,22 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         final emailAddresses = report['emailAddresses']
             ?.toString()
             .toLowerCase();
-        if (emailAddresses != null && emailAddresses.contains(searchTerm))
+        if (emailAddresses != null && emailAddresses.contains(searchTerm)) {
           return true;
+        }
 
         final website = report['website']?.toString().toLowerCase();
         if (website != null && website.contains(searchTerm)) return true;
 
         final description = report['description']?.toString().toLowerCase();
-        if (description != null && description.contains(searchTerm))
+        if (description != null && description.contains(searchTerm)) {
           return true;
+        }
 
         final attackSystem = report['attackSystem']?.toString().toLowerCase();
-        if (attackSystem != null && attackSystem.contains(searchTerm))
+        if (attackSystem != null && attackSystem.contains(searchTerm)) {
           return true;
+        }
 
         return false;
       }).toList();
@@ -1889,17 +1893,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         }
 
         // Fast name match
-        if (reportSeverity != null) {
-          for (String selectedName in selectedSeverityNames) {
-            if (reportSeverity == selectedName ||
-                reportSeverity.contains(selectedName) ||
-                selectedName.contains(reportSeverity)) {
-              print('🔍   ✅ Matched by name: $reportSeverity == $selectedName');
-              return true;
-            }
+        for (String selectedName in selectedSeverityNames) {
+          if (reportSeverity == selectedName ||
+              reportSeverity.contains(selectedName) ||
+              selectedName.contains(reportSeverity)) {
+            print('🔍   ✅ Matched by name: $reportSeverity == $selectedName');
+            return true;
           }
         }
-
+      
         // Raw alertLevels field match
         final rawAlertLevels = report['alertLevels']?.toString().toLowerCase();
         if (rawAlertLevels != null) {
@@ -2290,7 +2292,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   bool _hasEvidence(Map<String, dynamic> report) {
     final type = report['type'];
 
-    bool _isNotEmpty(dynamic value) {
+    bool isNotEmpty(dynamic value) {
       if (value == null) return false;
       if (value is String) return value.trim().isNotEmpty;
       if (value is List) return value.isNotEmpty;
@@ -2302,31 +2304,31 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     switch (type?.toString().toLowerCase()) {
       case 'scam':
       case 'report scam':
-        return _isNotEmpty(report['screenshots']) ||
-            _isNotEmpty(report['documents']) ||
-            _isNotEmpty(report['voiceMessages']) ||
-            _isNotEmpty(report['videoFiles']);
+        return isNotEmpty(report['screenshots']) ||
+            isNotEmpty(report['documents']) ||
+            isNotEmpty(report['voiceMessages']) ||
+            isNotEmpty(report['videoFiles']);
 
       case 'fraud':
       case 'report fraud':
-        return _isNotEmpty(report['screenshots']) ||
-            _isNotEmpty(report['documents']) ||
-            _isNotEmpty(report['voiceMessages']) ||
-            _isNotEmpty(report['videoFiles']);
+        return isNotEmpty(report['screenshots']) ||
+            isNotEmpty(report['documents']) ||
+            isNotEmpty(report['voiceMessages']) ||
+            isNotEmpty(report['videoFiles']);
 
       case 'malware':
       case 'report malware':
-        return _isNotEmpty(report['screenshots']) ||
-            _isNotEmpty(report['documents']) ||
-            _isNotEmpty(report['voiceMessages']) ||
-            _isNotEmpty(report['videoFiles']);
+        return isNotEmpty(report['screenshots']) ||
+            isNotEmpty(report['documents']) ||
+            isNotEmpty(report['voiceMessages']) ||
+            isNotEmpty(report['videoFiles']);
 
       default:
       // For unknown types, check all possible evidence fields
-        return _isNotEmpty(report['screenshots']) ||
-            _isNotEmpty(report['documents']) ||
-            _isNotEmpty(report['voiceMessages']) ||
-            _isNotEmpty(report['videoFiles']);
+        return isNotEmpty(report['screenshots']) ||
+            isNotEmpty(report['documents']) ||
+            isNotEmpty(report['voiceMessages']) ||
+            isNotEmpty(report['videoFiles']);
     }
   }
 
@@ -2524,13 +2526,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         return '${difference.inDays} days ago';
       } else if (difference.inDays < 30) {
         final weeks = (difference.inDays / 7).floor();
-        return '${weeks} week${weeks > 1 ? 's' : ''} ago';
+        return '$weeks week${weeks > 1 ? 's' : ''} ago';
       } else if (difference.inDays < 365) {
         final months = (difference.inDays / 30).floor();
-        return '${months} month${months > 1 ? 's' : ''} ago';
+        return '$months month${months > 1 ? 's' : ''} ago';
       } else {
         final years = (difference.inDays / 365).floor();
-        return '${years} year${years > 1 ? 's' : ''} ago';
+        return '$years year${years > 1 ? 's' : ''} ago';
       }
     } catch (e) {
       return 'Unknown time';
@@ -2880,11 +2882,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                         SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: _resetAndReload,
-                          child: Text('Refresh'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
                           ),
+                          child: Text('Refresh'),
                         ),
                       ],
                     ),

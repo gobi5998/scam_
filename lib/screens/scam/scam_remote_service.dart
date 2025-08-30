@@ -173,7 +173,7 @@ class ScamRemoteService {
       }
     } catch (e) {
 
-      throw e;
+      rethrow;
     }
   }
 }

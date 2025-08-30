@@ -222,7 +222,7 @@ class JwtService {
           'exists': primaryToken != null,
           'length': primaryToken?.length ?? 0,
           'preview': primaryToken != null
-              ? '${primaryToken!.substring(0, 20)}...'
+              ? '${primaryToken.substring(0, 20)}...'
               : null,
         };
       } catch (e) {
@@ -236,7 +236,7 @@ class JwtService {
           'exists': backupToken != null,
           'length': backupToken?.length ?? 0,
           'preview': backupToken != null
-              ? '${backupToken!.substring(0, 20)}...'
+              ? '${backupToken.substring(0, 20)}...'
               : null,
         };
       } catch (e) {
@@ -250,7 +250,7 @@ class JwtService {
           'exists': jwtToken != null,
           'length': jwtToken?.length ?? 0,
           'preview': jwtToken != null
-              ? '${jwtToken!.substring(0, 20)}...'
+              ? '${jwtToken.substring(0, 20)}...'
               : null,
         };
       } catch (e) {

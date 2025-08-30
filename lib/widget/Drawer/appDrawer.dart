@@ -10,7 +10,7 @@ import '../../models/user_model.dart';
 import '../../widgets/profile_image_widget.dart';
 
 class DashboardDrawer extends StatefulWidget {
-  const DashboardDrawer();
+  const DashboardDrawer({super.key});
 
   @override
   State<DashboardDrawer> createState() => _DashboardDrawerState();
@@ -83,7 +83,7 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
       }
       return _user!.firstName!;
     }
-    return _user?.email?.split('@').first ?? 'User';
+    return _user?.email.split('@').first ?? 'User';
   }
 
   String _getSubtitle() {

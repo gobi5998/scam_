@@ -16,7 +16,7 @@ class ResponsiveCustomButton extends StatelessWidget {
   final Widget? icon;
 
   const ResponsiveCustomButton({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.backgroundColor,
@@ -29,7 +29,7 @@ class ResponsiveCustomButton extends StatelessWidget {
     this.padding,
     this.isLoading = false,
     this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -105,14 +105,14 @@ class ResponsiveTextButton extends StatelessWidget {
   final TextDecoration? decoration;
 
   const ResponsiveTextButton({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.textColor,
     this.fontSize,
     this.fontWeight,
     this.decoration,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

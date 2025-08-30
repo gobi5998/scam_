@@ -21,7 +21,7 @@ import '../../custom/fileUpload.dart';
 
 class ReportScam2 extends StatefulWidget {
   final ScamReportModel report;
-  const ReportScam2({required this.report});
+  const ReportScam2({super.key, required this.report});
 
   @override
   State<ReportScam2> createState() => _ReportScam2State();

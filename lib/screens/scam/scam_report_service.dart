@@ -405,7 +405,7 @@ class ScamReportService {
         final description = report.description ?? '';
         final alertLevels = report.alertLevels ?? '';
 
-        final uniqueKey = '${phone}_${email}_${description}_${alertLevels}';
+        final uniqueKey = '${phone}_${email}_${description}_$alertLevels';
 
         if (!groupedReports.containsKey(uniqueKey)) {
           groupedReports[uniqueKey] = [];
@@ -500,13 +500,13 @@ class ScamReportService {
             } else {
               retryCount++;
               print(
-                '❌ SCAM-SYNC: Failed to sync report ${report.id} (attempt ${retryCount})',
+                '❌ SCAM-SYNC: Failed to sync report ${report.id} (attempt $retryCount)',
               );
             }
           } catch (e) {
             retryCount++;
             print(
-              '❌ SCAM-SYNC: Error syncing report ${report.id} (attempt ${retryCount}): $e',
+              '❌ SCAM-SYNC: Error syncing report ${report.id} (attempt $retryCount): $e',
             );
           }
         }

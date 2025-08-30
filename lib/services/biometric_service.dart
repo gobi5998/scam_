@@ -26,7 +26,7 @@ class BiometricService {
       }
 
       return false;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     }
   }
@@ -37,7 +37,7 @@ class BiometricService {
       final biometrics = await _localAuth.getAvailableBiometrics();
 
       return biometrics;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return [];
     }
   }
@@ -55,8 +55,18 @@ class BiometricService {
         return false;
       }
 
+      // Determine the appropriate authentication reason based on available biometrics
+      String authReason =
+          'Please authenticate to access the Security Alert app';
+      if (availableBiometrics.contains(BiometricType.face)) {
+        authReason = 'Please use Face ID to access the Security Alert app';
+      } else if (availableBiometrics.contains(BiometricType.fingerprint)) {
+        authReason =
+            'Please use your fingerprint to access the Security Alert app';
+      }
+
       final bool didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Please authenticate to access the Security Alert app',
+        localizedReason: authReason,
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
@@ -64,7 +74,7 @@ class BiometricService {
       );
 
       return didAuthenticate;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     } catch (e) {
       return false;
@@ -119,6 +129,22 @@ class BiometricService {
     return biometrics.map((type) => getBiometricTypeString(type)).toList();
   }
 
+  // Get the primary biometric type (prefer Face ID over fingerprint)
+  static Future<String> getPrimaryBiometricType() async {
+    final biometrics = await getAvailableBiometrics();
+
+    // Prefer Face ID over fingerprint
+    if (biometrics.contains(BiometricType.face)) {
+      return 'Face ID';
+    } else if (biometrics.contains(BiometricType.fingerprint)) {
+      return 'Fingerprint';
+    } else if (biometrics.contains(BiometricType.iris)) {
+      return 'Iris';
+    }
+
+    return 'Biometric';
+  }
+
   // Check if device has fingerprint sensor
   static Future<bool> hasFingerprint() async {
     final biometrics = await getAvailableBiometrics();
@@ -137,11 +163,23 @@ class BiometricService {
 
     if (isAvailable) {
       final biometrics = await getAvailableBiometrics();
+      final biometricTypes = await getAvailableBiometricTypes();
+      final primaryType = await getPrimaryBiometricType();
 
       final hasFingerprintSensor = await hasFingerprint();
       final hasFaceRecognitionSensor = await hasFaceRecognition();
 
       final isEnabled = await isBiometricEnabled();
+
+      print('🔍 Biometric Test Results:');
+      print('  - Available: $isAvailable');
+      print('  - Biometric Types: $biometricTypes');
+      print('  - Primary Type: $primaryType');
+      print('  - Has Fingerprint: $hasFingerprintSensor');
+      print('  - Has Face Recognition: $hasFaceRecognitionSensor');
+      print('  - Is Enabled: $isEnabled');
+    } else {
+      print('❌ Biometric not available on this device');
     }
   }
 }

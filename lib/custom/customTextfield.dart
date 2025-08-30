@@ -25,7 +25,7 @@ class CustomTextField extends StatelessWidget {
   const CustomTextField({
     required this.label,
     this.validator,
-    Key? key,
+    super.key,
     required this.hintText,
     this.controller,
     this.obscureText = false,
@@ -41,7 +41,7 @@ class CustomTextField extends StatelessWidget {
     this.focusNode,
     this.onTap,
     this.readOnly = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

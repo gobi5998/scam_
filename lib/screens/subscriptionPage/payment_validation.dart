@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'payment_summary_page.dart';
 
 class PaymentValidationPage extends StatefulWidget {
+  const PaymentValidationPage({super.key});
+
   @override
   State<PaymentValidationPage> createState() => _PaymentValidationPageState();
 }

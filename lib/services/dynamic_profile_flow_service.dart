@@ -1,8 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'api_service.dart';
-import 'profile_image_service.dart';
 import 'jwt_service.dart';
 import '../models/user_model.dart';
 import '../provider/auth_provider.dart';

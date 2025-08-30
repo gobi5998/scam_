@@ -11,8 +11,7 @@ class AuthGuard extends StatefulWidget {
   final Widget child;
   final bool requireAuth;
 
-  const AuthGuard({Key? key, required this.child, this.requireAuth = true})
-    : super(key: key);
+  const AuthGuard({super.key, required this.child, this.requireAuth = true});
 
   @override
   State<AuthGuard> createState() => _AuthGuardState();
@@ -67,9 +66,13 @@ class _AuthGuardState extends State<AuthGuard> {
         '🔐 AuthGuard: Refresh token exists: ${refreshToken != null && refreshToken.isNotEmpty}',
       );
 
-      if (accessToken == null && refreshToken == null) {
-        // No tokens found, redirect to login
+      // If no tokens exist, immediately redirect to login
+      if ((accessToken == null || accessToken.isEmpty) &&
+          (refreshToken == null || refreshToken.isEmpty)) {
+        print('🔐 AuthGuard: No tokens found, redirecting to login');
         if (widget.requireAuth) {
+          // Add a small delay to prevent infinite loops
+          await Future.delayed(const Duration(milliseconds: 500));
           _redirectToLogin('No authentication tokens found');
         } else {
           setState(() {
@@ -87,6 +90,7 @@ class _AuthGuardState extends State<AuthGuard> {
           authProvider.currentUser != null &&
           !_isRefreshing) {
         // User is already authenticated and data is loaded
+        print('🔐 AuthGuard: User already authenticated, showing protected content');
         setState(() {
           _authChecked = true;
           _isCheckingAuth = false;
@@ -102,6 +106,7 @@ class _AuthGuardState extends State<AuthGuard> {
           _isLoading = true;
         });
 
+        print('🔐 AuthGuard: Tokens exist, fetching user data...');
         final apiService = ApiService();
         final userResponse = await apiService.getUserMe();
 
@@ -119,55 +124,38 @@ class _AuthGuardState extends State<AuthGuard> {
 
         if (userResponse != null) {
           // Check if the response data is a Map (JSON)
-          if (userResponse is Map<String, dynamic>) {
-            // Update auth provider with user data
-            await authProvider.setUserData(userResponse);
+          // Update auth provider with user data
+          await authProvider.setUserData(userResponse);
 
+          setState(() {
+            _authChecked = true;
+            _isCheckingAuth = false;
+            _hasInitialized = true;
+            _isRefreshing = false;
+            _isLoading = false;
+            _errorMessage = null;
+          });
+                } else {
+          // User data fetch failed - might be 401 or other error
+          if (refreshToken != null) {
+            // Token might be expired, but we have refresh token
+            // Set refreshing state and let the Dio interceptor handle token refresh
             setState(() {
               _authChecked = true;
               _isCheckingAuth = false;
               _hasInitialized = true;
-              _isRefreshing = false;
+              _isRefreshing = true;
               _isLoading = false;
-              _errorMessage = null;
+              _errorMessage = 'Token expired, attempting refresh...';
             });
-          } else {
-            // Handle non-JSON response (e.g., HTML)
-            print(
-              '❌ AuthGuard: Invalid response format - expected JSON but got: ${userResponse.runtimeType}',
-            );
-            await _handleAuthFailure(
-              'Invalid user profile response format (expected JSON)',
-            );
-          }
-        } else {
-          // User data fetch failed - might be 401 or other error
-          if (refreshToken != null) {
-            // Token might be expired, but we have refresh token
-            if (refreshToken != null) {
-              // Set refreshing state and let the Dio interceptor handle token refresh
-              setState(() {
-                _authChecked = true;
-                _isCheckingAuth = false;
-                _hasInitialized = true;
-                _isRefreshing = true;
-                _isLoading = false;
-                _errorMessage = 'Token expired, attempting refresh...';
-              });
 
-              // Wait a bit for token refresh to complete, then retry
-              Future.delayed(const Duration(seconds: 2), () {
-                if (mounted) {
-                  _retryAfterRefresh();
-                }
-              });
-            } else {
-              // No refresh token, clear tokens and redirect
-              await _handleAuthFailure(
-                'Token expired and no refresh token available',
-              );
-            }
-          } else {
+            // Wait a bit for token refresh to complete, then retry
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                _retryAfterRefresh();
+              }
+            });
+                    } else {
             // Other server error
             setState(() {
               _authChecked = true;
@@ -253,6 +241,8 @@ class _AuthGuardState extends State<AuthGuard> {
   }
 
   void _redirectToLogin(String reason) {
+    print('🔐 AuthGuard: Redirecting to login: $reason');
+    
     setState(() {
       _authChecked = true;
       _isCheckingAuth = false;
@@ -261,13 +251,13 @@ class _AuthGuardState extends State<AuthGuard> {
       _errorMessage = reason;
     });
 
-    // Navigate to login page
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Navigate to login page immediately
+    if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginPage()),
         (route) => false,
       );
-    });
+    }
   }
 
   // Method to retry authentication after token refresh
@@ -296,28 +286,18 @@ class _AuthGuardState extends State<AuthGuard> {
 
         if (userResponse != null) {
           // Check if the response data is a Map (JSON)
-          if (userResponse is Map<String, dynamic>) {
-            // Update auth provider with user data
-            await authProvider.setUserData(userResponse);
+          // Update auth provider with user data
+          await authProvider.setUserData(userResponse);
 
-            setState(() {
-              _authChecked = true;
-              _isCheckingAuth = false;
-              _hasInitialized = true;
-              _isRefreshing = false;
-              _isLoading = false;
-              _errorMessage = null;
-            });
-          } else {
-            // Handle non-JSON response (e.g., HTML)
-            print(
-              '❌ AuthGuard: Retry - Invalid response format - expected JSON but got: ${userResponse.runtimeType}',
-            );
-            await _handleAuthFailure(
-              'Invalid user profile response format after token refresh',
-            );
-          }
-        } else {
+          setState(() {
+            _authChecked = true;
+            _isCheckingAuth = false;
+            _hasInitialized = true;
+            _isRefreshing = false;
+            _isLoading = false;
+            _errorMessage = null;
+          });
+                } else {
           // Still getting errors, might need to login again
           setState(() {
             _authChecked = true;
@@ -510,7 +490,7 @@ class _AuthGuardState extends State<AuthGuard> {
 class PublicRoute extends StatelessWidget {
   final Widget child;
 
-  const PublicRoute({Key? key, required this.child}) : super(key: key);
+  const PublicRoute({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {

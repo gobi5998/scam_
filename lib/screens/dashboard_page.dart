@@ -300,10 +300,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           Map<String, dynamic>? scamCategory;
                           try {
                             scamCategory = reportCategories.firstWhere(
-                              (e) =>
-                                  e['name']?.toString().toLowerCase().contains(
-                                    'scam',
-                                  ) ==
+                                  (e) =>
+                              e['name']?.toString().toLowerCase().contains(
+                                'scam',
+                              ) ==
                                   true,
                             );
                           } catch (_) {
@@ -324,7 +324,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           }
 
                           print(
-                            '🎯 Navigating to Report Scam with category ID: ${scamCategory!['_id']}',
+                            '🎯 Navigating to Report Scam with category ID: ${scamCategory['_id']}',
                           );
                           Navigator.push(
                             context,
@@ -377,10 +377,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           Map<String, dynamic>? malwareCategory;
                           try {
                             malwareCategory = reportCategories.firstWhere(
-                              (e) =>
-                                  e['name']?.toString().toLowerCase().contains(
-                                    'malware',
-                                  ) ==
+                                  (e) =>
+                              e['name']?.toString().toLowerCase().contains(
+                                'malware',
+                              ) ==
                                   true,
                             );
                           } catch (_) {
@@ -401,7 +401,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           }
 
                           print(
-                            '🎯 Navigating to Report Malware with category ID: ${malwareCategory!['_id']}',
+                            '🎯 Navigating to Report Malware with category ID: ${malwareCategory['_id']}',
                           );
                           Navigator.push(
                             context,
@@ -455,10 +455,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           Map<String, dynamic>? fraudCategory;
                           try {
                             fraudCategory = reportCategories.firstWhere(
-                              (e) =>
-                                  e['name']?.toString().toLowerCase().contains(
-                                    'fraud',
-                                  ) ==
+                                  (e) =>
+                              e['name']?.toString().toLowerCase().contains(
+                                'fraud',
+                              ) ==
                                   true,
                             );
                           } catch (_) {
@@ -479,7 +479,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           }
 
                           print(
-                            '🎯 Navigating to Report Fraud with category ID: ${fraudCategory!['_id']}',
+                            '🎯 Navigating to Report Fraud with category ID: ${fraudCategory['_id']}',
                           );
                           Navigator.push(
                             context,
@@ -597,10 +597,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                 CarouselSlider(
                                   options: CarouselOptions(
                                     height:
-                                        ResponsiveHelper.getResponsivePadding(
-                                          context,
-                                          200,
-                                        ),
+                                    ResponsiveHelper.getResponsivePadding(
+                                      context,
+                                      200,
+                                    ),
                                     enlargeCenterPage: true,
                                     enableInfiniteScroll: true,
                                     autoPlay: true,
@@ -615,46 +615,46 @@ class _DashboardPageState extends State<DashboardPage> {
                                     aspectRatio: 16 / 9,
                                   ),
                                   items:
-                                      [
-                                        "assets/image/security1.jpg",
-                                        "assets/image/security2.png",
-                                        "assets/image/security3.jpg",
-                                        "assets/image/security4.jpg",
-                                        "assets/image/security5.jpg",
-                                        "assets/image/security6.jpg",
-                                      ].map((imagePath) {
-                                        return Builder(
-                                          builder: (BuildContext context) {
-                                            return Container(
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.2),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 4),
-                                                  ),
-                                                ],
+                                  [
+                                    "assets/image/security1.jpg",
+                                    "assets/image/security2.png",
+                                    "assets/image/security3.jpg",
+                                    "assets/image/security4.jpg",
+                                    "assets/image/security5.jpg",
+                                    "assets/image/security6.jpg",
+                                  ].map((imagePath) {
+                                    return Builder(
+                                      builder: (BuildContext context) {
+                                        return Container(
+                                          margin:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                            BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.2),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
                                               ),
-                                              child: ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                child: Image.asset(
-                                                  imagePath,
-                                                  fit: BoxFit.cover,
-                                                  width: double.infinity,
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                            ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                            BorderRadius.circular(16),
+                                            child: Image.asset(
+                                              imagePath,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                            ),
+                                          ),
                                         );
-                                      }).toList(),
+                                      },
+                                    );
+                                  }).toList(),
                                 ),
                               ],
                             ),
@@ -682,16 +682,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Row(
                                   mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Reported Features',
                                       style: TextStyle(
                                         fontSize:
-                                            ResponsiveHelper.getResponsiveFontSize(
-                                              context,
-                                              18,
-                                            ),
+                                        ResponsiveHelper.getResponsiveFontSize(
+                                          context,
+                                          18,
+                                        ),
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                         fontFamily: 'Poppins',
@@ -707,8 +707,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                       },
                                       itemBuilder: (BuildContext context) =>
                                           ['Weekly', 'Monthly'].map((
-                                            String period,
-                                          ) {
+                                              String period,
+                                              ) {
                                             return PopupMenuItem<String>(
                                               value: period,
                                               child: Text(
@@ -716,10 +716,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 style: TextStyle(
                                                   color: Colors.black,
                                                   fontSize:
-                                                      ResponsiveHelper.getResponsiveFontSize(
-                                                        context,
-                                                        14,
-                                                      ),
+                                                  ResponsiveHelper.getResponsiveFontSize(
+                                                    context,
+                                                    14,
+                                                  ),
                                                   fontWeight: FontWeight.w500,
                                                   fontFamily: 'Poppins',
                                                 ),
@@ -728,10 +728,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                           }).toList(),
                                       child: Container(
                                         padding:
-                                            ResponsiveHelper.getResponsiveEdgeInsets(
-                                              context,
-                                              8,
-                                            ),
+                                        ResponsiveHelper.getResponsiveEdgeInsets(
+                                          context,
+                                          8,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.blue.shade800,
                                           borderRadius: BorderRadius.circular(
@@ -746,29 +746,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                               style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize:
-                                                    ResponsiveHelper.getResponsiveFontSize(
-                                                      context,
-                                                      12,
-                                                    ),
+                                                ResponsiveHelper.getResponsiveFontSize(
+                                                  context,
+                                                  12,
+                                                ),
                                                 fontWeight: FontWeight.w500,
                                                 fontFamily: 'Poppins',
                                               ),
                                             ),
                                             SizedBox(
                                               width:
-                                                  ResponsiveHelper.getResponsivePadding(
-                                                    context,
-                                                    4,
-                                                  ),
+                                              ResponsiveHelper.getResponsivePadding(
+                                                context,
+                                                4,
+                                              ),
                                             ),
                                             Icon(
                                               Icons.keyboard_arrow_down,
                                               color: Colors.white,
                                               size:
-                                                  ResponsiveHelper.getResponsiveFontSize(
-                                                    context,
-                                                    16,
-                                                  ),
+                                              ResponsiveHelper.getResponsiveFontSize(
+                                                context,
+                                                16,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -822,10 +822,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                     fontSize:
-                                        ResponsiveHelper.getResponsiveFontSize(
-                                          context,
-                                          18,
-                                        ),
+                                    ResponsiveHelper.getResponsiveFontSize(
+                                      context,
+                                      18,
+                                    ),
                                     fontFamily: 'Poppins',
                                   ),
                                 ),
@@ -846,7 +846,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     if (isLoading) {
                                       return Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceEvenly,
+                                        MainAxisAlignment.spaceEvenly,
                                         children: [
                                           Expanded(
                                             child: _StatCard(
@@ -857,10 +857,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                           ),
                                           SizedBox(
                                             width:
-                                                ResponsiveHelper.getResponsivePadding(
-                                                  context,
-                                                  8,
-                                                ),
+                                            ResponsiveHelper.getResponsivePadding(
+                                              context,
+                                              8,
+                                            ),
                                           ),
                                           Expanded(
                                             child: _StatCard(
@@ -871,10 +871,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                           ),
                                           SizedBox(
                                             width:
-                                                ResponsiveHelper.getResponsivePadding(
-                                                  context,
-                                                  8,
-                                                ),
+                                            ResponsiveHelper.getResponsivePadding(
+                                              context,
+                                              8,
+                                            ),
                                           ),
                                           Expanded(
                                             child: _StatCard(
@@ -897,10 +897,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       for (var stat in threadStats) {
                                         final categoryName =
                                             stat['categoryName']?.toString() ??
-                                            '';
+                                                '';
                                         final reportCount =
                                             stat['reportCount']?.toString() ??
-                                            '0';
+                                                '0';
 
                                         if (categoryName.toLowerCase().contains(
                                           'scam',
@@ -920,7 +920,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                     return Row(
                                       mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
+                                      MainAxisAlignment.spaceEvenly,
                                       children: [
                                         Expanded(
                                           child: _StatCard(
@@ -931,10 +931,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                         SizedBox(
                                           width:
-                                              ResponsiveHelper.getResponsivePadding(
-                                                context,
-                                                8,
-                                              ),
+                                          ResponsiveHelper.getResponsivePadding(
+                                            context,
+                                            8,
+                                          ),
                                         ),
                                         Expanded(
                                           child: _StatCard(
@@ -945,10 +945,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                         SizedBox(
                                           width:
-                                              ResponsiveHelper.getResponsivePadding(
-                                                context,
-                                                8,
-                                              ),
+                                          ResponsiveHelper.getResponsivePadding(
+                                            context,
+                                            8,
+                                          ),
                                         ),
                                         Expanded(
                                           child: _StatCard(
@@ -1003,8 +1003,8 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.desc,
     this.highlight = false,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

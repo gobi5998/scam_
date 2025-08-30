@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import '../../config/api_config.dart';
 import '../../models/fraud_report_model.dart';
-import '../../models/scam_report_model.dart';
 
 class FraudRemoteService {
   Future<bool> sendReport(

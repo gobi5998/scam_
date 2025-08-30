@@ -12,6 +12,8 @@ import 'reset_password_request.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/token_storage.dart';
 import '../services/jwt_service.dart';
+import '../services/biometric_service.dart';
+import '../widgets/biometric_setup_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -64,10 +66,12 @@ class _LoginPageState extends State<LoginPage> {
     if (value == null || value.isEmpty) return 'Password is required';
     if (value.length < 8) return 'Password must be at least 8 characters';
     if (value.length > 128) return 'Password must be less than 128 characters';
-    if (!RegExp(r'[A-Z]').hasMatch(value))
+    if (!RegExp(r'[A-Z]').hasMatch(value)) {
       return 'Must contain uppercase letter';
-    if (!RegExp(r'[a-z]').hasMatch(value))
+    }
+    if (!RegExp(r'[a-z]').hasMatch(value)) {
       return 'Must contain lowercase letter';
+    }
     if (!RegExp(r'[0-9]').hasMatch(value)) return 'Must contain number';
     if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(value)) {
       return 'Must contain special character (!@#\$%^&*)';
@@ -232,7 +236,7 @@ class _LoginPageState extends State<LoginPage> {
                               hintStyle: const TextStyle(
                                 color: Colors.grey,
                                 fontFamily: 'Poppins',
-                                fontSize: 14
+                                fontSize: 14,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -331,8 +335,9 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: (authProvider.isLoading || !_isFormValid())
                               ? null
                               : () async {
-                                  if (!_formKey.currentState!.validate())
+                                  if (!_formKey.currentState!.validate()) {
                                     return;
+                                  }
 
                                   final success = await authProvider.login(
                                     _emailController.text.trim(),
@@ -340,18 +345,57 @@ class _LoginPageState extends State<LoginPage> {
                                   );
 
                                   if (success) {
-                                    // Navigate back to root route so AuthWrapper can handle the authentication state
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/',
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Login Successfully'),
-                                        duration: Duration(seconds: 2),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
+                                    // Check if biometric setup should be shown
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    final bioSetupShown =
+                                        prefs.getBool(
+                                          'biometric_setup_shown',
+                                        ) ??
+                                        false;
+                                    final bioEnabled =
+                                        prefs.getBool('biometric_enabled') ??
+                                        false;
+
+                                    if (!bioSetupShown && !bioEnabled) {
+                                      // Check if biometric is available
+                                      final isBiometricAvailable =
+                                          await BiometricService.isBiometricAvailable();
+                                      if (isBiometricAvailable) {
+                                        // Show biometric setup dialog
+                                        if (mounted) {
+                                          final result = await showDialog<bool>(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (context) =>
+                                                const BiometricSetupDialog(),
+                                          );
+
+                                          if (result == true) {
+                                            // Biometric enabled successfully
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Biometric authentication enabled!',
+                                                ),
+                                                duration: Duration(seconds: 2),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    }
+
+                                    // Navigate to dashboard
+                                    if (mounted) {
+                                      Navigator.pushReplacementNamed(
+                                        context,
+                                        '/dashboard',
+                                      );
+                                    }
                                   }
                                 },
                           isLoading: authProvider.isLoading,

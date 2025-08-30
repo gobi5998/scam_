@@ -3,8 +3,8 @@ import '../config/api_config.dart';
 import 'dio_service.dart';
 
 class ReportReferenceService {
-  static Map<String, String> _reportCategoryCache = {};
-  static Map<String, String> _reportTypeCache = {};
+  static final Map<String, String> _reportCategoryCache = {};
+  static final Map<String, String> _reportTypeCache = {};
   static bool _isInitialized = false;
   static final DioService _dioService = DioService();
 

@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'api_service.dart';
 import 'jwt_service.dart';
 import '../provider/auth_provider.dart';
-import '../models/user_model.dart';
 
 class ProfileImageService {
   static const String _s3BaseUrl = 'https://mvp.edetectives.co.bw';

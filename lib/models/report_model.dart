@@ -36,6 +36,7 @@ class ReportModel extends HiveObject implements SyncableReport {
   @HiveField(9)
   DateTime? updatedAt;
 
+  @override
   @HiveField(10)
   bool isSynced;
 

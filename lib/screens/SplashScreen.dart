@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/login.dart';
 import 'package:security_alert/screens/dashboard_page.dart';
-import '../utils/responsive_helper.dart';
-import '../widgets/responsive_widget.dart';
 import '../services/app_version_service.dart';
 import '../services/token_storage.dart';
+import '../services/biometric_service.dart';
 import '../provider/auth_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,7 +16,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _showButton = false;
   String _appVersion = '';
 
   @override
@@ -39,24 +38,47 @@ class _SplashScreenState extends State<SplashScreen> {
       final refreshToken = await TokenStorage.getRefreshToken();
 
       if (accessToken != null && accessToken.isNotEmpty) {
-        // User has tokens, navigate to dashboard (AuthGuard will handle validation)
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+        // User has tokens, check if biometric is enabled
+        final prefs = await SharedPreferences.getInstance();
+        final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+
+        if (bioEnabled) {
+          // Check if biometric is available
+          final isBiometricAvailable =
+              await BiometricService.isBiometricAvailable();
+          if (isBiometricAvailable) {
+            // Navigate to biometric authentication screen
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/biometric-auth');
+            }
+          } else {
+            // Biometric not available, navigate to dashboard
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/dashboard');
+            }
+          }
+        } else {
+          // Biometric not enabled, navigate to dashboard
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/dashboard');
+          }
         }
       } else {
-        // No tokens, show login button
+        // No tokens, automatically navigate to login screen
         if (mounted) {
-          setState(() {
-            _showButton = true;
-          });
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
         }
       }
     } catch (e) {
-      // Error checking authentication, show login button
+      // Error checking authentication, navigate to login screen
       if (mounted) {
-        setState(() {
-          _showButton = true;
-        });
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
       }
     }
   }
@@ -72,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveScaffold(
+    return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -82,119 +104,52 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: IntrinsicHeight(
                   child: Center(
                     child: Padding(
-                      padding: ResponsiveHelper.getResponsiveEdgeInsets(
-                        context,
-                        20,
-                      ),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Spacer(),
-                          Container(
-                            width: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              160,
-                            ),
-                            height: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              160,
-                            ),
+                          SizedBox(
+                            width: 160,
+                            height: 160,
                             // decoration: BoxDecoration(
                             //   shape: BoxShape.circle,
                             //   color: Colors.grey[200],
                             // ),
                             child: Padding(
-                              padding: ResponsiveHelper.getResponsiveEdgeInsets(
-                                context,
-                                20,
-                              ),
+                              padding: const EdgeInsets.all(20),
                               child: Image.asset(
                                 'assets/image/splash.png',
                                 fit: BoxFit.cover,
                               ),
                             ),
                           ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              20,
-                            ),
-                          ),
+                          const SizedBox(height: 20),
                           Text(
                             'Scam Detect',
-                            style: TextStyle(
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                25,
-                              ),
-                              color: const Color(0xFF064FAD),
+                            style: const TextStyle(
+                              fontSize: 25,
+                              color: Color(0xFF064FAD),
                               fontWeight: FontWeight.w600,
                               fontFamily: 'Poppins',
                             ),
                           ),
                           const Spacer(),
-                          if (_showButton)
-                            OutlinedButton(
-                              onPressed: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginPage(),
-                                  ),
-                                );
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                  color: Color(0xFF064FAD),
-                                ),
-                                padding:
-                                    ResponsiveHelper.getResponsiveEdgeInsets(
-                                      context,
-                                      30,
-                                    ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
-                              child: Text(
-                                'Get Started',
-                                style: TextStyle(
-                                  color: const Color(0xFF064FAD),
-                                  fontSize:
-                                      ResponsiveHelper.getResponsiveFontSize(
-                                        context,
-                                        25,
-                                      ),
-                                  fontFamily: 'Poppins',
-                                ),
-                              ),
-                            ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              40,
-                            ),
+                          const CircularProgressIndicator(
+                            color: Color(0xFF064FAD),
                           ),
+                          const SizedBox(height: 40),
                           // App version at bottom
                           if (_appVersion.isNotEmpty)
                             Text(
                               'Version $_appVersion',
                               style: TextStyle(
-                                fontSize:
-                                    ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      12,
-                                    ),
+                                fontSize: 12,
                                 color: Colors.grey[600],
                                 fontFamily: 'Poppins',
                               ),
                             ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              20,
-                            ),
-                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:security_alert/screens/subscriptionPage/payment_validation.dart';
 
 class SubscriptionPlansPage extends StatefulWidget {
+  const SubscriptionPlansPage({super.key});
+
   @override
   State<SubscriptionPlansPage> createState() => _SubscriptionPlansPageState();
 }
@@ -33,7 +35,7 @@ class _SubscriptionPlansPageState extends State<SubscriptionPlansPage> {
             ),
             SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: selectedSector,
+              initialValue: selectedSector,
               hint: Text('Select a Sector Type'),
               items: ['Banking', 'ATM', 'Online Payment', 'Fraud']
                   .map(

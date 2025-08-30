@@ -22,6 +22,7 @@ class FileModel extends HiveObject {
   @HiveField(5)
   String? url;
 
+  @override
   @HiveField(6)
   String? key;
 

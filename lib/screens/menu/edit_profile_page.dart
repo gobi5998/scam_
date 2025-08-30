@@ -107,7 +107,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       // Get file size
       final fileSize = await _profileImage!.length();
-      print('📊 File size: ${fileSize} bytes (${(fileSize / 1024).toStringAsFixed(2)} KB)');
+      print('📊 File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(2)} KB)');
       
       // Check file size limit (e.g., 5MB)
       const maxFileSize = 5 * 1024 * 1024; // 5MB

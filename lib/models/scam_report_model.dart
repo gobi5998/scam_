@@ -228,7 +228,7 @@ class ScamReportModel extends HiveObject {
       isSynced: isSynced ?? this.isSynced,
       screenshots: screenshots ?? this.screenshots,
       documents: documents ?? this.documents,
-      keycloackUserId: keycloackUserId ?? this.keycloackUserId,
+      keycloackUserId: keycloackUserId ?? keycloackUserId,
       scammerName: scammerName ?? this.scammerName,
       phoneNumbers: phoneNumbers ?? this.phoneNumbers,
       emails: emails ?? this.emails,

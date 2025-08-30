@@ -10,10 +10,10 @@ class LocationPickerScreen extends StatefulWidget {
   final List<SavedAddress>? savedAddresses;
 
   const LocationPickerScreen({
-    Key? key,
+    super.key,
     this.onLocationSelected,
     this.savedAddresses,
-  }) : super(key: key);
+  });
 
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
@@ -151,7 +151,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           setState(() {
             _currentLocationAddress = _formatAddress(placemarks[0]);
           });
-          print('⚠️ Using fallback geocoding: ${_currentLocationAddress}');
+          print('⚠️ Using fallback geocoding: $_currentLocationAddress');
         } else {
           throw Exception('Could not get address from coordinates');
         }
@@ -315,7 +315,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         address: _currentLocationAddress!,
       );
       
-      print('📍 Current location selected: $locationName - ${_currentLocationAddress}');
+      print('📍 Current location selected: $locationName - $_currentLocationAddress');
       print('📍 Coordinates: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
       
       Navigator.of(context).pop();
@@ -830,8 +830,7 @@ class SavedAddress {
 class AddNewAddressScreen extends StatefulWidget {
   final Function(String, String) onAddressAdded;
 
-  const AddNewAddressScreen({Key? key, required this.onAddressAdded})
-      : super(key: key);
+  const AddNewAddressScreen({super.key, required this.onAddressAdded});
 
   @override
   State<AddNewAddressScreen> createState() => _AddNewAddressScreenState();

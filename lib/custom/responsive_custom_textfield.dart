@@ -25,7 +25,7 @@ class ResponsiveCustomTextField extends StatelessWidget {
   final EdgeInsetsGeometry? contentPadding;
 
   const ResponsiveCustomTextField({
-    Key? key,
+    super.key,
     this.labelText,
     this.hintText,
     this.controller,
@@ -47,7 +47,7 @@ class ResponsiveCustomTextField extends StatelessWidget {
     this.fillColor,
     this.borderRadius,
     this.contentPadding,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +154,7 @@ class ResponsivePasswordField extends StatefulWidget {
   final TextInputAction? textInputAction;
 
   const ResponsivePasswordField({
-    Key? key,
+    super.key,
     this.labelText,
     this.hintText,
     this.controller,
@@ -166,7 +166,7 @@ class ResponsivePasswordField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.textInputAction,
-  }) : super(key: key);
+  });
 
   @override
   State<ResponsivePasswordField> createState() =>

@@ -18,15 +18,14 @@ class ReportDetailView extends StatefulWidget {
   final Map<String, dynamic> report;
   final ReportModel? typedReport;
 
-  const ReportDetailView({Key? key, required this.report, this.typedReport})
-    : super(key: key);
+  const ReportDetailView({super.key, required this.report, this.typedReport});
 
   @override
   State<ReportDetailView> createState() => _ReportDetailViewState();
 }
 
 class _ReportDetailViewState extends State<ReportDetailView> {
-  bool _isExpanded = false;
+  final bool _isExpanded = false;
   AudioPlayer? _audioPlayer;
   bool _isPlaying = false;
   Duration _duration = Duration.zero;
@@ -348,26 +347,35 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     // General technical details
 
     // Network and device details
-    if (report['ipAddress'] != null)
+    if (report['ipAddress'] != null) {
       children.add(_buildInfoRow('IP Address', report['ipAddress']));
-    if (report['userAgent'] != null)
+    }
+    if (report['userAgent'] != null) {
       children.add(_buildInfoRow('User Agent', report['userAgent']));
-    if (report['deviceType'] != null)
+    }
+    if (report['deviceType'] != null) {
       children.add(_buildInfoRow('Device Type', report['deviceType']));
-    if (report['browser'] != null)
+    }
+    if (report['browser'] != null) {
       children.add(_buildInfoRow('Browser', report['browser']));
-    if (report['platform'] != null)
+    }
+    if (report['platform'] != null) {
       children.add(_buildInfoRow('Platform', report['platform']));
+    }
 
     // Additional technical fields
-    if (report['fileSize'] != null)
+    if (report['fileSize'] != null) {
       children.add(_buildInfoRow('File Size', report['fileSize']));
-    if (report['fileHash'] != null)
+    }
+    if (report['fileHash'] != null) {
       children.add(_buildInfoRow('File Hash', report['fileHash']));
-    if (report['encryptionType'] != null)
+    }
+    if (report['encryptionType'] != null) {
       children.add(_buildInfoRow('Encryption Type', report['encryptionType']));
-    if (report['threatLevel'] != null)
+    }
+    if (report['threatLevel'] != null) {
       children.add(_buildInfoRow('Threat Level', report['threatLevel']));
+    }
 
     if (children.isEmpty) return SizedBox.shrink();
 
@@ -857,45 +865,60 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     List<Widget> children = [];
 
     // Financial transaction details
-    if (report['amount'] != null)
+    if (report['amount'] != null) {
       children.add(_buildInfoRow('Amount', report['amount']));
-    if (report['currency'] != null)
+    }
+    if (report['currency'] != null) {
       children.add(_buildInfoRow('Currency', report['currency']));
-    if (report['paymentMethod'] != null)
+    }
+    if (report['paymentMethod'] != null) {
       children.add(_buildInfoRow('Payment Method', report['paymentMethod']));
-    if (report['transactionId'] != null)
+    }
+    if (report['transactionId'] != null) {
       children.add(_buildInfoRow('Transaction ID', report['transactionId']));
-    if (report['bankName'] != null)
+    }
+    if (report['bankName'] != null) {
       children.add(_buildInfoRow('Bank Name', report['bankName']));
-    if (report['accountNumber'] != null)
+    }
+    if (report['accountNumber'] != null) {
       children.add(_buildInfoRow('Account Number', report['accountNumber']));
-    if (report['routingNumber'] != null)
+    }
+    if (report['routingNumber'] != null) {
       children.add(_buildInfoRow('Routing Number', report['routingNumber']));
-    if (report['cardNumber'] != null)
+    }
+    if (report['cardNumber'] != null) {
       children.add(_buildInfoRow('Card Number', report['cardNumber']));
-    if (report['expiryDate'] != null)
+    }
+    if (report['expiryDate'] != null) {
       children.add(_buildInfoRow('Expiry Date', report['expiryDate']));
-    if (report['cvv'] != null)
+    }
+    if (report['cvv'] != null) {
       children.add(_buildInfoRow('CVV', report['cvv']));
-    if (report['merchantName'] != null)
+    }
+    if (report['merchantName'] != null) {
       children.add(_buildInfoRow('Merchant Name', report['merchantName']));
-    if (report['transactionDate'] != null)
+    }
+    if (report['transactionDate'] != null) {
       children.add(
         _buildInfoRow(
           'Transaction Date',
           _formatDateTime(report['transactionDate']),
         ),
       );
-    if (report['transactionStatus'] != null)
+    }
+    if (report['transactionStatus'] != null) {
       children.add(
         _buildInfoRow('Transaction Status', report['transactionStatus']),
       );
-    if (report['refundAmount'] != null)
+    }
+    if (report['refundAmount'] != null) {
       children.add(_buildInfoRow('Refund Amount', report['refundAmount']));
-    if (report['chargebackAmount'] != null)
+    }
+    if (report['chargebackAmount'] != null) {
       children.add(
         _buildInfoRow('Chargeback Amount', report['chargebackAmount']),
       );
+    }
 
     if (children.isEmpty) return SizedBox.shrink();
 
@@ -911,44 +934,59 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     List<Widget> children = [];
 
     // Security analysis details
-    if (report['threatLevel'] != null)
+    if (report['threatLevel'] != null) {
       children.add(_buildInfoRow('Threat Level', report['threatLevel']));
-    if (report['riskScore'] != null)
+    }
+    if (report['riskScore'] != null) {
       children.add(_buildInfoRow('Risk Score', report['riskScore']));
-    if (report['vulnerabilityType'] != null)
+    }
+    if (report['vulnerabilityType'] != null) {
       children.add(
         _buildInfoRow('Vulnerability Type', report['vulnerabilityType']),
       );
-    if (report['attackVector'] != null)
+    }
+    if (report['attackVector'] != null) {
       children.add(_buildInfoRow('Attack Vector', report['attackVector']));
-    if (report['exploitType'] != null)
+    }
+    if (report['exploitType'] != null) {
       children.add(_buildInfoRow('Exploit Type', report['exploitType']));
-    if (report['cveId'] != null)
+    }
+    if (report['cveId'] != null) {
       children.add(_buildInfoRow('CVE ID', report['cveId']));
-    if (report['severityScore'] != null)
+    }
+    if (report['severityScore'] != null) {
       children.add(_buildInfoRow('Severity Score', report['severityScore']));
-    if (report['impactLevel'] != null)
+    }
+    if (report['impactLevel'] != null) {
       children.add(_buildInfoRow('Impact Level', report['impactLevel']));
-    if (report['detectionMethod'] != null)
+    }
+    if (report['detectionMethod'] != null) {
       children.add(
         _buildInfoRow('Detection Method', report['detectionMethod']),
       );
-    if (report['mitigationStatus'] != null)
+    }
+    if (report['mitigationStatus'] != null) {
       children.add(
         _buildInfoRow('Mitigation Status', report['mitigationStatus']),
       );
-    if (report['patchStatus'] != null)
+    }
+    if (report['patchStatus'] != null) {
       children.add(_buildInfoRow('Patch Status', report['patchStatus']));
-    if (report['falsePositive'] != null)
+    }
+    if (report['falsePositive'] != null) {
       children.add(_buildInfoRow('False Positive', report['falsePositive']));
-    if (report['verified'] != null)
+    }
+    if (report['verified'] != null) {
       children.add(_buildInfoRow('Verified', report['verified']));
-    if (report['investigationStatus'] != null)
+    }
+    if (report['investigationStatus'] != null) {
       children.add(
         _buildInfoRow('Investigation Status', report['investigationStatus']),
       );
-    if (report['resolutionTime'] != null)
+    }
+    if (report['resolutionTime'] != null) {
       children.add(_buildInfoRow('Resolution Time', report['resolutionTime']));
+    }
 
     if (children.isEmpty) return SizedBox.shrink();
 
@@ -990,7 +1028,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                 final value = entry.value;
                 String displayValue = value?.toString() ?? 'null';
                 if (displayValue.length > 50) {
-                  displayValue = displayValue.substring(0, 50) + '...';
+                  displayValue = '${displayValue.substring(0, 50)}...';
                 }
                 return Padding(
                   padding: EdgeInsets.only(bottom: 4),
@@ -1078,28 +1116,37 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     // if (report['description'] != null)
     //   children.add(_buildInfoRow('Description', report['description']));
 
-    if (report['currency'] != null)
+    if (report['currency'] != null) {
       children.add(_buildInfoRow('Currency', report['currency']));
-    if (report['moneyLost'] != null)
+    }
+    if (report['moneyLost'] != null) {
       children.add(_buildInfoRow('Money Lost', report['moneyLost']));
-    if (report['attackName'] != null)
+    }
+    if (report['attackName'] != null) {
       children.add(_buildInfoRow('Attack Name', report['attackName']));
-    if (report['attackSystem'] != null)
+    }
+    if (report['attackSystem'] != null) {
       children.add(_buildInfoRow('Attack System', report['attackSystem']));
+    }
 
     // System metadata
-    if (report['version'] != null)
+    if (report['version'] != null) {
       children.add(_buildInfoRow('Version', report['version']));
-    if (report['buildNumber'] != null)
+    }
+    if (report['buildNumber'] != null) {
       children.add(_buildInfoRow('Build Number', report['buildNumber']));
-    if (report['environment'] != null)
+    }
+    if (report['environment'] != null) {
       children.add(_buildInfoRow('Environment', report['environment']));
-    if (report['deployment'] != null)
+    }
+    if (report['deployment'] != null) {
       children.add(_buildInfoRow('Deployment', report['deployment']));
-    if (report['incidentDate'] != null)
+    }
+    if (report['incidentDate'] != null) {
       children.add(
         _buildInfoRow('Incident Date', _formatDateTime(report['incidentDate'])),
       );
+    }
     final createdBy = report['createdBy'];
     if (createdBy != null) children.add(_buildInfoRow('Created By', createdBy));
 
@@ -1724,7 +1771,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   }
 
   String _cleanUrl(String url) {
-    if (url == null || url.isEmpty) {
+    if (url.isEmpty) {
       throw Exception('URL is null or empty');
     }
 
@@ -2092,7 +2139,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
         print('✅ Image loaded successfully, size: ${bytes.length} bytes');
 
         // Validate that we actually got image data
-        if (bytes.length > 0) {
+        if (bytes.isNotEmpty) {
           return bytes;
         } else {
           print('❌ Image bytes are empty');
@@ -2171,7 +2218,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                     ),
                     SizedBox(height: 16),
                     // Fallback to direct Image.network
-                    Container(
+                    SizedBox(
                       height: 200,
                       child: Image.network(
                         url,
@@ -2284,7 +2331,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
           // Closing tag
           indent--;
         }
-        formatted += '\n' + '  ' * indent + char;
+        formatted += '\n${'  ' * indent}$char';
         inTag = true;
       } else if (char == '>') {
         formatted += char;
@@ -2576,7 +2623,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                       ),
                       SizedBox(height: 8),
                       // Fallback to direct Image.network
-                      Container(
+                      SizedBox(
                         height: 200,
                         child: Image.network(
                           url,
@@ -2697,7 +2744,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
           final file = snapshot.data;
           if (file != null && file.existsSync()) {
-            return Container(
+            return SizedBox(
               width: double.infinity,
               height: 600,
               child: PDFView(
@@ -3063,10 +3110,10 @@ class VideoPlayerDialog extends StatefulWidget {
   final String title;
 
   const VideoPlayerDialog({
-    Key? key,
+    super.key,
     required this.videoUrl,
     required this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<VideoPlayerDialog> createState() => _VideoPlayerDialogState();

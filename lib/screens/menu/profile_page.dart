@@ -21,6 +21,8 @@ import 'edit_profile_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
@@ -31,7 +33,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _errorMessage = '';
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
-  bool _isUploadingImage = false;
+  final bool _isUploadingImage = false;
   String? _dynamicProfileImageUrl;
   int _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
 
@@ -77,11 +79,11 @@ class _ProfilePageState extends State<ProfilePage> {
       // Step 1: Try to get user data from AuthProvider first (from login)
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       User? userFromAuth = authProvider.currentUser;
-      
+
       if (userFromAuth != null) {
         print('✅ Using user data from AuthProvider (login flow)');
         print('👤 User from AuthProvider: ${userFromAuth.toJson()}');
-        
+
         setState(() {
           _user = userFromAuth;
           _isLoading = false;
@@ -90,7 +92,9 @@ class _ProfilePageState extends State<ProfilePage> {
         // Set the dynamic profile image URL from AuthProvider data
         if (userFromAuth.imageUrl != null) {
           _dynamicProfileImageUrl = userFromAuth.imageUrl;
-          print('🖼️ Set dynamic profile image URL from AuthProvider: $_dynamicProfileImageUrl');
+          print(
+            '🖼️ Set dynamic profile image URL from AuthProvider: $_dynamicProfileImageUrl',
+          );
         }
       }
 
@@ -120,13 +124,17 @@ class _ProfilePageState extends State<ProfilePage> {
         // Set the dynamic profile image URL from user/me response
         if (user.imageUrl != null) {
           _dynamicProfileImageUrl = user.imageUrl;
-          print('🖼️ Set dynamic profile image URL from user/me: $_dynamicProfileImageUrl');
+          print(
+            '🖼️ Set dynamic profile image URL from user/me: $_dynamicProfileImageUrl',
+          );
         }
 
         // Update AuthProvider with fresh data
         authProvider.setUserData(userData);
-        
-        print('✅ Profile loaded successfully - AuthProvider data + fresh user/me data');
+
+        print(
+          '✅ Profile loaded successfully - AuthProvider data + fresh user/me data',
+        );
       } else {
         setState(() {
           _errorMessage = 'Failed to load profile from server';
@@ -144,7 +152,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      print('📱 Picking image from ${source == ImageSource.camera ? 'camera' : 'gallery'}');
+      print(
+        '📱 Picking image from ${source == ImageSource.camera ? 'camera' : 'gallery'}',
+      );
       final XFile? image = await _picker.pickImage(
         source: source,
         maxWidth: 512,
@@ -153,7 +163,9 @@ class _ProfilePageState extends State<ProfilePage> {
       );
 
       if (image != null) {
-        print('🖼️ Image selected: ${image.path} (${await image.length()} bytes)');
+        print(
+          '🖼️ Image selected: ${image.path} (${await image.length()} bytes)',
+        );
         setState(() {
           _profileImage = File(image.path);
         });
@@ -180,13 +192,15 @@ class _ProfilePageState extends State<ProfilePage> {
       print('❌ No profile image selected');
       return;
     }
-    
-    print('🔍 Current _dynamicProfileImageUrl before upload: $_dynamicProfileImageUrl');
+
+    print(
+      '🔍 Current _dynamicProfileImageUrl before upload: $_dynamicProfileImageUrl',
+    );
 
     print('🔄 Starting profile image upload process');
     print('📂 File path: ${_profileImage!.path}');
     print('📄 File exists: ${await _profileImage!.exists()}');
-    
+
     if (!await _profileImage!.exists()) {
       print('❌ File does not exist at path: ${_profileImage!.path}');
       if (mounted) {
@@ -207,8 +221,10 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       // Get file size
       final fileSize = await _profileImage!.length();
-      print('📊 File size: ${fileSize} bytes (${(fileSize / 1024).toStringAsFixed(2)} KB)');
-      
+      print(
+        '📊 File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(2)} KB)',
+      );
+
       // Check file size limit (e.g., 5MB)
       const maxFileSize = 5 * 1024 * 1024; // 5MB
       if (fileSize > maxFileSize) {
@@ -218,40 +234,44 @@ class _ProfilePageState extends State<ProfilePage> {
       // Create form data for image upload
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       print('📤 Preparing form data with filename: $fileName');
-      
+
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(
           _profileImage!.path,
           filename: fileName,
         ),
       });
-      
+
       print('📤 Form data prepared, starting upload...');
 
       // Use ProfileImageService to handle the upload and profile update
       print('🔄 Starting profile image upload...');
-      final imageUrl = await ProfileImageService.uploadAndUpdateProfileImage(formData, context: context);
+      final imageUrl = await ProfileImageService.uploadAndUpdateProfileImage(
+        formData,
+        context: context,
+      );
       print('📡 Upload completed, response URL: $imageUrl');
       print('🔍 Current user after upload: ${_user?.toJson()}');
 
       if (imageUrl != null) {
         print('✅ Success! Image URL: $imageUrl');
-        
+
         // Update the user object with the new image URL
         if (_user != null) {
           setState(() {
-            _user = _user!.copyWith(
-              imageUrl: imageUrl,
-            );
+            _user = _user!.copyWith(imageUrl: imageUrl);
             _dynamicProfileImageUrl = imageUrl;
           });
-          
+
           // Also update the auth provider
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
           authProvider.setUserData(_user!.toJson());
-          
+
           print('🔄 Updated user with new image URL: $imageUrl');
-          
+
           // Force refresh the profile to ensure UI shows new image
           await _loadUserProfile();
         }
@@ -264,7 +284,7 @@ class _ProfilePageState extends State<ProfilePage> {
               backgroundColor: Colors.green,
             ),
           );
-          
+
           // Force a rebuild to show the new image
           setState(() {});
         }
@@ -382,7 +402,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         await _loadDynamicProfileImage();
                         _clearImageCache();
                         setState(() {
-                          _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
+                          _imageUpdateTimestamp =
+                              DateTime.now().millisecondsSinceEpoch;
                         });
                       },
                     ),
@@ -408,12 +429,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                   // Show dynamic profile image even while loading
                                   Builder(
                                     builder: (context) {
-                                      final imageUrl = _dynamicProfileImageUrl ?? _user?.imageUrl;
+                                      final imageUrl =
+                                          _dynamicProfileImageUrl ??
+                                          _user?.imageUrl;
                                       return ProfileImageWidget(
-                                        key: ValueKey('profile_loading_${imageUrl ?? 'default'}_$_imageUpdateTimestamp'),
+                                        key: ValueKey(
+                                          'profile_loading_${imageUrl ?? 'default'}_$_imageUpdateTimestamp',
+                                        ),
                                         imageUrl: imageUrl,
                                         radius: 40,
-                                        backgroundColor: Colors.white.withOpacity(0.2),
+                                        backgroundColor: Colors.white
+                                            .withOpacity(0.2),
                                       );
                                     },
                                   ),
@@ -438,12 +464,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                   // Show dynamic profile image even on error
                                   Builder(
                                     builder: (context) {
-                                      final imageUrl = _dynamicProfileImageUrl ?? _user?.imageUrl;
+                                      final imageUrl =
+                                          _dynamicProfileImageUrl ??
+                                          _user?.imageUrl;
                                       return ProfileImageWidget(
-                                        key: ValueKey('profile_error_${imageUrl ?? 'default'}_$_imageUpdateTimestamp'),
+                                        key: ValueKey(
+                                          'profile_error_${imageUrl ?? 'default'}_$_imageUpdateTimestamp',
+                                        ),
                                         imageUrl: imageUrl,
                                         radius: 40,
-                                        backgroundColor: Colors.white.withOpacity(0.2),
+                                        backgroundColor: Colors.white
+                                            .withOpacity(0.2),
                                       );
                                     },
                                   ),
@@ -472,11 +503,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                             )
                                           : Builder(
                                               builder: (context) {
-                                                final imageUrl = _dynamicProfileImageUrl ??
+                                                final imageUrl =
+                                                    _dynamicProfileImageUrl ??
                                                     _user?.imageUrl;
-                                                print('🖼️ Profile page - Image URL for widget: $imageUrl');
+                                                print(
+                                                  '🖼️ Profile page - Image URL for widget: $imageUrl',
+                                                );
                                                 return ProfileImageWidget(
-                                                  key: ValueKey('profile_main_${imageUrl ?? 'default'}_$_imageUpdateTimestamp'),
+                                                  key: ValueKey(
+                                                    'profile_main_${imageUrl ?? 'default'}_$_imageUpdateTimestamp',
+                                                  ),
                                                   imageUrl: imageUrl,
                                                   radius: 50,
                                                   backgroundColor: Colors.white
@@ -539,7 +575,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  if (_user?.username.isNotEmpty == true && _user!.username != _user!.fullName)
+                                  if (_user?.username.isNotEmpty == true &&
+                                      _user!.username != _user!.fullName)
                                     Text(
                                       _user!.username,
                                       style: TextStyle(
@@ -581,15 +618,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        Icons.edit,
-                                        size: 18,
-                                        color: Colors.blue,
-                                      ),
                                       SizedBox(width: 4),
                                       Text(
                                         'Edit',
-                                        style: TextStyle(color: Colors.blue),
+                                        style: TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -615,6 +651,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         size: 16,
                                       ),
                               ),
+
                               // ListTile(
                               //   leading: Icon(Icons.person),
                               //   title: Text('First Name'),
@@ -645,7 +682,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               //     ),
                               //   ),
                               // ),
-                              
                               ListTile(
                                 leading: Icon(Icons.account_circle),
                                 title: Text('Username'),
@@ -968,7 +1004,7 @@ class _ProfilePageState extends State<ProfilePage> {
         firstName: firstName,
         lastName: _user?.lastName ?? '',
       );
-      
+
       if (result != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -997,7 +1033,7 @@ class _ProfilePageState extends State<ProfilePage> {
         firstName: _user?.firstName ?? '',
         lastName: lastName,
       );
-      
+
       if (result != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1017,7 +1053,11 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _showEditFieldDialog(String fieldName, String currentValue, Function(String) updateFunction) {
+  void _showEditFieldDialog(
+    String fieldName,
+    String currentValue,
+    Function(String) updateFunction,
+  ) {
     final controller = TextEditingController(text: currentValue);
 
     showDialog(
@@ -1042,7 +1082,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: () async {
                 final newValue = controller.text.trim();
                 Navigator.pop(context);
-                
+
                 if (newValue.isNotEmpty && newValue != currentValue) {
                   await updateFunction(newValue);
                 }
@@ -1056,8 +1096,12 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showEditNameDialog() {
-    final firstNameController = TextEditingController(text: _user?.firstName ?? '');
-    final lastNameController = TextEditingController(text: _user?.lastName ?? '');
+    final firstNameController = TextEditingController(
+      text: _user?.firstName ?? '',
+    );
+    final lastNameController = TextEditingController(
+      text: _user?.lastName ?? '',
+    );
 
     showDialog(
       context: context,
@@ -1092,14 +1136,14 @@ class _ProfilePageState extends State<ProfilePage> {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
-                
+
                 final firstName = firstNameController.text.trim();
                 final lastName = lastNameController.text.trim();
-                
+
                 if (firstName.isNotEmpty && firstName != _user?.firstName) {
                   await _updateFirstName(firstName);
                 }
-                
+
                 if (lastName.isNotEmpty && lastName != _user?.lastName) {
                   await _updateLastName(lastName);
                 }
@@ -1128,7 +1172,7 @@ class _ProfilePageState extends State<ProfilePage> {
     print('📦 User object: ${_user?.toJson()}');
     print('🖼️ Dynamic profile image URL: $_dynamicProfileImageUrl');
     print('🖼️ User imageUrl: ${_user?.imageUrl}');
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Debug info printed to console'),
@@ -1145,7 +1189,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (currentImageUrl != null && currentImageUrl.isNotEmpty) {
         ProfileImageWidget.clearCache(currentImageUrl);
       }
-      
+
       // Also clear all cache to ensure fresh images
       ProfileImageWidget.clearAllCache();
       print('🗑️ Cleared all image cache');
@@ -1157,19 +1201,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void _navigateToEditProfile() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditProfilePage(user: _user),
-      ),
+      MaterialPageRoute(builder: (context) => EditProfilePage(user: _user)),
     );
-    
+
     // Always refresh the data when returning from edit page
     print('🔄 Returning from edit profile page, refreshing data...');
     await _loadUserProfile();
     await _loadDynamicProfileImage();
-    
+
     // Clear image cache to ensure fresh image loads
     _clearImageCache();
-    
+
     // Force a rebuild to show updated image
     setState(() {
       _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -1178,14 +1220,18 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 class ChangePasswordBottomSheet extends StatefulWidget {
+  const ChangePasswordBottomSheet({super.key});
+
   @override
-  _ChangePasswordBottomSheetState createState() => _ChangePasswordBottomSheetState();
+  _ChangePasswordBottomSheetState createState() =>
+      _ChangePasswordBottomSheetState();
 }
 
 class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
 
@@ -1209,7 +1255,7 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
     try {
       // Get the current user ID from JWT token using proper token storage
       String? token = await TokenStorage.getAccessToken();
-      
+
       // Fallback to JWT service if secure storage fails
       if (token == null || token.isEmpty) {
         token = await JwtService.getTokenWithFallback();
@@ -1217,7 +1263,7 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
 
       if (token != null && token.isNotEmpty) {
         print('🔑 Token retrieved successfully: ${token.substring(0, 20)}...');
-        
+
         // Decode JWT token to get user ID
         final userData = JwtService.decodeToken(token);
         final userId = userData?['sub'] ?? userData?['id'];
@@ -1225,10 +1271,10 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
         if (userId != null) {
           print('🔄 Changing password for user ID: $userId');
           print('🔑 Token payload: $userData');
-          
+
           final apiService = ApiService();
           final newPassword = _newPasswordController.text.trim();
-          
+
           print('🔒 Attempting to change password...');
           final response = await apiService.changePassword(userId, newPassword);
 
@@ -1249,7 +1295,8 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
         } else {
           print('❌ Could not extract user ID from token payload: $userData');
           setState(() {
-            _errorMessage = 'Unable to get user ID from token. Please try again.';
+            _errorMessage =
+                'Unable to get user ID from token. Please try again.';
             _isLoading = false;
           });
         }
@@ -1357,11 +1404,7 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.lock_outline,
-                    size: 24,
-                    color: Color(0xFF064FAD),
-                  ),
+                  Icon(Icons.lock_outline, size: 24, color: Color(0xFF064FAD)),
                   SizedBox(width: 12),
                   Text(
                     'Change Password',
@@ -1373,7 +1416,9 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
                   ),
                   Spacer(),
                   IconButton(
-                    onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     icon: Icon(Icons.close, color: Colors.grey[600]),
                   ),
                 ],
@@ -1420,7 +1465,10 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF064FAD)),
+                        prefixIcon: Icon(
+                          Icons.lock_outline,
+                          color: Color(0xFF064FAD),
+                        ),
                         filled: true,
                         fillColor: Colors.grey[50],
                       ),
@@ -1437,12 +1485,19 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red.shade700,
+                              size: 20,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage,
-                                style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                           ],
@@ -1454,7 +1509,9 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                            onPressed: _isLoading
+                                ? null
+                                : () => Navigator.of(context).pop(),
                             style: OutlinedButton.styleFrom(
                               padding: EdgeInsets.symmetric(vertical: 16),
                               side: BorderSide(color: Colors.grey[400]!),
@@ -1490,7 +1547,9 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : Text(

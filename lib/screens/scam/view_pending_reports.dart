@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../provider/scam_report_provider.dart';
 
 class ViewPendingReports extends StatelessWidget {
-  const ViewPendingReports({Key? key}) : super(key: key);
+  const ViewPendingReports({super.key});
 
   @override
   Widget build(BuildContext context) {

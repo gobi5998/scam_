@@ -17,7 +17,7 @@ class OfflineCacheService {
   static List<Map<String, dynamic>> _normalizeList(dynamic raw) {
     if (raw is List) {
       return raw
-          .where((e) => e is Map)
+          .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
     }

@@ -29,7 +29,7 @@ class LocationStorageService {
     final data = box.get(_savedAddressesKey);
     if (data is List) {
       return data
-          .where((e) => e is Map)
+          .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
     }

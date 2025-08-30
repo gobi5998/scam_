@@ -15,6 +15,8 @@ import '../Fraud/fraud_local_service.dart';
 import '../malware/malware_local_service.dart';
 
 class ThreadDatabaseFilterPage extends StatefulWidget {
+  const ThreadDatabaseFilterPage({super.key});
+
   @override
   State<ThreadDatabaseFilterPage> createState() =>
       _ThreadDatabaseFilterPageState();
@@ -132,16 +134,25 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
       print('🔍 Loading device filters for category: ${categoryId ?? 'none'}');
 
-      final deviceRaw = await _apiService.fetchDropdownByType('device', categoryId ?? '');
-      final detectRaw = await _apiService.fetchDropdownByType('detect', categoryId ?? '');
-      final osRaw = await _apiService.fetchDropdownByType('operating System', categoryId ?? '');
+      final deviceRaw = await _apiService.fetchDropdownByType(
+        'device',
+        categoryId ?? '',
+      );
+      final detectRaw = await _apiService.fetchDropdownByType(
+        'detect',
+        categoryId ?? '',
+      );
+      final osRaw = await _apiService.fetchDropdownByType(
+        'operating System',
+        categoryId ?? '',
+      );
 
       print('🔍 Raw data received:');
       print('🔍   - Device types: ${deviceRaw.length}');
       print('🔍   - Detect types: ${detectRaw.length}');
       print('🔍   - Operating systems: ${osRaw.length}');
 
-      List<Map<String, dynamic>> _capitalize(List<Map<String, dynamic>> list) {
+      List<Map<String, dynamic>> capitalize(List<Map<String, dynamic>> list) {
         return list.map((option) {
           final name = option['name'] as String? ?? '';
           if (name.isNotEmpty) {
@@ -155,9 +166,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       }
 
       setState(() {
-        _deviceTypes = _capitalize(List<Map<String, dynamic>>.from(deviceRaw));
-        _detectTypes = _capitalize(List<Map<String, dynamic>>.from(detectRaw));
-        _operatingSystems = _capitalize(List<Map<String, dynamic>>.from(osRaw));
+        _deviceTypes = capitalize(List<Map<String, dynamic>>.from(deviceRaw));
+        _detectTypes = capitalize(List<Map<String, dynamic>>.from(detectRaw));
+        _operatingSystems = capitalize(List<Map<String, dynamic>>.from(osRaw));
       });
 
       print('🔍 Device filters loaded successfully:');
@@ -219,17 +230,13 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         reportTypeId = types;
       } else {
         // Use fallback types
-        _localTypes = [
-          
-        ];
+        _localTypes = [];
         reportTypeId = _localTypes;
       }
     } catch (e) {
       print('Error loading local types: $e');
       // Use fallback types
-      _localTypes = [
-        
-      ];
+      _localTypes = [];
       reportTypeId = _localTypes;
     }
   }
@@ -547,7 +554,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         print('🔍 All alert levels:');
         for (int i = 0; i < levels.length; i++) {
           final level = levels[i];
-          print('🔍   ${i + 1}. ID: ${level['_id'] ?? level['id']}, Name: ${level['name']}');
+          print(
+            '🔍   ${i + 1}. ID: ${level['_id'] ?? level['id']}, Name: ${level['name']}',
+          );
         }
       }
 
@@ -694,7 +703,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       print('🔍 Selected Alert Level Details:');
       for (final alertLevelId in selectedAlertLevels) {
         final alertLevel = alertLevels.firstWhere(
-              (level) => (level['_id'] ?? level['id']) == alertLevelId,
+          (level) => (level['_id'] ?? level['id']) == alertLevelId,
           orElse: () => {'name': 'Unknown', 'id': alertLevelId},
         );
         print('🔍   - ID: $alertLevelId, Name: ${alertLevel['name']}');
@@ -741,11 +750,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     print('🧪 Test 1: Selecting Report Scam category');
     final scamCategoryId =
         reportCategoryId.firstWhere(
-              (cat) =>
-          (cat['name']?.toString().toLowerCase().contains('scam') ?? false),
+          (cat) =>
+              (cat['name']?.toString().toLowerCase().contains('scam') ?? false),
           orElse: () => {'_id': 'scam_category', 'name': 'Report Scam'},
         )['_id'] ??
-            'scam_category';
+        'scam_category';
 
     print('🧪   - Found scam category ID: $scamCategoryId');
     print(
@@ -756,12 +765,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     print('🧪 Test 2: Selecting Report Fraud category');
     final fraudCategoryId =
         reportCategoryId.firstWhere(
-              (cat) =>
-          (cat['name']?.toString().toLowerCase().contains('fraud') ??
+          (cat) =>
+              (cat['name']?.toString().toLowerCase().contains('fraud') ??
               false),
           orElse: () => {'_id': 'fraud_category', 'name': 'Report Fraud'},
         )['_id'] ??
-            'fraud_category';
+        'fraud_category';
 
     print('🧪   - Found fraud category ID: $fraudCategoryId');
 
@@ -769,12 +778,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     print('🧪 Test 3: Selecting Report Malware category');
     final malwareCategoryId =
         reportCategoryId.firstWhere(
-              (cat) =>
-          (cat['name']?.toString().toLowerCase().contains('malware') ??
+          (cat) =>
+              (cat['name']?.toString().toLowerCase().contains('malware') ??
               false),
           orElse: () => {'_id': 'malware_category', 'name': 'Report Malware'},
         )['_id'] ??
-            'malware_category';
+        'malware_category';
 
     print('🧪   - Found malware category ID: $malwareCategoryId');
 
@@ -844,7 +853,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
     // Find the Low alert level
     final lowAlertLevel = alertLevels.firstWhere(
-          (level) => (level['name']?.toString().toLowerCase() == 'low'),
+      (level) => (level['name']?.toString().toLowerCase() == 'low'),
       orElse: () => {'_id': 'low', 'name': 'Low'},
     );
 
@@ -1031,7 +1040,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         print('🔍 Debug - Alert level IDs being passed to API:');
         for (final alertLevelId in selectedAlertLevels) {
           final alertLevel = alertLevels.firstWhere(
-                (level) => (level['_id'] ?? level['id']) == alertLevelId,
+            (level) => (level['_id'] ?? level['id']) == alertLevelId,
             orElse: () => {'name': 'Unknown', 'id': alertLevelId},
           );
           print('🔍   - ID: $alertLevelId, Name: ${alertLevel['name']}');
@@ -1196,145 +1205,154 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       // Category Multi-Select
                       _isLoadingCategories
                           ? Container(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 16),
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ),
-                            SizedBox(width: 16),
-                            Text('Loading categories...'),
-                          ],
-                        ),
-                      )
-                      //category dropdown
+                              child: Row(
+                                children: [
+                                  SizedBox(width: 16),
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Text('Loading categories...'),
+                                ],
+                              ),
+                            )
+                          //category dropdown
                           : _buildMultiSelectDropdown(
-                        'Category',
-                        reportCategoryId,
-                        selectedCategoryIds,
-                            (values) => _onCategoryChanged(values),
-                            (item) {
-                          final id =
-                              item['id']?.toString() ??
-                                  item['categoryId']?.toString() ??
-                                  item['_id']?.toString();
-                          print(
-                            'Category ID extracted: $id from item: $item',
-                          );
-                          return id;
-                        },
-                            (item) {
-                          final name =
-                              item['name']?.toString() ??
-                                  item['categoryName']?.toString() ??
-                                  item['title']?.toString() ??
-                                  'Unknown';
-                          print(
-                            'Category name extracted: $name from item: $item',
-                          );
-                          return name;
-                        },
-                      ),
+                              'Category',
+                              reportCategoryId,
+                              selectedCategoryIds,
+                              (values) => _onCategoryChanged(values),
+                              (item) {
+                                final id =
+                                    item['id']?.toString() ??
+                                    item['categoryId']?.toString() ??
+                                    item['_id']?.toString();
+                                print(
+                                  'Category ID extracted: $id from item: $item',
+                                );
+                                return id;
+                              },
+                              (item) {
+                                final name =
+                                    item['name']?.toString() ??
+                                    item['categoryName']?.toString() ??
+                                    item['title']?.toString() ??
+                                    'Unknown';
+                                print(
+                                  'Category name extracted: $name from item: $item',
+                                );
+                                return name;
+                              },
+                            ),
                       const SizedBox(height: 16),
 
                       // Type Multi-Select
                       _isLoadingTypes
                           ? Container(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 16),
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ),
-                            SizedBox(width: 16),
-                            Text('Loading types...'),
-                          ],
-                        ),
-                      )
-                      //type dropdown
+                              child: Row(
+                                children: [
+                                  SizedBox(width: 16),
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Text('Loading types...'),
+                                ],
+                              ),
+                            )
+                          //type dropdown
                           : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildMultiSelectDropdown(
-                            'Type',
-                            reportTypeId,
-                            selectedTypeIds,
-                                (values) {
-                              setState(() => selectedTypeIds = values);
-                              // Fetch detailed data for selected types
-                              _fetchSelectedTypeData(values);
-                            },
-                                (item) {
-                              final id =
-                                  item['_id']?.toString() ??
-                                      item['id']?.toString() ??
-                                      item['typeId']?.toString();
-                              print(
-                                'Type ID extracted: $id from item: $item',
-                              );
-                              return id;
-                            },
-                                (item) {
-                              final name =
-                                  item['name']?.toString() ??
-                                      item['typeName']?.toString() ??
-                                      item['title']?.toString() ??
-                                      item['description']?.toString() ??
-                                      'Unknown';
-                              print(
-                                'Type name extracted: $name from item: $item',
-                              );
-                              return name;
-                            },
-                          ),
-                          SizedBox(height: 8),
-                        ],
-                      ),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildMultiSelectDropdown(
+                                  'Type',
+                                  reportTypeId,
+                                  selectedTypeIds,
+                                  (values) {
+                                    setState(() => selectedTypeIds = values);
+                                    // Fetch detailed data for selected types
+                                    _fetchSelectedTypeData(values);
+                                  },
+                                  (item) {
+                                    final id =
+                                        item['_id']?.toString() ??
+                                        item['id']?.toString() ??
+                                        item['typeId']?.toString();
+                                    print(
+                                      'Type ID extracted: $id from item: $item',
+                                    );
+                                    return id;
+                                  },
+                                  (item) {
+                                    final name =
+                                        item['name']?.toString() ??
+                                        item['typeName']?.toString() ??
+                                        item['title']?.toString() ??
+                                        item['description']?.toString() ??
+                                        'Unknown';
+                                    print(
+                                      'Type name extracted: $name from item: $item',
+                                    );
+                                    return name;
+                                  },
+                                ),
+                                SizedBox(height: 8),
+                              ],
+                            ),
                       const SizedBox(height: 16),
 
                       // Alert Levels Multi-Select
                       _buildMultiSelectDropdown(
                         'Alert Levels',
                         alertLevels.isNotEmpty
-                            ? alertLevels
-                            .map(
-                              (level) {
+                            ? alertLevels.map((level) {
                                 final id = level['_id'] ?? level['id'];
                                 final name = level['name'] ?? 'Unknown';
-                                print('🔍 Processing alert level: ID=$id, Name=$name');
+                                print(
+                                  '🔍 Processing alert level: ID=$id, Name=$name',
+                                );
                                 return {
                                   'id': id,
-                                  'name': name.toString().substring(0, 1).toUpperCase() +
-                                      name.toString().substring(1).toLowerCase(),
+                                  'name':
+                                      name
+                                          .toString()
+                                          .substring(0, 1)
+                                          .toUpperCase() +
+                                      name
+                                          .toString()
+                                          .substring(1)
+                                          .toLowerCase(),
                                 };
-                              },
-                            )
-                            .toList()
+                              }).toList()
                             : [],
                         selectedAlertLevels,
                         (values) {
-                          print('🔍 UI Debug - Alert level selection changed: $values');
+                          print(
+                            '🔍 UI Debug - Alert level selection changed: $values',
+                          );
                           print('🔍 Previous selection: $selectedAlertLevels');
                           print('🔍 New selection: $values');
-                          print('🔍 Alert levels available: ${alertLevels.length}');
+                          print(
+                            '🔍 Alert levels available: ${alertLevels.length}',
+                          );
                           print('🔍 Current alertLevels data: $alertLevels');
                           setState(() => selectedAlertLevels = values);
                           print('🔍 After setState: $selectedAlertLevels');
@@ -1344,32 +1362,58 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       ),
                       const SizedBox(height: 16),
                       _buildMultiSelectDropdown(
-                                    'Device Type',
-                                    _deviceTypes,
-                                    _selectedDeviceTypeId == null ? <String>[] : <String>[_selectedDeviceTypeId!],
-                                    (values) => setState(() => _selectedDeviceTypeId = values.isNotEmpty ? values.first : null),
-                                    (item) => (item['_id'] ?? item['id'])?.toString(),
-                                    (item) => (item['name'] ?? item['deviceTypeName'] ?? 'Device').toString(),
-                                  ),
-                                  const SizedBox(height: 8),
+                        'Device Type',
+                        _deviceTypes,
+                        _selectedDeviceTypeId == null
+                            ? <String>[]
+                            : <String>[_selectedDeviceTypeId!],
+                        (values) => setState(
+                          () => _selectedDeviceTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ?? item['deviceTypeName'] ?? 'Device')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
                       _buildMultiSelectDropdown(
-                                    'Detect Type',
-                                    _detectTypes,
-                                    _selectedDetectTypeId == null ? <String>[] : <String>[_selectedDetectTypeId!],
-                                    (values) => setState(() => _selectedDetectTypeId = values.isNotEmpty ? values.first : null),
-                                    (item) => (item['_id'] ?? item['id'])?.toString(),
-                                    (item) => (item['name'] ?? item['detectTypeName'] ?? 'Detect').toString(),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _buildMultiSelectDropdown(
-                              'Operating System',
-                              _operatingSystems,
-                              _selectedOperatingSystemId == null ? <String>[] : <String>[_selectedOperatingSystemId!],
-                              (values) => setState(() => _selectedOperatingSystemId = values.isNotEmpty ? values.first : null),
-                              (item) => (item['_id'] ?? item['id'])?.toString(),
-                              (item) => (item['name'] ?? item['operatingSystemName'] ?? 'OS').toString(),
-                            ),
-                            const SizedBox(height: 8),  
+                        'Detect Type',
+                        _detectTypes,
+                        _selectedDetectTypeId == null
+                            ? <String>[]
+                            : <String>[_selectedDetectTypeId!],
+                        (values) => setState(
+                          () => _selectedDetectTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ?? item['detectTypeName'] ?? 'Detect')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMultiSelectDropdown(
+                        'Operating System',
+                        _operatingSystems,
+                        _selectedOperatingSystemId == null
+                            ? <String>[]
+                            : <String>[_selectedOperatingSystemId!],
+                        (values) => setState(
+                          () => _selectedOperatingSystemId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
+                        (item) => (item['_id'] ?? item['id'])?.toString(),
+                        (item) =>
+                            (item['name'] ??
+                                    item['operatingSystemName'] ??
+                                    'OS')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 8),
                       // Date range pickers
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -1383,7 +1427,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.date_range, color: Colors.black54, size: 20),
+                                const Icon(
+                                  Icons.date_range,
+                                  color: Colors.black54,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 const Text(
                                   'Date range',
@@ -1409,14 +1457,20 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                     onPressed: () async {
                                       final picked = await showDatePicker(
                                         context: context,
-                                        initialDate: _startDate ?? DateTime.now(),
+                                        initialDate:
+                                            _startDate ?? DateTime.now(),
                                         firstDate: DateTime(2000),
                                         lastDate: DateTime(2100),
                                       );
                                       if (picked != null) {
                                         setState(() {
-                                          _startDate = DateTime(picked.year, picked.month, picked.day);
-                                          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+                                          _startDate = DateTime(
+                                            picked.year,
+                                            picked.month,
+                                            picked.day,
+                                          );
+                                          if (_endDate != null &&
+                                              _endDate!.isBefore(_startDate!)) {
                                             _endDate = null;
                                           }
                                         });
@@ -1435,13 +1489,22 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                     onPressed: () async {
                                       final picked = await showDatePicker(
                                         context: context,
-                                        initialDate: _endDate ?? (_startDate ?? DateTime.now()),
+                                        initialDate:
+                                            _endDate ??
+                                            (_startDate ?? DateTime.now()),
                                         firstDate: DateTime(2000),
                                         lastDate: DateTime(2100),
                                       );
                                       if (picked != null) {
                                         setState(() {
-                                          _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+                                          _endDate = DateTime(
+                                            picked.year,
+                                            picked.month,
+                                            picked.day,
+                                            23,
+                                            59,
+                                            59,
+                                          );
                                         });
                                       }
                                     },
@@ -1466,12 +1529,18 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           // Debug: Log parameters for View All Reports
                           print('🔍 === VIEW ALL REPORTS PARAMETERS ===');
                           print('🔍 Advanced filters:');
-                          print('🔍   - Device Type ID: ${_selectedDeviceTypeId}');
-                          print('🔍   - Detect Type ID: ${_selectedDetectTypeId}');
-                          print('🔍   - Operating System ID: ${_selectedOperatingSystemId}');
+                          print(
+                            '🔍   - Device Type ID: $_selectedDeviceTypeId',
+                          );
+                          print(
+                            '🔍   - Detect Type ID: $_selectedDetectTypeId',
+                          );
+                          print(
+                            '🔍   - Operating System ID: $_selectedOperatingSystemId',
+                          );
                           print('🔍 Date filters:');
-                          print('🔍   - Start Date: ${_startDate}');
-                          print('🔍   - End Date: ${_endDate}');
+                          print('🔍   - Start Date: $_startDate');
+                          print('🔍   - End Date: $_endDate');
                           print('🔍 === END VIEW ALL REPORTS PARAMETERS ===');
 
                           Navigator.push(
@@ -1530,14 +1599,14 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                     // Check if we have any filters applied
                     final hasAnyFilters =
                         searchQuery.isNotEmpty ||
-                            selectedCategoryIds.isNotEmpty ||
-                            selectedTypeIds.isNotEmpty ||
-                            selectedAlertLevels.isNotEmpty;
+                        selectedCategoryIds.isNotEmpty ||
+                        selectedTypeIds.isNotEmpty ||
+                        selectedAlertLevels.isNotEmpty;
 
                     print('🔍 Next button pressed - Filters: $hasAnyFilters');
                     if (hasAnyFilters) {
                       print(
-                        '🔍 Search: "${searchQuery}", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}',
+                        '🔍 Search: "$searchQuery", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}',
                       );
                     } else {
                       print('🔍 No filters applied - will show all reports');
@@ -1546,33 +1615,44 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                     // Debug: Log all filter parameters being passed
                     print('🔍 === FILTER PARAMETERS BEING PASSED ===');
                     print('🔍 Basic filters:');
-                    print('🔍   - Search: "${searchQuery}"');
-                    print('🔍   - Categories: ${selectedCategoryIds}');
-                    print('🔍   - Types: ${selectedTypeIds}');
-                    print('🔍   - Alert Levels: ${selectedAlertLevels}');
+                    print('🔍   - Search: "$searchQuery"');
+                    print('🔍   - Categories: $selectedCategoryIds');
+                    print('🔍   - Types: $selectedTypeIds');
+                    print('🔍   - Alert Levels: $selectedAlertLevels');
                     print('🔍 Alert Level Details:');
                     for (String alertLevelId in selectedAlertLevels) {
                       final alertLevel = alertLevels.firstWhere(
-                        (level) => (level['_id'] ?? level['id']) == alertLevelId,
+                        (level) =>
+                            (level['_id'] ?? level['id']) == alertLevelId,
                         orElse: () => {'name': 'Unknown', 'id': alertLevelId},
                       );
-                      print('🔍     - ID: $alertLevelId, Name: ${alertLevel['name']}');
+                      print(
+                        '🔍     - ID: $alertLevelId, Name: ${alertLevel['name']}',
+                      );
                     }
                     print('🔍 Advanced filters:');
-                    print('🔍   - Device Type ID: ${_selectedDeviceTypeId}');
-                    print('🔍   - Detect Type ID: ${_selectedDetectTypeId}');
-                    print('🔍   - Operating System ID: ${_selectedOperatingSystemId}');
+                    print('🔍   - Device Type ID: $_selectedDeviceTypeId');
+                    print('🔍   - Detect Type ID: $_selectedDetectTypeId');
+                    print(
+                      '🔍   - Operating System ID: $_selectedOperatingSystemId',
+                    );
                     print('🔍 Date filters:');
-                    print('🔍   - Start Date: ${_startDate}');
-                    print('🔍   - End Date: ${_endDate}');
+                    print('🔍   - Start Date: $_startDate');
+                    print('🔍   - End Date: $_endDate');
                     print('🔍 === END FILTER PARAMETERS ===');
 
                     // Debug: Log final computed values
                     print('🔍 === FINAL COMPUTED VALUES ===');
                     print('🔍   - hasSearchQuery: ${searchQuery.isNotEmpty}');
-                    print('🔍   - hasSelectedType: ${selectedTypeIds.isNotEmpty}');
-                    print('🔍   - hasSelectedSeverity: ${selectedAlertLevels.isNotEmpty}');
-                    print('🔍   - hasSelectedCategory: ${selectedCategoryIds.isNotEmpty}');
+                    print(
+                      '🔍   - hasSelectedType: ${selectedTypeIds.isNotEmpty}',
+                    );
+                    print(
+                      '🔍   - hasSelectedSeverity: ${selectedAlertLevels.isNotEmpty}',
+                    );
+                    print(
+                      '🔍   - hasSelectedCategory: ${selectedCategoryIds.isNotEmpty}',
+                    );
                     print('🔍 === END COMPUTED VALUES ===');
 
                     Navigator.push(
@@ -1610,13 +1690,13 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   }
 
   Widget _buildMultiSelectDropdown(
-      String label,
-      List<Map<String, dynamic>> items,
-      List<String> selectedValues,
-      Function(List<String>) onChanged,
-      String? Function(Map<String, dynamic>) getId,
-      String? Function(Map<String, dynamic>) getName,
-      ) {
+    String label,
+    List<Map<String, dynamic>> items,
+    List<String> selectedValues,
+    Function(List<String>) onChanged,
+    String? Function(Map<String, dynamic>) getId,
+    String? Function(Map<String, dynamic>) getName,
+  ) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),

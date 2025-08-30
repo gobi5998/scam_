@@ -1,7 +1,6 @@
 import 'package:hive/hive.dart';
 
 import '../../models/fraud_report_model.dart';
-import '../../models/scam_report_model.dart';
 
 class FraudLocalService {
   static const String boxName = 'fraud_reports';

@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ServerReportsPage extends StatelessWidget {
-  const ServerReportsPage({Key? key}) : super(key: key);
+  const ServerReportsPage({super.key});
 
   Future<List<Map<String, dynamic>>> fetchServerReports() async {
     final response = await http.get(

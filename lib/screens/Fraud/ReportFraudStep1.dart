@@ -1,24 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:intl_phone_number_input/intl_phone_number_input.dart';
+import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
+// import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
 import 'package:security_alert/custom/customButton.dart';
 import 'package:security_alert/custom/customTextfield.dart';
-import '../../utils/responsive_helper.dart';
-import '../../widgets/responsive_widget.dart';
+import 'package:currency_picker/currency_picker.dart';
+// import '../../utils/responsive_helper.dart';
+// import '../../widgets/responsive_widget.dart';
+import '../../custom/location_picker_screen.dart';
+import '../../services/location_storage_service.dart';
 
 import '../../models/fraud_report_model.dart';
 import '../../services/api_service.dart';
+import '../../services/jwt_service.dart';
 import 'ReportFraudStep2.dart';
+// import 'view_pending_reports.dart';
 import 'fraud_report_service.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:currency_picker/currency_picker.dart';
-import '../../custom/location_picker_screen.dart';
-import '../../services/location_storage_service.dart';
+// import 'dart:convert';
+// import 'package:http/http.dart' as http;
+
+// Simple phone number class to replace intl_phone_number_input PhoneNumber
+class SimplePhoneNumber {
+  final String isoCode;
+  final String? dialCode;
+  final String? phoneNumber;
+  
+  SimplePhoneNumber({
+    required this.isoCode,
+    this.dialCode,
+    this.phoneNumber,
+  });
+}
+
+// Dynamic phone input formatter based on country
+class DynamicPhoneInputFormatter extends TextInputFormatter {
+  final String? countryCode;
+
+  DynamicPhoneInputFormatter({this.countryCode});
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Remove any non-digit characters
+    final digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+
+    // Get max length for current country
+    final maxLength = getMaxPhoneLength(countryCode);
+
+    // Limit to country-specific max length
+    if (digitsOnly.length > maxLength) {
+      return oldValue;
+    }
+
+    return TextEditingValue(
+      text: digitsOnly,
+      selection: TextSelection.collapsed(offset: digitsOnly.length),
+    );
+  }
+}
 
 // Get allowed phone number lengths for current country
 List<int> getAllowedPhoneLengths(String? countryCode) {
@@ -360,7 +404,7 @@ String? validatePhone(String? value, {String? countryCode}) {
   if (countryCode != null && countryPhoneLengths.containsKey(countryCode)) {
     final allowedLengths = countryPhoneLengths[countryCode]!;
     if (!allowedLengths.contains(digitsOnly.length)) {
-      return 'Phone number must be ${allowedLengths.join(' or ')} digits for ${countryCode}';
+      return 'Phone number must be ${allowedLengths.join(' or ')} digits for $countryCode';
     }
   } else {
     // Fallback validation for unknown countries (7-15 digits)
@@ -432,7 +476,7 @@ String? validateName(String? value) {
 
 class ReportFraudStep1 extends StatefulWidget {
   final String categoryId;
-  const ReportFraudStep1({required this.categoryId});
+  const ReportFraudStep1({super.key, required this.categoryId});
 
   @override
   State<ReportFraudStep1> createState() => _ReportFraudStep1State();
@@ -454,7 +498,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   String selectedCurrencySymbol = '₹'; // Default currency symbol
   List<String> phoneNumbers = [];
   List<String> phoneNumbersWithCountryCode = [];
-  PhoneNumber currentPhoneNumber = PhoneNumber(isoCode: 'IN', phoneNumber: '');
+  SimplePhoneNumber currentPhoneNumber = SimplePhoneNumber(isoCode: 'IN', phoneNumber: '');
   List<String> emailAddresses = [];
   List<String> socialMediaHandles = [];
   List<Map<String, dynamic>> fraudTypes = [];
@@ -592,7 +636,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
     final validationError = validatePhone(phone, countryCode: countryCode);
 
     if (phone.isNotEmpty && validationError == null) {
-      final fullPhoneNumber = '${currentPhoneNumber.dialCode}${phone}';
+      final fullPhoneNumber = '${currentPhoneNumber.dialCode}$phone';
       if (!phoneNumbersWithCountryCode.contains(fullPhoneNumber)) {
         setState(() {
           phoneNumbersWithCountryCode.add(fullPhoneNumber);
@@ -600,7 +644,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
             phone,
           ); // Keep the original list for backward compatibility
           // Reset the phone number input
-          currentPhoneNumber = PhoneNumber(
+          currentPhoneNumber = SimplePhoneNumber(
             isoCode: currentPhoneNumber.isoCode,
             phoneNumber: '',
           );
@@ -717,7 +761,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
       final latestTypes = await FraudReportService.fetchReportTypesByCategory(
         widget.categoryId,
       );
-      if (latestTypes != null && latestTypes.isNotEmpty) {
+      if (latestTypes.isNotEmpty) {
         fraudTypes = latestTypes;
         await box.put(widget.categoryId, latestTypes);
         setState(() {});
@@ -841,7 +885,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
           // Refresh the thread database list when returning
           setState(() {});
         });
-      } catch (e, stack) {}
+      } catch (e) {}
     } else {}
   }
 
@@ -932,103 +976,24 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                               child: Row(
                                 children: [
                                   Expanded(
-                                    child: InternationalPhoneNumberInput(
-                                      onInputChanged: (PhoneNumber number) {
-                                        // Get allowed lengths for current country
-                                        final allowedLengths =
-                                            getAllowedPhoneLengths(
-                                              number.isoCode,
-                                            );
-
-                                        // Extract only the phone number digits (without country code)
-                                        String phoneDigits =
-                                            number.phoneNumber ?? '';
-
-                                        // Remove the country code from the phone number if it's included
-                                        if (number.dialCode != null &&
-                                            phoneDigits.startsWith(
-                                              number.dialCode!,
-                                            )) {
-                                          phoneDigits = phoneDigits.substring(
-                                            number.dialCode!.length,
-                                          );
-                                        }
-
-                                        // Remove any non-digit characters
-                                        final digitsOnly = phoneDigits
-                                            .replaceAll(RegExp(r'[^\d]'), '');
-
-                                        // Check if the current length is valid for this country
-                                        if (allowedLengths.contains(
-                                          digitsOnly.length,
-                                        )) {
-                                          // Valid length - accept the input
-                                          currentPhoneNumber = PhoneNumber(
-                                            isoCode: number.isoCode,
-                                            dialCode: number.dialCode,
-                                            phoneNumber: digitsOnly,
-                                          );
-                                          _validatePhoneField();
-                                        } else if (digitsOnly.length <
-                                            allowedLengths.first) {
-                                          // Still typing - allow input if it's shorter than minimum
-                                          currentPhoneNumber = PhoneNumber(
-                                            isoCode: number.isoCode,
-                                            dialCode: number.dialCode,
-                                            phoneNumber: digitsOnly,
-                                          );
-                                          _validatePhoneField();
-                                        } else {
-                                          // Invalid length - truncate to the maximum allowed length
-                                          final maxAllowedLength =
-                                              allowedLengths.reduce(
-                                                (a, b) => a > b ? a : b,
-                                              );
-                                          final truncatedDigits =
-                                              digitsOnly.length >
-                                                  maxAllowedLength
-                                              ? digitsOnly.substring(
-                                                  0,
-                                                  maxAllowedLength,
-                                                )
-                                              : digitsOnly;
-
-                                          currentPhoneNumber = PhoneNumber(
-                                            isoCode: number.isoCode,
-                                            dialCode: number.dialCode,
-                                            phoneNumber: truncatedDigits,
-                                          );
-                                          _validatePhoneField();
-                                        }
+                                    child: TextField(
+                                      controller: _phoneController,
+                                      keyboardType: TextInputType.phone,
+                                      inputFormatters: [
+                                        DynamicPhoneInputFormatter(
+                                          countryCode: currentPhoneNumber.isoCode,
+                                        ),
+                                      ],
+                                      onChanged: (val) {
+                                        // Update the currentPhoneNumber object
+                                        currentPhoneNumber = SimplePhoneNumber(
+                                          isoCode: currentPhoneNumber.isoCode,
+                                          dialCode: currentPhoneNumber.dialCode,
+                                          phoneNumber: val,
+                                        );
+                                        _validatePhoneField();
                                       },
-                                      onInputValidated: (bool value) {
-                                        setState(() {
-                                          _isPhoneValid = value;
-                                        });
-                                      },
-                                      selectorConfig: const SelectorConfig(
-                                        selectorType:
-                                            PhoneInputSelectorType.DROPDOWN,
-                                        showFlags: true,
-                                        useEmoji: true,
-                                        setSelectorButtonAsPrefixIcon: false,
-                                        leadingPadding: 4,
-                                      ),
-                                      ignoreBlank: false,
-                                      autoValidateMode:
-                                          AutovalidateMode.disabled,
-                                      selectorTextStyle: const TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 12,
-                                      ),
-                                      initialValue: currentPhoneNumber,
-                                      formatInput: true,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            signed: true,
-                                            decimal: true,
-                                          ),
-                                      inputDecoration: InputDecoration(
+                                      decoration: InputDecoration(
                                         hintText: 'Enter phone number',
                                         border: InputBorder.none,
                                         contentPadding:
@@ -1132,7 +1097,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
 
                         const SizedBox(height: 12),
@@ -1215,7 +1180,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
 
                         const SizedBox(height: 12),
@@ -1288,7 +1253,7 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
 
                         const SizedBox(height: 12),

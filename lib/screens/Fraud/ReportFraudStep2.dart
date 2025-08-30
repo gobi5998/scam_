@@ -23,7 +23,7 @@ import '../../custom/fileUpload.dart';
 
 class ReportFraudStep2 extends StatefulWidget {
   final FraudReportModel report;
-  const ReportFraudStep2({required this.report});
+  const ReportFraudStep2({super.key, required this.report});
 
   @override
   State<ReportFraudStep2> createState() => _ReportFraudStep2State();
@@ -393,13 +393,13 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       );
 
       // Validate arrays are not empty
-      if (widget.report.phoneNumbers?.isEmpty ?? true) {
+      if (widget.report.phoneNumbers.isEmpty ?? true) {
         print('⚠️ Warning: Phone numbers array is empty');
       }
-      if (widget.report.emails?.isEmpty ?? true) {
+      if (widget.report.emails.isEmpty ?? true) {
         print('⚠️ Warning: Email addresses array is empty');
       }
-      if (widget.report.socialMediaHandles?.isEmpty ?? true) {
+      if (widget.report.socialMediaHandles.isEmpty ?? true) {
         print('⚠️ Warning: Social media handles array is empty');
       }
       print('🚀 Screenshots: ${formData['screenshots']}');

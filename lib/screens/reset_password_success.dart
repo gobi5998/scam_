@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 class ResetPasswordSuccessScreen extends StatelessWidget {
   final String email;
 
-  const ResetPasswordSuccessScreen({Key? key, required this.email})
-    : super(key: key);
+  const ResetPasswordSuccessScreen({super.key, required this.email});
 
   @override
   Widget build(BuildContext context) {

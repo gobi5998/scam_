@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 
 class InternationalPhoneInput extends StatefulWidget {
   final String label;
@@ -36,7 +35,7 @@ class InternationalPhoneInput extends StatefulWidget {
 
 class _InternationalPhoneInputState extends State<InternationalPhoneInput> {
   String initialCountry = 'IN'; // Default to India
-  PhoneNumber number = PhoneNumber(isoCode: 'IN');
+  String countryCode = '+91'; // Default to India
   int _resetKey = 0; // Key to force widget rebuild
   late TextEditingController _internalController;
   bool _shouldClear = false;
@@ -44,7 +43,6 @@ class _InternationalPhoneInputState extends State<InternationalPhoneInput> {
   void _clearPhoneNumber() {
     setState(() {
       _shouldClear = true;
-      number = PhoneNumber(isoCode: initialCountry);
       widget.controller.clear();
       _internalController.clear();
       _resetKey++; // Increment key to force rebuild
@@ -73,10 +71,6 @@ class _InternationalPhoneInputState extends State<InternationalPhoneInput> {
     
     // Initialize with current controller value if any
     if (widget.controller.text.isNotEmpty) {
-      number = PhoneNumber(
-        phoneNumber: widget.controller.text,
-        isoCode: initialCountry,
-      );
       _internalController.text = widget.controller.text;
     }
   }
@@ -243,7 +237,7 @@ class _InternationalPhoneInputState extends State<InternationalPhoneInput> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ],
     );

@@ -31,6 +31,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   @HiveField(7)
   DateTime? updatedAt;
 
+  @override
   @HiveField(8)
   bool isSynced;
 
@@ -116,6 +117,7 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   @override
   String get endpoint => '/api/v1/reports';
 
+  @override
   bool get isInBox =>
       Hive.box<FraudReportModel>('fraud_reports').containsKey(id);
 
