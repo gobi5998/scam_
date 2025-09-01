@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../custom/customButton.dart';
 import '../../services/api_service.dart';
+import '../../provider/auth_provider.dart';
 import 'Due_diligence_view.dart';
+import 'Due_diligence_list_view.dart';
 
 class DueDiligenceWrapper extends StatefulWidget {
   final String? reportId;
@@ -29,6 +32,11 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   void initState() {
     super.initState();
     _loadCategories();
+  }
+
+  // Add refresh functionality
+  Future<void> _refreshData() async {
+    await _loadCategories();
   }
 
   Future<void> _loadCategories() async {
@@ -251,9 +259,27 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         });
       }
 
+      // Get the current user's group_id from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      String groupId = 'default-group-id'; // Fallback
+      if (currentUser?.additionalData != null) {
+        groupId =
+            currentUser!.additionalData!['group_id'] ??
+            currentUser.additionalData!['groupId'] ??
+            currentUser.additionalData!['group'] ??
+            'default-group-id';
+      }
+
+      print('🔑 Using group_id: $groupId from user profile');
+      print(
+        '🔑 User additionalData: ${currentUser?.additionalData?.toString()}',
+      );
+
       // Create the final payload
       final payload = {
-        'group_id': widget.reportId ?? 'default-group-id',
+        'group_id': groupId,
         'categories': categoriesPayload,
         'comments': '',
         'status': 'submitted',
@@ -498,10 +524,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
         // Force navigation immediately
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) =>
-                DueDiligenceView(reportId: widget.reportId ?? 'default-report'),
-          ),
+          MaterialPageRoute(builder: (context) => DueDiligenceListView()),
         );
 
         print('✅ Navigation completed');
@@ -509,10 +532,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         print('❌ Widget not mounted, cannot navigate');
         // Even if not mounted, try to navigate
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) =>
-                DueDiligenceView(reportId: widget.reportId ?? 'default-report'),
-          ),
+          MaterialPageRoute(builder: (context) => DueDiligenceListView()),
         );
       }
     } catch (e) {
@@ -584,10 +604,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
               );
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      DueDiligenceView(reportId: widget.reportId),
-                ),
+                MaterialPageRoute(builder: (context) => DueDiligenceListView()),
               );
             },
             tooltip: 'View Due Diligence',
@@ -621,104 +638,111 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        child: Column(
+          children: [
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : errorMessage != null
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _loadCategories,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      physics: AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: categories.map((category) {
+                          return _buildCategorySection(category);
+                        }).toList(),
+                      ),
+                    ),
+            ),
+            // Submit/Cancel Buttons
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  if (isLoading) ...[
+                    Row(
                       children: [
-                        Text(
-                          errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              const Color(0xFF064FAD),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadCategories,
-                          child: const Text('Retry'),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Uploading files and submitting...',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
-                  )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: categories.map((category) {
-                        return _buildCategorySection(category);
-                      }).toList(),
-                    ),
-                  ),
-          ),
-          // Submit/Cancel Buttons
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 3,
-                  offset: const Offset(0, -1),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                if (isLoading) ...[
+                    const SizedBox(height: 16),
+                  ],
                   Row(
                     children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            const Color(0xFF064FAD),
-                          ),
+                      Expanded(
+                        child: CustomButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async => _cancelDueDiligence(),
+                          text: 'Cancel',
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Uploading files and submitting...',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: CustomButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async => _submitDueDiligence(),
+                          text: isLoading ? 'Submitting...' : 'Submit',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
                 ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomButton(
-                        onPressed: isLoading
-                            ? null
-                            : () async => _cancelDueDiligence(),
-                        text: 'Cancel',
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomButton(
-                        onPressed: isLoading
-                            ? null
-                            : () async => _submitDueDiligence(),
-                        text: isLoading ? 'Submitting...' : 'Submit',
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

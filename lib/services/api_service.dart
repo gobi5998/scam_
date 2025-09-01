@@ -458,6 +458,80 @@ class ApiService {
     }
   }
 
+  // Get due diligence reports method
+  Future<Map<String, dynamic>> getDueDiligenceReports({
+    int page = 1,
+    int pageSize = 20,
+    String? status,
+    String? search,
+  }) async {
+    try {
+      print('📥 Fetching due diligence reports - Page: $page, Size: $pageSize');
+      print('🌐 Endpoint: /api/v1/reports/categories/with-subcategories');
+
+      // Build query parameters
+      final queryParams = <String, dynamic>{'page': page, 'limit': pageSize};
+
+      if (status != null && status.isNotEmpty) {
+        queryParams['status'] = status;
+      }
+
+      if (search != null && search.isNotEmpty) {
+        queryParams['search'] = search;
+      }
+
+      print('🔍 Query parameters: $queryParams');
+
+      // Use the correct endpoint for fetching categories and subcategories
+      final response = await _dioService.reportsGet(
+        '/api/v1/reports/categories/with-subcategories',
+        queryParameters: queryParams,
+      );
+
+      print(
+        '✅ Get due diligence reports response status: ${response.statusCode}',
+      );
+      print('✅ Get due diligence reports response data: ${response.data}');
+
+      if (response.statusCode == 200) {
+        print('✅ API response received successfully');
+        print('📦 Response data type: ${response.data.runtimeType}');
+        print('📦 Response data: ${response.data}');
+
+        // Handle different response types
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          print('🔍 Response keys: ${data.keys.toList()}');
+          return data;
+        } else if (response.data is List) {
+          final data = response.data as List;
+          print('🔍 List length: ${data.length}');
+          if (data.isNotEmpty) {
+            print('🔍 First item type: ${data.first.runtimeType}');
+            print('🔍 First item: ${data.first}');
+          }
+          return {
+            'status': 'success',
+            'data': response.data,
+            'message': 'Due diligence reports fetched successfully',
+          };
+        } else {
+          print('🔍 Unknown response type: ${response.data.runtimeType}');
+          return {'data': response.data, 'status': 'success'};
+        }
+      } else {
+        throw Exception(
+          'Failed to fetch due diligence reports: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('❌ Error fetching due diligence reports: ${e.message}');
+      print('❌ Response data: ${e.response?.data}');
+      print('❌ Status code: ${e.response?.statusCode}');
+      throw Exception('Failed to fetch due diligence reports: ${e.message}');
+    }
+  }
+
   // Resend verification email method
   Future<Map<String, dynamic>> resendVerificationEmail(String email) async {
     try {

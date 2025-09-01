@@ -219,7 +219,7 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
                   ),
                   DrawerMenuItem(
                     ImagePath: ImagePath.dueDiligence,
-                    label: 'Due',
+                    label: 'Due Diligence',
                     routeName: '/due-diligence',
                     textColor: Colors.grey[800],
                     iconColor: const Color(0xFF064FAD),
