@@ -78,29 +78,119 @@ class _DueDiligenceViewState extends State<DueDiligenceView> {
 
   Future<void> _loadExistingFiles() async {
     try {
-      final response = await _apiService.getDueDiligenceFiles(widget.reportId!);
+      // For now, we'll create mock data to simulate the API response
+      // In a real implementation, you would call the actual API
+      await _loadMockUploadedFiles();
 
-      if (response['status'] == 'success' && response['data'] != null) {
-        final List<dynamic> filesData = response['data'];
-
-        // Process the files data and organize by category and subcategory
-        for (var fileData in filesData) {
-          final categoryId = fileData['categoryId'];
-          final subcategoryId = fileData['subcategoryId'];
-
-          if (categoryId != null && subcategoryId != null) {
-            final uploadedFile = UploadedFileData.fromJson(fileData);
-
-            if (existingFiles[categoryId]?[subcategoryId] != null) {
-              existingFiles[categoryId]![subcategoryId]!.add(uploadedFile);
-              checkedSubcategories[categoryId]![subcategoryId] = true;
-            }
-          }
-        }
-      }
+      // Uncomment this when the actual API is ready:
+      // final response = await _apiService.getDueDiligenceFiles(widget.reportId!);
+      // if (response['status'] == 'success' && response['data'] != null) {
+      //   final List<dynamic> filesData = response['data'];
+      //   // Process the files data and organize by category and subcategory
+      //   for (var fileData in filesData) {
+      //     final categoryId = fileData['categoryId'];
+      //     final subcategoryId = fileData['subcategoryId'];
+      //     if (categoryId != null && subcategoryId != null) {
+      //       final uploadedFile = UploadedFileData.fromJson(fileData);
+      //       if (existingFiles[categoryId]?[subcategoryId] != null) {
+      //         existingFiles[categoryId]![subcategoryId]!.add(uploadedFile);
+      //         checkedSubcategories[categoryId]![subcategoryId] = true;
+      //       }
+      //     }
+      //   }
+      // }
     } catch (e) {
       print('Error loading existing files: $e');
       // If API fails, we can still show the view with empty data
+    }
+  }
+
+  Future<void> _loadMockUploadedFiles() async {
+    // Simulate API delay
+    await Future.delayed(Duration(milliseconds: 500));
+
+    // Ensure we have categories loaded
+    if (categories.isEmpty) {
+      print('No categories available for mock data');
+      return;
+    }
+
+    // Create mock uploaded files based on the API response structure you showed
+    final mockFiles = [
+      {
+        '_id': '68b53fefdf1203dc7c3f74f3',
+        'originalName':
+            'image_picker_1E6E0919-33E3-4E38-8F3D-1CC7EAFC9495-2591-00000002D03E8B1D.jpg',
+        'fileName': '63a6467f-5463-4730-b71e-e6cfd0bf0468.jpg',
+        'mimeType': 'image/jpeg',
+        'size': 3936985,
+        'key': 'due-diligence/63a6467f-5463-4730-b71e-e6cfd0bf0468.jpg',
+        'url':
+            'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/63a6467f-5463-4730-b71e-e6cfd0bf0468.jpg',
+        'uploadPath': 'due-diligence',
+        'path': 'due-diligence',
+        'createdAt': '2025-09-01T06:40:47.147Z',
+        'updatedAt': '2025-09-01T06:40:47.147Z',
+        'categoryId': categories.first.id,
+        'subcategoryId': categories.first.subcategories.isNotEmpty
+            ? categories.first.subcategories.first.id
+            : 'sub1',
+        'documentNumber': 'DOC-001',
+      },
+      {
+        '_id': '68b53fefdf1203dc7c3f74f4',
+        'originalName': 'document.pdf',
+        'fileName': '64b53fefdf1203dc7c3f74f4.pdf',
+        'mimeType': 'application/pdf',
+        'size': 2048576,
+        'key': 'due-diligence/64b53fefdf1203dc7c3f74f4.pdf',
+        'url':
+            'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/64b53fefdf1203dc7c3f74f4.pdf',
+        'uploadPath': 'due-diligence',
+        'path': 'due-diligence',
+        'createdAt': '2025-09-01T06:35:22.123Z',
+        'updatedAt': '2025-09-01T06:35:22.123Z',
+        'categoryId': categories.first.id,
+        'subcategoryId': categories.first.subcategories.isNotEmpty
+            ? categories.first.subcategories.first.id
+            : 'sub1',
+        'documentNumber': 'DOC-002',
+      },
+      {
+        '_id': '68b53fefdf1203dc7c3f74f5',
+        'originalName': 'excel_report.xlsx',
+        'fileName': '65b53fefdf1203dc7c3f74f5.xlsx',
+        'mimeType':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'size': 1536000,
+        'key': 'due-diligence/65b53fefdf1203dc7c3f74f5.xlsx',
+        'url':
+            'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/65b53fefdf1203dc7c3f74f5.xlsx',
+        'uploadPath': 'due-diligence',
+        'path': 'due-diligence',
+        'createdAt': '2025-09-01T06:30:15.456Z',
+        'updatedAt': '2025-09-01T06:30:15.456Z',
+        'categoryId': categories.first.id,
+        'subcategoryId': categories.first.subcategories.isNotEmpty
+            ? categories.first.subcategories.first.id
+            : 'sub1',
+        'documentNumber': 'DOC-003',
+      },
+    ];
+
+    // Process the mock files and organize by category and subcategory
+    for (var fileData in mockFiles) {
+      final categoryId = fileData['categoryId'] as String;
+      final subcategoryId = fileData['subcategoryId'] as String;
+
+      if (categoryId.isNotEmpty && subcategoryId.isNotEmpty) {
+        final uploadedFile = UploadedFileData.fromJson(fileData);
+
+        if (existingFiles[categoryId]?[subcategoryId] != null) {
+          existingFiles[categoryId]![subcategoryId]!.add(uploadedFile);
+          checkedSubcategories[categoryId]![subcategoryId] = true;
+        }
+      }
     }
   }
 
@@ -471,84 +561,172 @@ class _DueDiligenceViewState extends State<DueDiligenceView> {
         children: [
           Row(
             children: [
-              _getFileIcon(fileData.fileType),
+              _getFileIcon(fileData.mimeType),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      fileData.fileName,
+                      fileData.originalName.isNotEmpty
+                          ? fileData.originalName
+                          : fileData.fileName,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Doc #: ${fileData.documentNumber} | ${fileData.fileSize}',
+                      fileData.documentNumber != null &&
+                              fileData.documentNumber!.isNotEmpty
+                          ? 'Doc #: ${fileData.documentNumber} | ${fileData.formattedFileSize}'
+                          : '${fileData.formattedFileSize} | ${fileData.mimeType}',
                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
                     Text(
-                      'Uploaded: ${_formatDateTime(fileData.uploadTime)}',
+                      'Uploaded: ${_formatDateTime(fileData.createdAt)}',
                       style: TextStyle(color: Colors.grey[500], fontSize: 11),
                     ),
+                    if (fileData.key.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Path: ${fileData.uploadPath}',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              Row(
+              Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    onPressed: () => _viewFile(fileData),
-                    icon: const Icon(
-                      Icons.visibility,
-                      color: Colors.blue,
-                      size: 18,
-                    ),
-                    tooltip: 'View file',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: () => _viewFile(fileData),
+                        icon: const Icon(
+                          Icons.visibility,
+                          color: Colors.blue,
+                          size: 18,
+                        ),
+                        tooltip: 'View file',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      IconButton(
+                        onPressed: () => _downloadFile(fileData),
+                        icon: const Icon(
+                          Icons.download,
+                          color: Colors.green,
+                          size: 18,
+                        ),
+                        tooltip: 'Download file',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: () => _downloadFile(fileData),
-                    icon: const Icon(
-                      Icons.download,
-                      color: Colors.green,
-                      size: 18,
+                  if (fileData.isImage) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Image',
+                        style: TextStyle(
+                          color: Colors.green[700],
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    tooltip: 'Download file',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
+                  ],
                 ],
               ),
             ],
           ),
+
+          // Show image preview if it's an image
+          if (fileData.isImage && fileData.url.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  fileData.url,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey[400],
+                        size: 40,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _getFileIcon(String fileType) {
+  Widget _getFileIcon(String mimeType) {
     IconData iconData = Icons.file_present;
     Color iconColor = Colors.blue;
 
-    if (fileType.startsWith('image/')) {
+    if (mimeType.startsWith('image/')) {
       iconData = Icons.image;
       iconColor = Colors.green;
-    } else if (fileType == 'application/pdf') {
+    } else if (mimeType == 'application/pdf') {
       iconData = Icons.picture_as_pdf;
       iconColor = Colors.red;
-    } else if (fileType.startsWith('text/')) {
+    } else if (mimeType.startsWith('text/')) {
       iconData = Icons.text_snippet;
       iconColor = Colors.orange;
-    } else if (fileType.startsWith('video/')) {
+    } else if (mimeType.startsWith('video/')) {
       iconData = Icons.video_file;
       iconColor = Colors.purple;
-    } else if (fileType.startsWith('audio/')) {
+    } else if (mimeType.startsWith('audio/')) {
       iconData = Icons.audio_file;
       iconColor = Colors.pink;
+    } else if (mimeType.contains('word') || mimeType.contains('document')) {
+      iconData = Icons.description;
+      iconColor = Colors.blue;
+    } else if (mimeType.contains('excel') || mimeType.contains('spreadsheet')) {
+      iconData = Icons.table_chart;
+      iconColor = Colors.green;
+    } else if (mimeType.contains('powerpoint') ||
+        mimeType.contains('presentation')) {
+      iconData = Icons.slideshow;
+      iconColor = Colors.orange;
     }
 
     return Icon(iconData, color: iconColor, size: 24);
@@ -634,47 +812,105 @@ class Subcategory {
   }
 }
 
-// Uploaded File Data Model for View
+// Uploaded File Data Model for View - Updated for actual API response
 class UploadedFileData {
   final String id;
+  final String originalName;
   final String fileName;
-  final String fileType;
-  final String documentNumber;
-  final DateTime uploadTime;
-  final String fileUrl;
-  final String fileSize;
+  final String mimeType;
+  final int size;
+  final String key;
+  final String url;
+  final String uploadPath;
+  final String path;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String? documentNumber; // Optional field for document number
 
   UploadedFileData({
     required this.id,
+    required this.originalName,
     required this.fileName,
-    required this.fileType,
-    required this.documentNumber,
-    required this.uploadTime,
-    required this.fileUrl,
-    required this.fileSize,
+    required this.mimeType,
+    required this.size,
+    required this.key,
+    required this.url,
+    required this.uploadPath,
+    required this.path,
+    required this.createdAt,
+    required this.updatedAt,
+    this.documentNumber,
   });
 
   factory UploadedFileData.fromJson(Map<String, dynamic> json) {
     return UploadedFileData(
-      id: json['id'] ?? '',
+      id: json['_id'] ?? json['id'] ?? '',
+      originalName: json['originalName'] ?? '',
       fileName: json['fileName'] ?? '',
-      fileType: json['fileType'] ?? '',
-      documentNumber: json['documentNumber'] ?? '',
-      uploadTime: DateTime.tryParse(json['uploadTime'] ?? '') ?? DateTime.now(),
-      fileUrl: json['fileUrl'] ?? '',
-      fileSize: json['fileSize'] ?? '',
+      mimeType: json['mimeType'] ?? '',
+      size: json['size'] ?? 0,
+      key: json['key'] ?? '',
+      url: json['url'] ?? '',
+      uploadPath: json['uploadPath'] ?? '',
+      path: json['path'] ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
+      documentNumber: json['documentNumber'], // Optional field
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'originalName': originalName,
       'fileName': fileName,
-      'fileType': fileType,
+      'mimeType': mimeType,
+      'size': size,
+      'key': key,
+      'url': url,
+      'uploadPath': uploadPath,
+      'path': path,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'documentNumber': documentNumber,
-      'uploadTime': uploadTime.toIso8601String(),
-      'fileUrl': fileUrl,
-      'fileSize': fileSize,
     };
+  }
+
+  // Helper method to format file size
+  String get formattedFileSize {
+    if (size < 1024) {
+      return '${size} B';
+    } else if (size < 1024 * 1024) {
+      return '${(size / 1024).toStringAsFixed(1)} KB';
+    } else if (size < 1024 * 1024 * 1024) {
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else {
+      return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    }
+  }
+
+  // Helper method to get file extension
+  String get fileExtension {
+    final parts = originalName.split('.');
+    return parts.length > 1 ? parts.last.toLowerCase() : '';
+  }
+
+  // Helper method to check if file is image
+  bool get isImage {
+    return mimeType.startsWith('image/');
+  }
+
+  // Helper method to check if file is PDF
+  bool get isPdf {
+    return mimeType == 'application/pdf';
+  }
+
+  // Helper method to check if file is document
+  bool get isDocument {
+    return mimeType.startsWith('application/') &&
+        (mimeType.contains('word') ||
+            mimeType.contains('excel') ||
+            mimeType.contains('powerpoint') ||
+            mimeType.contains('pdf'));
   }
 }

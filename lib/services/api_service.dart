@@ -418,6 +418,46 @@ class ApiService {
     }
   }
 
+  // Submit due diligence report method
+  Future<Map<String, dynamic>> submitDueDiligence(
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      print('🔄 Submitting due diligence report...');
+      print('📤 Payload: ${payload.toString()}');
+
+      final response = await _dioService.reportsPost(
+        '/api/v1/reports/due-diligence',
+        data: payload,
+      );
+
+      print('✅ Submit due diligence response status: ${response.statusCode}');
+      print('✅ Submit due diligence response data: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Due diligence report submitted successfully');
+
+        // Handle different response types
+        if (response.data is Map<String, dynamic>) {
+          return response.data;
+        } else if (response.data is String) {
+          return {'message': response.data, 'status': 'success'};
+        } else {
+          return {'data': response.data, 'status': 'success'};
+        }
+      } else {
+        throw Exception(
+          'Failed to submit due diligence: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('❌ Error submitting due diligence: ${e.message}');
+      print('❌ Response data: ${e.response?.data}');
+      print('❌ Status code: ${e.response?.statusCode}');
+      throw Exception('Failed to submit due diligence: ${e.message}');
+    }
+  }
+
   // Resend verification email method
   Future<Map<String, dynamic>> resendVerificationEmail(String email) async {
     try {

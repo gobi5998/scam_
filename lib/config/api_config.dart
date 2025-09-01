@@ -37,6 +37,7 @@ class ApiConfig {
       '/api/v1/reports/thread-overview-analysis';
   static const String percentageCountEndpoint =
       '/api/v1/reports/percentage-count';
+  static const String dueDiligenceEndpoint = '/api/v1/reports/due-diligence';
   // File upload endpoints
   static const String fileUploadEndpoint = '/api/v1/file-upload';
   static const String malwareFileUploadEndpoint =
