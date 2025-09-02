@@ -464,10 +464,14 @@ class ApiService {
     int pageSize = 20,
     String? status,
     String? search,
+    String? groupId,
   }) async {
     try {
       print('📥 Fetching due diligence reports - Page: $page, Size: $pageSize');
-      print('🌐 Endpoint: /api/v1/reports/categories/with-subcategories');
+      print(
+        '🌐 Endpoint: /api/v1/reports/due-diligence/due-diligence-submitteddocs-summary',
+      );
+      print('🆔 GroupId: $groupId');
 
       // Build query parameters
       final queryParams = <String, dynamic>{'page': page, 'limit': pageSize};
@@ -480,11 +484,15 @@ class ApiService {
         queryParams['search'] = search;
       }
 
+      if (groupId != null && groupId.isNotEmpty) {
+        queryParams['groupId'] = groupId;
+      }
+
       print('🔍 Query parameters: $queryParams');
 
-      // Use the correct endpoint for fetching categories and subcategories
+      // Use the correct endpoint for fetching due diligence reports
       final response = await _dioService.reportsGet(
-        '/api/v1/reports/categories/with-subcategories',
+        '/api/v1/reports/due-diligence/due-diligence-submitteddocs-summary',
         queryParameters: queryParams,
       );
 
