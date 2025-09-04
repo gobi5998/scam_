@@ -39,8 +39,22 @@ class _BiometricSetupDialogState extends State<BiometricSetupDialog> {
 
       setState(() {
         _isBiometricAvailable = isAvailable;
-        _availableBiometrics = biometrics;
-        _selectedBiometric = primaryType;
+        // Remove any duplicate biometric types to prevent dropdown errors
+        _availableBiometrics = biometrics.toSet().toList();
+        // Ensure the selected biometric is in the available list
+        if (biometrics.isNotEmpty && biometrics.contains(primaryType)) {
+          _selectedBiometric = primaryType;
+        } else if (biometrics.isNotEmpty) {
+          _selectedBiometric = biometrics.first;
+        } else {
+          _selectedBiometric = '';
+        }
+        
+        // Debug print to help identify issues
+        print('🔍 Biometric Setup Debug:');
+        print('  - Available: $_availableBiometrics');
+        print('  - Selected: $_selectedBiometric');
+        print('  - Primary Type: $primaryType');
       });
     } catch (e) {
       setState(() {
@@ -165,26 +179,40 @@ class _BiometricSetupDialogState extends State<BiometricSetupDialog> {
             ),
             const SizedBox(height: 24),
 
-            // Biometric type selection (if multiple available)
-            if (_availableBiometrics.length > 1) ...[
-              DropdownButtonFormField<String>(
-                value: _selectedBiometric.isNotEmpty
-                    ? _selectedBiometric
-                    : null,
-                decoration: const InputDecoration(
-                  labelText: 'Select Biometric Type',
-                  border: OutlineInputBorder(),
-                ),
-                items: _availableBiometrics.map((biometric) {
-                  return DropdownMenuItem(
-                    value: biometric,
-                    child: Text(biometric),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedBiometric = value ?? '';
-                  });
+            // Biometric type selection (if multiple available and valid)
+            if (_availableBiometrics.length > 1 && 
+                _availableBiometrics.every((bio) => bio.isNotEmpty) &&
+                _availableBiometrics.toSet().length == _availableBiometrics.length &&
+                _selectedBiometric.isNotEmpty) ...[
+              Builder(
+                builder: (context) {
+                  try {
+                    final validValue = (_availableBiometrics.isNotEmpty && _availableBiometrics.contains(_selectedBiometric))
+                        ? _selectedBiometric 
+                        : (_availableBiometrics.isNotEmpty ? _availableBiometrics.first : null);
+                    
+                    return DropdownButtonFormField<String>(
+                      value: validValue,
+                      decoration: const InputDecoration(
+                        labelText: 'Select Biometric Type',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _availableBiometrics.map((biometric) {
+                        return DropdownMenuItem(
+                          value: biometric,
+                          child: Text(biometric),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedBiometric = value ?? '';
+                        });
+                      },
+                    );
+                  } catch (e) {
+                    print('❌ Error building dropdown: $e');
+                    return const Text('Error loading biometric options');
+                  }
                 },
               ),
               const SizedBox(height: 16),

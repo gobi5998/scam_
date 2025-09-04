@@ -324,6 +324,18 @@ class DioService {
     );
   }
 
+  Future<Response> reportsPut(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return await reportsApi.put(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+    );
+  }
+
   // Utility method to create FormData for file uploads
   static Future<FormData> createFormData({
     required String filePath,

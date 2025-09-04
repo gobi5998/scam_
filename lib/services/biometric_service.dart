@@ -126,23 +126,43 @@ class BiometricService {
   // Get all available biometric types as strings
   static Future<List<String>> getAvailableBiometricTypes() async {
     final biometrics = await getAvailableBiometrics();
-    return biometrics.map((type) => getBiometricTypeString(type)).toList();
+    // Ensure no duplicate values and filter out any null/empty strings
+    final types = biometrics.map((type) => getBiometricTypeString(type))
+        .where((type) => type.isNotEmpty)
+        .toSet() // Remove duplicates
+        .toList();
+    return types;
   }
 
   // Get the primary biometric type (prefer Face ID over fingerprint)
   static Future<String> getPrimaryBiometricType() async {
-    final biometrics = await getAvailableBiometrics();
+    try {
+      final biometrics = await getAvailableBiometrics();
+      
+      if (biometrics.isEmpty) {
+        return 'Biometric';
+      }
 
-    // Prefer Face ID over fingerprint
-    if (biometrics.contains(BiometricType.face)) {
-      return 'Face ID';
-    } else if (biometrics.contains(BiometricType.fingerprint)) {
-      return 'Fingerprint';
-    } else if (biometrics.contains(BiometricType.iris)) {
-      return 'Iris';
+      // Prefer Face ID over fingerprint
+      if (biometrics.contains(BiometricType.face)) {
+        return 'Face ID';
+      } else if (biometrics.contains(BiometricType.fingerprint)) {
+        return 'Fingerprint';
+      } else if (biometrics.contains(BiometricType.iris)) {
+        return 'Iris';
+      }
+
+      // If none of the specific types are available, return the first available type
+      final availableTypes = await getAvailableBiometricTypes();
+      if (availableTypes.isNotEmpty) {
+        return availableTypes.first;
+      }
+
+      return 'Biometric';
+    } catch (e) {
+      print('❌ Error getting primary biometric type: $e');
+      return 'Biometric';
     }
-
-    return 'Biometric';
   }
 
   // Check if device has fingerprint sensor

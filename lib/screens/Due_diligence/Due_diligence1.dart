@@ -201,51 +201,55 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
           final List<Map<String, dynamic>> filesPayload = [];
 
-          for (var uploadData in uploadResponses[categoryId]![subcategoryId]!) {
-            final fileData = uploadData['fileData'] as FileData;
-            final uploadResponse =
-                uploadData['uploadResponse'] as Map<String, dynamic>;
+          // Check if there are uploaded files for this subcategory
+          if (uploadResponses[categoryId]![subcategoryId]!.isNotEmpty) {
+            for (var uploadData in uploadResponses[categoryId]![subcategoryId]!) {
+              final fileData = uploadData['fileData'] as FileData;
+              final uploadResponse =
+                  uploadData['uploadResponse'] as Map<String, dynamic>;
 
-            print(
-              '🔍 Upload response for ${fileData.fileName}: ${uploadResponse.toString()}',
-            );
+              print(
+                '🔍 Upload response for ${fileData.fileName}: ${uploadResponse.toString()}',
+              );
 
-            // Extract the actual file URL from the upload response
-            String fileUrl = '';
+              // Extract the actual file URL from the upload response
+              String fileUrl = '';
 
-            // Check multiple possible locations for the URL in the upload response
-            if (uploadResponse['url'] != null) {
-              fileUrl = uploadResponse['url'];
-            } else if (uploadResponse['data'] != null &&
-                uploadResponse['data']['url'] != null) {
-              fileUrl = uploadResponse['data']['url'];
-            } else if (uploadResponse['_doc'] != null &&
-                uploadResponse['_doc']['url'] != null) {
-              fileUrl = uploadResponse['_doc']['url'];
-            } else if (uploadResponse['fileName'] != null) {
-              // If we have fileName but no URL, construct the URL using the fileName
-              fileUrl =
-                  'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadResponse['fileName']}';
-            } else {
-              // Last fallback - use the file ID
-              fileUrl =
-                  'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${fileData.id}';
-            }
+              // Check multiple possible locations for the URL in the upload response
+              if (uploadResponse['url'] != null) {
+                fileUrl = uploadResponse['url'];
+              } else if (uploadResponse['data'] != null &&
+                  uploadResponse['data']['url'] != null) {
+                fileUrl = uploadResponse['data']['url'];
+              } else if (uploadResponse['_doc'] != null &&
+                  uploadResponse['_doc']['url'] != null) {
+                fileUrl = uploadResponse['_doc']['url'];
+              } else if (uploadResponse['fileName'] != null) {
+                // If we have fileName but no URL, construct the URL using the fileName
+                fileUrl =
+                    'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadResponse['fileName']}';
+              } else {
+                // Last fallback - use the file ID
+                fileUrl =
+                    'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${fileData.id}';
+              }
 
-            print('🔗 Extracted file URL: $fileUrl');
+              print('🔗 Extracted file URL: $fileUrl');
 
-            // Create file payload with actual upload data
-            filesPayload.add({
-              'document_id': null,
-              'name': fileData.fileName,
-              'size': await fileData.file.length(),
-              'type': fileData.fileType,
+              // Create file payload with actual upload data
+              filesPayload.add({
+                'document_id': null,
+                'name': fileData.fileName,
+                'size': await fileData.file.length(),
+                'type': fileData.fileType,
               'url': fileUrl,
-              'comments': fileData.documentNumber.isNotEmpty
-                  ? fileData.documentNumber
-                  : '',
-            });
+                'comments': fileData.documentNumber.isNotEmpty
+                    ? fileData.documentNumber
+                    : '',
+              });
+            }
           }
+          // If no files, filesPayload remains empty array (which is valid)
 
           subcategoriesPayload.add({
             'name': subcategory.name,
@@ -317,24 +321,23 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   }
 
   Future<void> _submitDueDiligence() async {
-    // Check if any files are uploaded
-    bool hasFiles = false;
+    // Check if any categories/subcategories are selected
+    bool hasSelectedItems = false;
     for (var category in categories) {
       for (var subcategory in category.subcategories) {
-        if (checkedSubcategories[category.id]?[subcategory.id] == true &&
-            uploadedFiles[category.id]?[subcategory.id]?.isNotEmpty == true) {
-          hasFiles = true;
+        if (checkedSubcategories[category.id]?[subcategory.id] == true) {
+          hasSelectedItems = true;
           break;
         }
       }
-      if (hasFiles) break;
+      if (hasSelectedItems) break;
     }
 
-    if (!hasFiles) {
+    if (!hasSelectedItems) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please select categories and upload at least one file before submitting',
+            'Please select at least one category/subcategory before submitting',
           ),
           backgroundColor: Colors.orange,
         ),
@@ -349,7 +352,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         return AlertDialog(
           title: const Text('Submit Due Diligence'),
           content: const Text(
-            'Are you sure you want to submit the due diligence report? This will upload all selected files.',
+            'Are you sure you want to submit the due diligence report? Files are optional - you can submit with or without files.',
           ),
           actions: [
             TextButton(
@@ -385,12 +388,13 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
       int totalFiles = 0;
       int uploadedFilesCount = 0;
 
-      // Create deep copy of all files to upload
+      // Create deep copy of all files to upload (files are optional)
       for (var categoryId in checkedSubcategories.keys) {
         for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
           if (checkedSubcategories[categoryId]![subcategoryId] == true) {
             final files = uploadedFiles[categoryId]?[subcategoryId] ?? [];
 
+            // Files are optional, so we proceed even if no files
             if (files.isNotEmpty) {
               hasUploadedFiles = true;
               totalFiles += files.length;
@@ -402,6 +406,12 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
               isolatedFiles[categoryId]![subcategoryId] = List<FileData>.from(
                 files,
               );
+            } else {
+              // No files for this subcategory, but still create empty entry
+              if (isolatedFiles[categoryId] == null) {
+                isolatedFiles[categoryId] = {};
+              }
+              isolatedFiles[categoryId]![subcategoryId] = [];
             }
           }
         }
@@ -484,13 +494,23 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
       // Show success message
       if (uploadErrors.isEmpty) {
-        print('✅ All files uploaded and due diligence submitted successfully');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Due Diligence submitted successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (hasUploadedFiles) {
+          print('✅ All files uploaded and due diligence submitted successfully');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Due Diligence submitted successfully with files!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          print('✅ Due diligence submitted successfully without files');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Due Diligence submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
         print('⚠️ Some uploads failed: ${uploadErrors.length} errors');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -609,33 +629,34 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
             },
             tooltip: 'View Due Diligence',
           ),
-          IconButton(
-            icon: const Icon(Icons.bug_report, color: Colors.white),
-            onPressed: () {
-              print('🐛 Debug: Testing navigation...');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Report ID: ${widget.reportId ?? "null"}'),
-                  backgroundColor: Colors.blue,
-                ),
-              );
-            },
-            tooltip: 'Debug Info',
-          ),
-          IconButton(
-            icon: const Icon(Icons.play_arrow, color: Colors.white),
-            onPressed: () {
-              print('🚀 Force navigation test...');
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => DueDiligenceView(
-                    reportId: widget.reportId ?? 'test-report',
-                  ),
-                ),
-              );
-            },
-            tooltip: 'Force Navigate',
-          ),
+
+          // IconButton(
+          //   icon: const Icon(Icons.bug_report, color: Colors.white),
+          //   onPressed: () {
+          //     print('🐛 Debug: Testing navigation...');
+          //     ScaffoldMessenger.of(context).showSnackBar(
+          //       SnackBar(
+          //         content: Text('Report ID: ${widget.reportId ?? "null"}'),
+          //         backgroundColor: Colors.blue,
+          //       ),
+          //     );
+          //   },
+          //   tooltip: 'Debug Info',
+          // ),
+          // IconButton(
+          //   icon: const Icon(Icons.play_arrow, color: Colors.white),
+          //   onPressed: () {
+          //     print('🚀 Force navigation test...');
+          //     Navigator.of(context).pushReplacement(
+          //       MaterialPageRoute(
+          //         builder: (context) => DueDiligenceView(
+          //           reportId: widget.reportId ?? 'test-report',
+          //         ),
+          //       ),
+          //     );
+          //   },
+          //   tooltip: 'Force Navigate',
+          // ),
         ],
       ),
       body: RefreshIndicator(
@@ -831,7 +852,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'File Upload for ${category.label}',
+                    'File Upload for ${category.label} (Optional)',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -958,13 +979,13 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           ),
           const SizedBox(height: 8),
 
-          // Add File Button
+          // Add File Button (Optional)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () => _pickFile(category.id, subcategory.id),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add File', style: TextStyle(fontSize: 12)),
+              label: const Text('Add File (Optional)', style: TextStyle(fontSize: 12)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue[50],
                 foregroundColor: Colors.blue[700],

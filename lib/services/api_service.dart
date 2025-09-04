@@ -540,6 +540,103 @@ class ApiService {
     }
   }
 
+  // Get due diligence report by ID method
+  Future<Map<String, dynamic>> getDueDiligenceReportById(String reportId) async {
+    try {
+      print('📥 Fetching due diligence report by ID: $reportId');
+      print(
+        '🌐 Endpoint: /api/v1/reports/due-diligence/$reportId',
+      );
+
+      final response = await _dioService.reportsGet(
+        '/api/v1/reports/due-diligence/$reportId',
+      );
+
+      print(
+        '✅ Get due diligence report by ID response status: ${response.statusCode}',
+      );
+      print('✅ Get due diligence report by ID response data: ${response.data}');
+
+      if (response.statusCode == 200) {
+        print('✅ API response received successfully');
+        print('📦 Response data type: ${response.data.runtimeType}');
+        print('📦 Response data: ${response.data}');
+
+        // Handle different response types
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          print('🔍 Response keys: ${data.keys.toList()}');
+          return data;
+        } else if (response.data is List) {
+          final data = response.data as List;
+          print('🔍 List length: ${data.length}');
+          if (data.isNotEmpty) {
+            print('🔍 First item type: ${data.first.runtimeType}');
+            print('🔍 First item: ${data.first}');
+          }
+          return {
+            'status': 'success',
+            'data': response.data,
+            'message': 'Due diligence report fetched successfully',
+          };
+        } else {
+          print('🔍 Unknown response type: ${response.data.runtimeType}');
+          return {'data': response.data, 'status': 'success'};
+        }
+      } else {
+        throw Exception(
+          'Failed to fetch due diligence report: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('❌ Error fetching due diligence report: ${e.message}');
+      print('❌ Response data: ${e.response?.data}');
+      print('❌ Status code: ${e.response?.statusCode}');
+      throw Exception('Failed to fetch due diligence report: ${e.message}');
+    }
+  }
+
+  // Update due diligence report method
+  Future<Map<String, dynamic>> updateDueDiligenceReport(String reportId, Map<String, dynamic> payload) async {
+    try {
+      print('📤 Updating due diligence report: $reportId');
+      print('🌐 Endpoint: /api/v1/reports/due-diligence/$reportId');
+      print('📦 Payload: $payload');
+
+      final response = await _dioService.reportsPut(
+        '/api/v1/reports/due-diligence/$reportId',
+        data: payload,
+      );
+
+      print(
+        '✅ Update due diligence report response status: ${response.statusCode}',
+      );
+      print('✅ Update due diligence report response data: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Due diligence report updated successfully');
+
+        // Handle different response types
+        if (response.data is Map<String, dynamic>) {
+          return response.data;
+        } else if (response.data is String) {
+          return {'message': response.data, 'status': 'success'};
+        } else {
+          return {'data': response.data, 'status': 'success'};
+        }
+      } else {
+        throw Exception(
+          'Failed to update due diligence report: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('❌ Error updating due diligence report: ${e.message}');
+      print('❌ Response data: ${e.response?.data}');
+      print('❌ Status code: ${e.response?.statusCode}');
+      throw Exception('Failed to update due diligence report: ${e.message}');
+    }
+  }
+
   // Resend verification email method
   Future<Map<String, dynamic>> resendVerificationEmail(String email) async {
     try {

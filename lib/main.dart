@@ -273,7 +273,7 @@ class MyApp extends StatelessWidget {
         },
         '/due-diligence-demo': (context) =>
             AuthGuard(child: DueDiligenceDemo()),
-        '/subscription': (context) => AuthGuard(child: SubscriptionPlansPage()),
+        // '/subscription': (context) => AuthGuard(child: SubscriptionPlansPage()),
         '/rate': (context) => AuthGuard(child: Ratepage()),
         '/share': (context) => AuthGuard(child: Shareapp()),
         '/feedback': (context) => AuthGuard(child: Feedbackpage()),

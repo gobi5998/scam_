@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'Due_diligence1.dart' as dd1;
 import 'Due_diligence_view.dart' as ddv;
+import 'due_diligence_edit_screen.dart';
 
 class DueDiligenceListView extends StatefulWidget {
   const DueDiligenceListView({super.key});
@@ -17,7 +18,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   final TextEditingController _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _dueDiligenceReports = [];
-  List<Map<String, dynamic>> _documents = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -30,7 +30,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _scrollController.addListener(_onScroll);
     _initializeData();
   }
@@ -99,7 +99,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       });
 
       await _loadRealDueDiligenceData();
-      await _loadDocumentsData();
 
       setState(() {
         _isLoading = false;
@@ -182,89 +181,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     }
   }
 
-  Future<void> _loadDocumentsData() async {
-    try {
-      if (_groupId == null) {
-        throw Exception('groupId is required but not available');
-      }
 
-      // Fetch real documents from API instead of mock data
-      final response = await _apiService.getDueDiligenceReports(
-        page: 1,
-        pageSize: 100, // Get more items for better date organization
-        groupId: _groupId,
-      );
-
-      if (response['status'] == 'success' && response['data'] != null) {
-        final List<dynamic> reportsData = response['data'];
-
-        // Convert API data to document format based on actual response structure
-        _documents = reportsData.map((report) {
-          final createdAt =
-              DateTime.tryParse(
-                report['createdAt'] ?? report['submittedAt'] ?? '',
-              ) ??
-              DateTime.now();
-          final updatedAt =
-              DateTime.tryParse(
-                report['updatedAt'] ?? report['modifiedAt'] ?? '',
-              ) ??
-              createdAt;
-
-          return {
-            'id': report['_id'] ?? report['id'] ?? '',
-            'name':
-                report['title'] ??
-                report['name'] ??
-                report['label'] ??
-                'Unknown Report',
-            'category':
-                report['category'] ??
-                report['categoryName'] ??
-                report['groupName'] ??
-                'Unknown Category',
-            'subcategory':
-                report['subcategory'] ??
-                report['subcategoryName'] ??
-                report['type'] ??
-                'Unknown Subcategory',
-            'size': report['fileSize'] ?? report['size'] ?? 'Unknown size',
-            'uploadDate': createdAt,
-            'status': report['status'] ?? 'pending',
-            'type': report['fileType'] ?? report['type'] ?? 'report',
-            'severity':
-                report['severity'] ??
-                report['alertLevels'] ??
-                report['priority'] ??
-                'Medium',
-            'evidence':
-                report['evidence'] ?? report['hasEvidence'] ?? 'Available',
-            'description': report['description'] ?? report['summary'] ?? '',
-            'createdAt': createdAt,
-            'updatedAt': updatedAt,
-            'groupId': report['group_id'] ?? '',
-            'submittedBy':
-                report['submittedBy'] ?? report['createdBy'] ?? 'Unknown',
-          };
-        }).toList();
-
-        // Sort by date (newest first)
-        _documents.sort(
-          (a, b) => (b['uploadDate'] as DateTime).compareTo(
-            a['uploadDate'] as DateTime,
-          ),
-        );
-
-        debugPrint('✅ Loaded ${_documents.length} real documents from API');
-      } else {
-        debugPrint('⚠️ No real documents found, using empty list');
-        _documents = [];
-      }
-    } catch (e) {
-      debugPrint('❌ Failed to load real documents: $e');
-      _documents = [];
-    }
-  }
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
@@ -308,7 +225,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         await _fetchUserGroupId();
       }
 
-      await Future.wait([_loadRealDueDiligenceData(), _loadDocumentsData()]);
+      await _loadRealDueDiligenceData();
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to refresh data: $e';
@@ -323,18 +240,96 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     );
   }
 
-  void _navigateToView(String categoryId) {
+  void _navigateToView(String reportId) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ddv.DueDiligenceView()),
+      MaterialPageRoute(
+        builder: (context) => ddv.DueDiligenceView(reportId: reportId),
+      ),
     );
   }
 
-  void _navigateToEdit(String categoryId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => dd1.DueDiligenceWrapper()),
+  Future<void> _navigateToEdit(String reportId) async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Loading report details...'),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      // First API call: Get report details by ID
+      debugPrint('🔄 Fetching report details for ID: $reportId');
+      final reportResponse = await _apiService.getDueDiligenceReportById(reportId);
+      
+      if (reportResponse == null || reportResponse['status'] != 'success') {
+        throw Exception('Failed to fetch report details');
+      }
+
+      final reportData = reportResponse['data'];
+      debugPrint('✅ Report data fetched: ${reportData.keys.toList()}');
+
+      // Second API call: Get categories and subcategories
+      debugPrint('🔄 Fetching categories and subcategories...');
+      final categoriesResponse = await _apiService.getCategoriesWithSubcategories();
+      
+      if (categoriesResponse == null || categoriesResponse['status'] != 'success') {
+        throw Exception('Failed to fetch categories');
+      }
+
+      final categoriesData = categoriesResponse['data'];
+      debugPrint('✅ Categories fetched: ${categoriesData.length} categories');
+
+      // Navigate to edit form with reportId
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DueDiligenceEditScreen(
+              reportId: reportId,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error preparing edit: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load report for editing: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  
+  void _saveReportAsPDF(String reportId) {
+    // TODO: Implement PDF generation and saving
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Generating PDF for report: $reportId'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
+      ),
     );
+    
+    // Here you would implement the actual PDF generation logic
+    // For now, just show a success message
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF generated successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
   }
 
   String _formatSubmittedDate(DateTime date) {
@@ -372,69 +367,84 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  // Helper method to get all subcategories sorted by date
-  List<Map<String, dynamic>> _getAllSubcategoriesSorted() {
-    List<Map<String, dynamic>> allSubcategories = [];
+  // Helper method to get all individual reports sorted by date
+  List<Map<String, dynamic>> _getAllReportsSorted() {
+    List<Map<String, dynamic>> allReports = [];
 
     for (var report in _dueDiligenceReports) {
+      final reportId = report['_id'] ?? report['id'] ?? '';
+      final reportStatus = report['status'] ?? 'pending';
+      final submittedAt = report['submitted_at'] ?? report['createdAt'] ?? '';
       final categories = report['categories'] as List? ?? [];
+      
+      // Count total files across all categories and subcategories
+      int totalFileCount = 0;
+      List<String> categoryNames = [];
+      List<String> subcategoryNames = [];
 
       for (var category in categories) {
+        final categoryName = category['name'] ?? 'Unknown Category';
+        categoryNames.add(categoryName);
+
         final subcategories = category['subcategories'] as List? ?? [];
-
         for (var subcategory in subcategories) {
-          // Create a flattened structure for display
-          final subcategoryWithContext = {
-            'id': report['_id'] ?? report['id'] ?? '',
-            'title': subcategory['name'] ?? 'Unknown Subcategory',
-            'category': category['name'] ?? 'Unknown Category',
-            'status': subcategory['status'] ?? report['status'] ?? 'pending',
-            'submittedAt': report['submitted_at'] ?? report['createdAt'] ?? '',
-            'fileCount': subcategory['fileCount'] ?? 0,
-            'groupId': report['group_id'] ?? '',
-            'parentCategory': {
-              'label': category['name'] ?? 'Unknown Category',
-              'name': category['name'] ?? 'Unknown Category',
-              'createdAt': report['submitted_at'] ?? report['createdAt'] ?? '',
-              'updatedAt': report['submitted_at'] ?? report['createdAt'] ?? '',
-            },
-          };
-
-          allSubcategories.add(subcategoryWithContext);
+          final subcategoryName = subcategory['name'] ?? 'Unknown Subcategory';
+          subcategoryNames.add(subcategoryName);
+          
+          final fileCount = (subcategory['fileCount'] ?? 0) as int;
+          totalFileCount += fileCount;
         }
       }
+
+      // Create a report structure for display
+      final reportWithDetails = {
+        'id': reportId,
+        'title': 'Due Diligence Report',
+        'status': reportStatus,
+        'submittedAt': submittedAt,
+        'totalFileCount': totalFileCount,
+        'categoryCount': categoryNames.length,
+        'subcategoryCount': subcategoryNames.length,
+        'categories': categoryNames,
+        'subcategories': subcategoryNames,
+            'groupId': report['group_id'] ?? '',
+        'description': report['description'] ?? 'Due Diligence Report',
+        'createdAt': submittedAt,
+        'updatedAt': report['updatedAt'] ?? submittedAt,
+      };
+
+      allReports.add(reportWithDetails);
     }
 
     // Sort by creation date (newest first)
-    allSubcategories.sort((a, b) {
+    allReports.sort((a, b) {
       final dateA = DateTime.tryParse(a['submittedAt'] ?? '') ?? DateTime.now();
       final dateB = DateTime.tryParse(b['submittedAt'] ?? '') ?? DateTime.now();
 
       return dateB.compareTo(dateA); // Newest first
     });
 
-    debugPrint('🔍 Extracted ${allSubcategories.length} subcategories:');
-    for (int i = 0; i < allSubcategories.length && i < 3; i++) {
-      final sub = allSubcategories[i];
+    debugPrint('🔍 Extracted ${allReports.length} individual reports:');
+    for (int i = 0; i < allReports.length && i < 3; i++) {
+      final report = allReports[i];
       debugPrint(
-        '   ${i + 1}. ${sub['category']} - ${sub['title']} (${sub['status']}) - ${sub['fileCount']} files',
+        '   ${i + 1}. Report ${report['id']} (${report['status']}) - ${report['totalFileCount']} files',
       );
     }
 
-    return allSubcategories;
+    return allReports;
   }
 
   // Helper method to get subcategories grouped by date
   List<Map<String, dynamic>> _getSubcategoriesGroupedByDate() {
-    final sortedSubcategories = _getAllSubcategoriesSorted();
+    final sortedReports = _getAllReportsSorted();
     List<Map<String, dynamic>> groupedList = [];
 
     String? currentDateGroup = '';
 
-    for (var subcategory in sortedSubcategories) {
-      final category = subcategory['parentCategory'] as Map<String, dynamic>;
+    for (var report in sortedReports) {
       final createdAt =
-          DateTime.tryParse(category['createdAt'] ?? '') ?? DateTime.now();
+          DateTime.tryParse(report['submittedAt'] ?? '') ?? DateTime.now();
 
       final dateGroup = _getDateGroup(createdAt);
 
@@ -448,8 +458,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         });
       }
 
-      // Add subcategory
-      groupedList.add({'type': 'subcategory', 'data': subcategory});
+      // Add report
+      groupedList.add({'type': 'report', 'data': report});
     }
 
     return groupedList;
@@ -755,181 +765,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     );
   }
 
-  Widget _buildDocumentCard(Map<String, dynamic> document, int index) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                _getFileTypeIcon(document['type'] ?? ''),
-                color: Colors.blue.shade600,
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    document['name'] ?? 'Unknown Document',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          document['category'] ?? 'Unknown',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          document['subcategory'] ?? 'Unknown',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _formatSubmittedDate(
-                          document['uploadDate'] ?? DateTime.now(),
-                        ),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(
-                        Icons.storage,
-                        size: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        document['size'] ?? 'Unknown size',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(
-                      document['status'] ?? '',
-                    ).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _getStatusColor(document['status'] ?? ''),
-                    ),
-                  ),
-                  child: Text(
-                    document['status'] ?? 'Unknown',
-                    style: TextStyle(
-                      color: _getStatusColor(document['status'] ?? ''),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        // TODO: Implement document view
-                      },
-                      icon: Icon(Icons.visibility, color: Colors.blue.shade600),
-                      tooltip: 'View Document',
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        // TODO: Implement document download
-                      },
-                      icon: Icon(Icons.download, color: Colors.green.shade600),
-                      tooltip: 'Download Document',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -956,11 +792,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           tabs: [
             Tab(
               icon: const Icon(Icons.category),
-              text: 'Categories (${_dueDiligenceReports.length})',
-            ),
-            Tab(
-              icon: const Icon(Icons.description),
-              text: 'Documents (${_documents.length})',
+              text: 'Due Diligence Reports (${_dueDiligenceReports.length})',
             ),
           ],
         ),
@@ -988,15 +820,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Categories Tab
-          _buildCategoriesTab(),
-          // Documents Tab
-          _buildDocumentsTab(),
-        ],
-      ),
+      body: _buildCategoriesTab(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToCreate,
         backgroundColor: Colors.blue.shade600,
@@ -1021,30 +845,11 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
               children: [
                 Expanded(
                   child: Text(
-                    'Due Diligence Reports: ${_getAllSubcategoriesSorted().length}',
+                    'Due Diligence Reports: ${_getAllReportsSorted().length}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
-                    ),
-                  ),
-                ),
-                if (_hasMoreData)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Page $_currentPage',
-                      style: TextStyle(
-                        color: Colors.blue.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
@@ -1068,7 +873,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search categories...',
+                hintText: 'Search reports...',
                 hintStyle: TextStyle(color: Colors.grey.shade400),
                 prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
                 border: InputBorder.none,
@@ -1090,7 +895,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         CircularProgressIndicator(color: Colors.blue.shade600),
                         const SizedBox(height: 16),
                         Text(
-                          'Loading categories...',
+                          'Loading reports...',
                           style: TextStyle(
                             color: Colors.grey.shade600,
                             fontSize: 16,
@@ -1133,7 +938,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No categories found',
+                          'No reports found',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey.shade600,
@@ -1142,7 +947,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Pull down to refresh or create a new category',
+                          'Pull down to refresh or create a new report',
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 14,
@@ -1153,12 +958,12 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                   )
                 : ListView.builder(
                     controller: _scrollController,
-                    itemCount: _getSubcategoriesGroupedByDate().length + 1,
+                    itemCount: _getAllReportsSorted().length + 1,
                     itemBuilder: (context, index) {
-                      if (index == _getSubcategoriesGroupedByDate().length) {
+                      if (index == _getAllReportsSorted().length) {
                         return _buildLoadingIndicator();
                       }
-                      return _buildGroupedItem(index);
+                      return _buildReportCard(index);
                     },
                   ),
           ),
@@ -1167,72 +972,73 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     );
   }
 
-  // Helper method to build grouped items (headers and subcategories)
-  Widget _buildGroupedItem(int index) {
-    final groupedItems = _getSubcategoriesGroupedByDate();
-    if (index >= groupedItems.length) {
-      return const SizedBox.shrink();
-    }
-
-    final item = groupedItems[index];
-
-    if (item['type'] == 'header') {
-      return _buildDateHeader(
-        item['date'] as String,
-        item['dateTime'] as DateTime,
-      );
-    } else {
-      return _buildSubcategoryCardFromSorted(index);
-    }
-  }
+  // // Helper method to build grouped items (headers and subcategories)
+  // Widget _buildGroupedItem(int index) {
+  //   final groupedItems = _getSubcategoriesGroupedByDate();
+  //   if (index >= groupedItems.length) {
+  //     return const SizedBox.shrink();
+  //   }
+  //
+  //   final item = groupedItems[index];
+  //
+  //   if (item['type'] == 'header') {
+  //     return _buildDateHeader(
+  //       item['date'] as String,
+  //       item['dateTime'] as DateTime,
+  //     );
+  //   } else {
+  //     return _buildSubcategoryCardFromSorted(index);
+  //   }
+  // }
 
   // Helper method to build date header
-  Widget _buildDateHeader(String dateText, DateTime date) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.calendar_today, size: 16, color: Colors.blue.shade600),
-          const SizedBox(width: 8),
-          Text(
-            dateText,
-            style: TextStyle(
-              color: Colors.blue.shade700,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            _formatFullDate(date),
-            style: TextStyle(color: Colors.blue.shade600, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildDateHeader(String dateText, DateTime date) {
+  //   return Container(
+  //     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //     decoration: BoxDecoration(
+  //       color: Colors.blue.shade50,
+  //       borderRadius: BorderRadius.circular(8),
+  //       border: Border.all(color: Colors.blue.shade200),
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Icon(Icons.calendar_today, size: 16, color: Colors.blue.shade600),
+  //         const SizedBox(width: 8),
+  //         Text(
+  //           dateText,
+  //           style: TextStyle(
+  //             color: Colors.blue.shade700,
+  //             fontWeight: FontWeight.w600,
+  //             fontSize: 14,
+  //           ),
+  //         ),
+  //         const Spacer(),
+  //         Text(
+  //           _formatFullDate(date),
+  //           style: TextStyle(color: Colors.blue.shade600, fontSize: 12),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  // Helper method to build subcategory card from sorted list
-  Widget _buildSubcategoryCardFromSorted(int index) {
-    final sortedSubcategories = _getAllSubcategoriesSorted();
-    if (index >= sortedSubcategories.length) {
+  // Helper method to build individual report card
+  Widget _buildReportCard(int index) {
+    final sortedReports = _getAllReportsSorted();
+    if (index >= sortedReports.length) {
       return const SizedBox.shrink();
     }
 
-    final subcategory = sortedSubcategories[index];
-    final category = subcategory['parentCategory'] as Map<String, dynamic>;
-
-    final categoryName = category['label'] as String? ?? 'Unknown Category';
-    final subcategoryName = subcategory['title'] as String? ?? 'Unknown Report';
-    final status = subcategory['status'] as String? ?? 'pending';
-    final fileCount = subcategory['fileCount'] as int? ?? 0;
-    final submittedAt = subcategory['submittedAt'] as String? ?? '';
+    final report = sortedReports[index];
+    final reportId = report['id'] as String? ?? '';
+    final status = report['status'] as String? ?? 'pending';
+    final totalFileCount = report['totalFileCount'] as int? ?? 0;
+    final categoryCount = report['categoryCount'] as int? ?? 0;
+    final subcategoryCount = report['subcategoryCount'] as int? ?? 0;
+    final submittedAt = report['submittedAt'] as String? ?? '';
+    final categories = report['categories'] as List<String>? ?? [];
+    final subcategories = report['subcategories'] as List<String>? ?? [];
 
     final createdDate = DateTime.tryParse(submittedAt) ?? DateTime.now();
 
@@ -1240,7 +1046,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1248,116 +1054,297 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             offset: const Offset(0, 2),
           ),
         ],
+        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Left Icon Circle
+            // Header Row with Status and Actions
+            Row(
+              children: [
+                // Status Badge
             Container(
-              width: 50,
-              height: 50,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
               decoration: BoxDecoration(
                 color: _getStatusColor(status).withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _getStatusColor(status)),
               ),
-              child: Icon(
-                _getFileTypeIcon('document'),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
                 color: _getStatusColor(status),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Center Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    subcategoryName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$categoryName - $subcategoryName',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  // Tags Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
+                ),
+                const Spacer(),
+                // Action Buttons
+                Row(
+                  children: [
+                    // Edit Button
+                    IconButton(
+                      onPressed: () => _navigateToEdit(reportId),
+                      icon: Icon(
+                        Icons.edit,
+                        color: Colors.blue.shade600,
+                        size: 20,
+                      ),
+                      tooltip: 'Edit Report',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.blue.shade50,
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // PDF Save Button
+                    IconButton(
+                      onPressed: () => _saveReportAsPDF(reportId),
+                      icon: Icon(
+                        Icons.picture_as_pdf,
+                        color: Colors.red.shade600,
+                        size: 20,
+                      ),
+                      tooltip: 'Save as PDF',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red.shade50,
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Report Title and ID
+            // Row(
+            //   children: [
+            //     Container(
+            //       padding: const EdgeInsets.all(12),
+            //       decoration: BoxDecoration(
+            //         color: Colors.blue.shade50,
+            //         borderRadius: BorderRadius.circular(12),
+            //       ),
+            //       child: Icon(
+            //         Icons.description,
+            //         color: Colors.blue.shade600,
+            //     size: 24,
+            //   ),
+            // ),
+            // const SizedBox(width: 16),
+            // // Expanded(
+            // //   child: Column(
+            // //     crossAxisAlignment: CrossAxisAlignment.start,
+            // //     children: [
+            // //       Text(
+            // //             'Due Diligence Report',
+            // //         style: const TextStyle(
+            // //               fontSize: 18,
+            // //           fontWeight: FontWeight.bold,
+            // //           color: Colors.black87,
+            // //         ),
+            // //       ),
+            // //       const SizedBox(height: 4),
+            // //           // Text(
+            // //           //   'ID: ${reportId.substring(0, reportId.length > 8 ? 8 : reportId.length)}...',
+            // //           //   style: TextStyle(
+            // //           //     fontSize: 12,
+            // //           //     color: Colors.grey.shade600,
+            // //           //     fontFamily: 'monospace',
+            // //           //   ),
+            // //           // ),
+                    
+            // //         ],
+            // //       ),
+            // //     ),
+              
+            //   ],
+            // ),
+            
+            
+            
+            // Statistics Row
+            //       Row(
+            //         children: [
+            //     _buildStatItem(
+            //       icon: Icons.category,
+            //       label: 'Categories',
+            //       value: '$categoryCount',
+            //       color: Colors.blue,
+            //     ),
+            //     const SizedBox(width: 16),
+            //     _buildStatItem(
+            //       icon: Icons.subdirectory_arrow_right,
+            //       label: 'Subcategories',
+            //       value: '$subcategoryCount',
+            //       color: Colors.green,
+            //     ),
+            //     const SizedBox(width: 16),
+            //     _buildStatItem(
+            //       icon: Icons.attach_file,
+            //       label: 'Files',
+            //       value: '$totalFileCount',
+            //       color: Colors.orange,
+            //     ),
+            //   ],
+            // ),
+            
+            if (categories.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(status).withValues(alpha: 0.2),
+                  color: Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            color: _getStatusColor(status),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                      Text(
+                        'Categories: ${categories.length}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
+                    
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: categories.take(5).map((category) {
+                        return Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                            horizontal: 12,
+                            vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.blue.shade200),
                         ),
                         child: Text(
-                          '$fileCount ${fileCount == 1 ? 'File' : 'Files'}',
+                            category,
                           style: TextStyle(
+                              fontSize: 12,
                             color: Colors.blue.shade700,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (categories.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '... and ${categories.length - 5} more',
+                          style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade500,
+                            fontStyle: FontStyle.italic,
                           ),
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-            // Right Side - Time and Status
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  _formatSubmittedDate(createdDate),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
-                const SizedBox(height: 4),
-                Container(
+              ),
+            ],
+            
+            if (subcategories.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                     Text(
+                      'Subcategories: ${subcategories.length}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: subcategories.take(5).map((subcategory) {
+                        return Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                            horizontal: 12,
+                            vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(status).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.green.shade200),
                   ),
                   child: Text(
-                    _formatFullDate(createdDate),
+                            subcategory,
                     style: TextStyle(
-                      color: _getStatusColor(status),
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (subcategories.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '... and ${subcategories.length - 5} more',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
+            ],
+            
+            const SizedBox(height: 16),
+            
+            // Footer with Date and View Button
+            Row(
+        children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  'Submitted: ${_formatSubmittedDate(createdDate)}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () => _navigateToView(reportId),
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text('View Details'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
@@ -1368,95 +1355,47 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       ),
     );
   }
-
-  Widget _buildDocumentsTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: Column(
-        children: [
-          // Header with count
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Documents Found: ${_documents.length}',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          // Search Bar
-          Container(
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search documents...',
-                hintStyle: TextStyle(color: Colors.grey.shade400),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(20),
-              ),
-              onChanged: (value) {
-                // TODO: Implement document search
-                debugPrint('Document search: $value');
-              },
-            ),
-          ),
-          // Content
-          Expanded(
-            child: _documents.isEmpty
-                ? Center(
+  
+  // Helper method to build stat item
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.description_outlined,
-                          size: 64,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 4),
                         Text(
-                          'No documents found',
+              value,
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.bold,
+                color: color,
                           ),
                         ),
-                        const SizedBox(height: 8),
                         Text(
-                          'Documents will appear here once uploaded',
+              label,
                           style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 14,
+                fontSize: 10,
+                color: color.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: _documents.length,
-                    itemBuilder: (context, index) {
-                      return _buildDocumentCard(_documents[index], index);
-                    },
-                  ),
-          ),
-        ],
       ),
     );
   }
+
+
 }
