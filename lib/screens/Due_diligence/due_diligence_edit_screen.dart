@@ -2,19 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../custom/customButton.dart';
 import '../../services/api_service.dart';
 import '../../provider/auth_provider.dart';
-import 'Due_diligence_view.dart';
-import 'Due_diligence_list_view.dart';
 
 class DueDiligenceEditScreen extends StatefulWidget {
   final String reportId;
 
-  const DueDiligenceEditScreen({
-    super.key,
-    required this.reportId,
-  });
+  const DueDiligenceEditScreen({super.key, required this.reportId});
 
   @override
   State<DueDiligenceEditScreen> createState() => _DueDiligenceEditScreenState();
@@ -31,7 +25,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   Map<String, Map<String, String>> fileTypes = {};
   Map<String, bool> expandedCategories = {};
   Map<String, Map<String, bool>> checkedSubcategories = {};
-  
+
   // Report data
   Map<String, dynamic>? reportData;
   dynamic existingCategories; // Changed to dynamic to handle both Map and List
@@ -50,11 +44,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       });
 
       // Load categories first
-      final categoriesResponse = await _apiService.getCategoriesWithSubcategories();
+      final categoriesResponse = await _apiService
+          .getCategoriesWithSubcategories();
       if (categoriesResponse['status'] == 'success') {
         final List<dynamic> data = categoriesResponse['data'];
         categories = data.map((json) => Category.fromJson(json)).toList();
-        
+
         // Initialize data structures
         _initializeDataStructures();
       } else {
@@ -62,12 +57,16 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       }
 
       // Load existing report data
-      final reportResponse = await _apiService.getDueDiligenceReportById(widget.reportId);
+      final reportResponse = await _apiService.getDueDiligenceReportById(
+        widget.reportId,
+      );
       debugPrint('🔍 Full report response: $reportResponse');
       debugPrint('🔍 Response status: ${reportResponse['status']}');
-      debugPrint('🔍 Response data type: ${reportResponse['data']?.runtimeType}');
+      debugPrint(
+        '🔍 Response data type: ${reportResponse['data']?.runtimeType}',
+      );
       debugPrint('🔍 Response data: ${reportResponse['data']}');
-      
+
       // Debug the actual structure
       if (reportResponse['data'] != null) {
         final data = reportResponse['data'];
@@ -81,56 +80,32 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           debugPrint('🔍 Data is Map with keys: ${data.keys.toList()}');
         }
       }
-      
-      if (reportResponse['status'] == 'success' && reportResponse['data'] != null) {
-        try {
-          // Extract report data using helper method
-          final extractedData = _extractReportData(reportResponse['data']);
-          if (extractedData == null) {
-            throw Exception('Could not extract report data from API response');
-          }
-          
-          reportData = extractedData;
-          debugPrint('✅ Report data extracted: ${reportData?.keys.toList()}');
-          
-          // Normalize the report data to ensure consistent structure
-          final normalizedData = _normalizeReportData(reportData!);
-          if (normalizedData != null) {
-            reportData = normalizedData;
-            debugPrint('✅ Report data normalized: ${reportData?.keys.toList()}');
-          }
-          
-          // Extract categories from the report data
-          existingCategories = reportData?['categories'];
-          debugPrint('🔍 Existing categories type: ${existingCategories.runtimeType}');
-          debugPrint('🔍 Existing categories: $existingCategories');
-          
-          // Load existing selections and files
-          await _loadExistingData();
-        } catch (e) {
-          debugPrint('❌ Error extracting report data: $e');
-          debugPrint('🔧 Creating default report structure as fallback');
-          
-          // Create a default structure so the UI can still work
-          reportData = _createDefaultReportStructure();
-          existingCategories = [];
-          
-          // Don't throw exception, just continue with empty data
-          debugPrint('✅ Continuing with default report structure');
-        }
-              } else if (reportResponse['status'] == 'success' && reportResponse['data'] == null) {
-          debugPrint('⚠️ API returned success but no data');
-          debugPrint('🔧 Creating default report structure');
-          
-          // Create a default structure when API returns success but no data
-          reportData = _createDefaultReportStructure();
-          existingCategories = [];
-          
-          debugPrint('✅ Continuing with default report structure');
-        } else {
-          throw Exception('Failed to load report data: ${reportResponse['message'] ?? 'Unknown error'}');
-        }
 
+      if (reportResponse['status'] == 'success' &&
+          reportResponse['data'] != null) {
+        // The API response structure is straightforward: {status: success, data: {...}}
+        reportData = reportResponse['data'] as Map<String, dynamic>;
+        debugPrint('✅ Report data extracted: ${reportData?.keys.toList()}');
+
+        // Extract categories directly from the response data
+        existingCategories = reportData?['categories'];
+        debugPrint(
+          '🔍 Existing categories type: ${existingCategories.runtimeType}',
+        );
+        debugPrint('🔍 Existing categories: $existingCategories');
+
+        // Load existing selections and files
+        await _loadExistingData();
+      } else if (reportResponse['status'] == 'success' &&
+          reportResponse['data'] == null) {
+        debugPrint('⚠️ API returned success but no data');
+        reportData = null;
+        existingCategories = [];
+      } else {
+        throw Exception(
+          'Failed to load report data: ${reportResponse['message'] ?? 'Unknown error'}',
+        );
+      }
     } catch (e) {
       setState(() {
         errorMessage = 'Error loading data: $e';
@@ -144,11 +119,15 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   }
 
   void _initializeDataStructures() {
-    debugPrint('🔧 Initializing data structures for ${categories.length} categories');
-    
+    debugPrint(
+      '🔧 Initializing data structures for ${categories.length} categories',
+    );
+
     for (var category in categories) {
-      debugPrint('🔧 Initializing category: ${category.label} (${category.id})');
-      
+      debugPrint(
+        '🔧 Initializing category: ${category.label} (${category.id})',
+      );
+
       selectedSubcategories[category.id] = [];
       uploadedFiles[category.id] = {};
       fileTypes[category.id] = {};
@@ -156,18 +135,24 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       checkedSubcategories[category.id] = {};
 
       for (var subcategory in category.subcategories) {
-        debugPrint('🔧 Initializing subcategory: ${subcategory.label} (${subcategory.id})');
-        
+        debugPrint(
+          '🔧 Initializing subcategory: ${subcategory.label} (${subcategory.id})',
+        );
+
         uploadedFiles[category.id]![subcategory.id] = [];
         fileTypes[category.id]![subcategory.id] = '';
         checkedSubcategories[category.id]![subcategory.id] = false;
       }
     }
-    
+
     debugPrint('✅ Data structures initialized');
-    debugPrint('🔍 selectedSubcategories keys: ${selectedSubcategories.keys.toList()}');
+    debugPrint(
+      '🔍 selectedSubcategories keys: ${selectedSubcategories.keys.toList()}',
+    );
     debugPrint('🔍 uploadedFiles keys: ${uploadedFiles.keys.toList()}');
-    debugPrint('🔍 checkedSubcategories keys: ${checkedSubcategories.keys.toList()}');
+    debugPrint(
+      '🔍 checkedSubcategories keys: ${checkedSubcategories.keys.toList()}',
+    );
   }
 
   Future<void> _loadExistingData() async {
@@ -175,159 +160,271 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
     try {
       debugPrint('🔍 Loading existing data from report...');
-      debugPrint('🔍 Report data keys: ${reportData?.keys.toList()}');
-      debugPrint('🔍 Existing categories type: ${existingCategories.runtimeType}');
       debugPrint('🔍 Existing categories: $existingCategories');
-      
-      // Handle different data structures
-      List<dynamic> categoriesList;
+
+      // The API response structure is: data.categories (List)
+      List<dynamic> categoriesList = [];
       if (existingCategories is List) {
         categoriesList = existingCategories! as List;
-        debugPrint('✅ Categories is a List with ${categoriesList.length} items');
-      } else if (existingCategories is Map<String, dynamic>) {
-        // If it's a map, try to extract categories from it
-        final categoriesMap = existingCategories! as Map<String, dynamic>;
-        debugPrint('🔍 Categories map keys: ${categoriesMap.keys.toList()}');
-        
-        if (categoriesMap.containsKey('categories')) {
-          final categoriesData = categoriesMap['categories'];
-          if (categoriesData is List) {
-            categoriesList = categoriesData;
-            debugPrint('✅ Found categories list in map: ${categoriesList.length} items');
-          } else {
-            debugPrint('⚠️ Categories key exists but is not a list: ${categoriesData.runtimeType}');
-            categoriesList = [];
-          }
-        } else if (categoriesMap.containsKey('subcategories')) {
-          // If the map has subcategories directly, treat it as a single category
-          categoriesList = [categoriesMap];
-          debugPrint('✅ Treating map as single category with subcategories');
-        } else {
-          // If no 'categories' key, treat the map itself as a single category
-          categoriesList = [categoriesMap];
-          debugPrint('✅ Treating map as single category');
-        }
+        debugPrint(
+          '✅ Categories is a List with ${categoriesList.length} items',
+        );
       } else {
-        debugPrint('⚠️ Unexpected existingCategories type: ${existingCategories.runtimeType}');
-        debugPrint('⚠️ existingCategories value: $existingCategories');
+        debugPrint(
+          '⚠️ Expected List but got: ${existingCategories.runtimeType}',
+        );
         return;
       }
-      
-      debugPrint('🔍 Categories list length: ${categoriesList.length}');
-      
-      // Create a mapping of names to IDs for better matching
+
+      // Create mappings for easier matching
       Map<String, String> categoryNameToId = {};
       Map<String, String> subcategoryNameToId = {};
-      
-      // Build mappings from the loaded categories
+
+      // Build mappings from the loaded categories (these are the available options)
       for (var category in categories) {
+        // Map both the full label and the ID to handle different naming conventions
         categoryNameToId[category.label.toLowerCase()] = category.id;
+        categoryNameToId[category.id.toLowerCase()] = category.id;
+
+        // Also try to map common variations
+        final labelWords = category.label.toLowerCase().split(' ');
+        if (labelWords.isNotEmpty) {
+          categoryNameToId[labelWords.first] = category.id; // First word
+          if (labelWords.length > 1) {
+            categoryNameToId[labelWords.join('')] =
+                category.id; // All words joined
+          }
+        }
+
+        // Add specific mappings for known API response patterns
+        if (category.id.toLowerCase().contains('socialmedia')) {
+          categoryNameToId['socialmedia'] = category.id;
+          categoryNameToId['social media'] = category.id;
+        }
+        if (category.id.toLowerCase().contains('identity')) {
+          categoryNameToId['identity'] = category.id;
+        }
+
         for (var subcategory in category.subcategories) {
           subcategoryNameToId[subcategory.label.toLowerCase()] = subcategory.id;
+          subcategoryNameToId[subcategory.id.toLowerCase()] = subcategory.id;
+
+          // Also try to map common variations for subcategories
+          final subLabelWords = subcategory.label.toLowerCase().split(' ');
+          if (subLabelWords.isNotEmpty) {
+            subcategoryNameToId[subLabelWords.first] =
+                subcategory.id; // First word
+            if (subLabelWords.length > 1) {
+              subcategoryNameToId[subLabelWords.join('')] =
+                  subcategory.id; // All words joined
+            }
+          }
+
+          // Add specific mappings for known API response patterns
+          if (subcategory.id.toLowerCase().contains(
+            'identity-id-verification',
+          )) {
+            subcategoryNameToId['identity-id-verification'] = subcategory.id;
+            subcategoryNameToId['identityidverification'] = subcategory.id;
+          }
+          if (subcategory.id.toLowerCase().contains('socialmedia-full')) {
+            subcategoryNameToId['socialmedia-full'] = subcategory.id;
+            subcategoryNameToId['socialmediafull'] = subcategory.id;
+          }
         }
       }
-      
-      debugPrint('🔍 Category name mappings: ${categoryNameToId.keys.toList()}');
-      debugPrint('🔍 Subcategory name mappings: ${subcategoryNameToId.keys.toList()}');
-      
+
+      debugPrint('🔍 Available categories: ${categoryNameToId.keys.toList()}');
+      debugPrint(
+        '🔍 Available subcategories: ${subcategoryNameToId.keys.toList()}',
+      );
+
+      // Show the mapping for debugging
+      debugPrint('🔍 Category mappings:');
+      categoryNameToId.forEach((name, id) {
+        debugPrint('   $name -> $id');
+      });
+      debugPrint('🔍 Subcategory mappings:');
+      subcategoryNameToId.forEach((name, id) {
+        debugPrint('   $name -> $id');
+      });
+
+      // Process each category from the API response
       for (var category in categoriesList) {
         if (category is! Map<String, dynamic>) {
           debugPrint('⚠️ Skipping invalid category: $category');
           continue;
         }
-        
-        final categoryId = category['id'] ?? category['_id'];
-        final categoryName = category['name'] ?? category['label'] ?? 'Unknown';
-        debugPrint('🔍 Processing category: $categoryName (ID: $categoryId)');
-        
-        // Try to find matching category by name if ID doesn't match
-        String? matchedCategoryId = categoryId;
-        if (categoryId != null && !categoryNameToId.containsValue(categoryId)) {
-          // Try to match by name
-          matchedCategoryId = categoryNameToId[categoryName.toLowerCase()];
-          debugPrint('🔍 Category ID mismatch, trying name match: $categoryName -> ${matchedCategoryId ?? 'NOT FOUND'}');
-        }
-        
+
+        final categoryName = category['name'] ?? 'Unknown';
+        debugPrint('🔍 Processing API category: $categoryName');
+
+        // Find matching category by name with multiple strategies
+        String? matchedCategoryId =
+            categoryNameToId[categoryName.toLowerCase()];
+
+        // If direct match fails, try alternative matching strategies
         if (matchedCategoryId == null) {
-          debugPrint('⚠️ Could not match category: $categoryName');
+          // Try camelCase to kebab-case conversion
+          final camelCaseName = categoryName.toLowerCase();
+          matchedCategoryId = categoryNameToId[camelCaseName];
+
+          // Try removing common prefixes/suffixes
+          if (matchedCategoryId == null) {
+            final cleanName = categoryName
+                .toLowerCase()
+                .replaceAll('-', '')
+                .replaceAll('_', '')
+                .replaceAll(' ', '');
+            matchedCategoryId = categoryNameToId[cleanName];
+          }
+
+          // Try partial matching
+          if (matchedCategoryId == null) {
+            for (var key in categoryNameToId.keys) {
+              if (key.contains(categoryName.toLowerCase()) ||
+                  categoryName.toLowerCase().contains(key)) {
+                matchedCategoryId = categoryNameToId[key];
+                debugPrint(
+                  '🔍 Found partial match: $categoryName -> $key -> $matchedCategoryId',
+                );
+                break;
+              }
+            }
+          }
+        }
+
+        if (matchedCategoryId == null) {
+          debugPrint('⚠️ Could not find matching category for: $categoryName');
+          debugPrint(
+            '🔍 Available category keys: ${categoryNameToId.keys.toList()}',
+          );
           continue;
         }
-        
+
+        debugPrint('✅ Matched category: $categoryName -> $matchedCategoryId');
+
         final subcategories = category['subcategories'] as List? ?? [];
-        debugPrint('🔍 Subcategories count: ${subcategories.length}');
-        
+        debugPrint('🔍 Subcategories in API: ${subcategories.length}');
+
         for (var subcategory in subcategories) {
           if (subcategory is! Map<String, dynamic>) {
             debugPrint('⚠️ Skipping invalid subcategory: $subcategory');
             continue;
           }
-          
-          final subcategoryId = subcategory['id'] ?? subcategory['_id'];
-          final subcategoryName = subcategory['name'] ?? subcategory['label'] ?? 'Unknown';
-          debugPrint('🔍 Processing subcategory: $subcategoryName (ID: $subcategoryId)');
-          
-          // Try to find matching subcategory by name if ID doesn't match
-          String? matchedSubcategoryId = subcategoryId;
-          if (subcategoryId != null && !subcategoryNameToId.containsValue(subcategoryId)) {
-            // Try to match by name
-            matchedSubcategoryId = subcategoryNameToId[subcategoryName.toLowerCase()];
-            debugPrint('🔍 Subcategory ID mismatch, trying name match: $subcategoryName -> ${matchedSubcategoryId ?? 'NOT FOUND'}');
-          }
-          
+
+          final subcategoryName = subcategory['name'] ?? 'Unknown';
+          debugPrint('🔍 Processing API subcategory: $subcategoryName');
+
+          // Find matching subcategory by name with multiple strategies
+          String? matchedSubcategoryId =
+              subcategoryNameToId[subcategoryName.toLowerCase()];
+
+          // If direct match fails, try alternative matching strategies
           if (matchedSubcategoryId == null) {
-            debugPrint('⚠️ Could not match subcategory: $subcategoryName');
+            // Try camelCase to kebab-case conversion
+            final camelCaseName = subcategoryName.toLowerCase();
+            matchedSubcategoryId = subcategoryNameToId[camelCaseName];
+
+            // Try removing common prefixes/suffixes
+            if (matchedSubcategoryId == null) {
+              final cleanName = subcategoryName
+                  .toLowerCase()
+                  .replaceAll('-', '')
+                  .replaceAll('_', '')
+                  .replaceAll(' ', '');
+              matchedSubcategoryId = subcategoryNameToId[cleanName];
+            }
+
+            // Try partial matching
+            if (matchedSubcategoryId == null) {
+              for (var key in subcategoryNameToId.keys) {
+                if (key.contains(subcategoryName.toLowerCase()) ||
+                    subcategoryName.toLowerCase().contains(key)) {
+                  matchedSubcategoryId = subcategoryNameToId[key];
+                  debugPrint(
+                    '🔍 Found partial subcategory match: $subcategoryName -> $key -> $matchedSubcategoryId',
+                  );
+                  break;
+                }
+              }
+            }
+          }
+
+          if (matchedSubcategoryId == null) {
+            debugPrint(
+              '⚠️ Could not find matching subcategory for: $subcategoryName',
+            );
+            debugPrint(
+              '🔍 Available subcategory keys: ${subcategoryNameToId.keys.toList()}',
+            );
             continue;
           }
-          
+
+          debugPrint(
+            '✅ Matched subcategory: $subcategoryName -> $matchedSubcategoryId',
+          );
+
           // Mark as checked
           checkedSubcategories[matchedCategoryId]?[matchedSubcategoryId] = true;
-          debugPrint('✅ Marked subcategory as checked: $subcategoryName (${matchedCategoryId} -> ${matchedSubcategoryId})');
-          
+          debugPrint('✅ Marked subcategory as checked: $subcategoryName');
+
           // Load existing files if any
           final files = subcategory['files'] as List? ?? [];
-          debugPrint('🔍 Files count in subcategory: ${files.length}');
-          
-          if (files.isNotEmpty) {
-            for (var file in files) {
-              if (file is! Map<String, dynamic>) {
-                debugPrint('⚠️ Skipping invalid file: $file');
-                continue;
-              }
-              
-              debugPrint('🔍 Processing file: $file');
-              
-              // Convert existing file data to FileData format
-              final fileData = FileData(
-                id: file['id'] ?? file['_id'] ?? '',
-                fileName: file['fileName'] ?? file['name'] ?? '',
-                filePath: file['filePath'] ?? file['path'] ?? '',
-                fileSize: file['fileSize'] ?? file['size'] ?? 0,
-                fileType: file['fileType'] ?? file['type'] ?? '',
-                uploadDate: DateTime.tryParse(file['uploadDate'] ?? '') ?? DateTime.now(),
-              );
-              
-              debugPrint('✅ Created FileData: ${fileData.fileName} (${fileData.fileSize} bytes)');
-              uploadedFiles[matchedCategoryId]?[matchedSubcategoryId]?.add(fileData);
+          debugPrint('🔍 Files in subcategory: ${files.length}');
+
+          for (var file in files) {
+            if (file is! Map<String, dynamic>) {
+              debugPrint('⚠️ Skipping invalid file: $file');
+              continue;
             }
+
+            debugPrint('🔍 Processing file: ${file['name']}');
+
+            // Convert existing file data to FileData format
+            final fileData = FileData(
+              id:
+                  file['id'] ??
+                  file['_id'] ??
+                  DateTime.now().millisecondsSinceEpoch.toString(),
+              fileName: file['name'] ?? file['fileName'] ?? 'Unknown',
+              filePath:
+                  file['url'] ??
+                  file['filePath'] ??
+                  '', // Use URL as filePath for existing files
+              fileSize: file['size'] ?? file['fileSize'] ?? 0,
+              fileType: file['type'] ?? file['fileType'] ?? 'unknown',
+              uploadDate:
+                  DateTime.tryParse(
+                    file['uploaded_at'] ?? file['uploadDate'] ?? '',
+                  ) ??
+                  DateTime.now(),
+            );
+
+            debugPrint(
+              '✅ Created FileData: ${fileData.fileName} (${fileData.fileSize} bytes)',
+            );
+            uploadedFiles[matchedCategoryId]?[matchedSubcategoryId]?.add(
+              fileData,
+            );
           }
         }
       }
-      
+
       debugPrint('✅ Finished loading existing data');
       debugPrint('🔍 Checked subcategories: $checkedSubcategories');
       debugPrint('🔍 Uploaded files: $uploadedFiles');
-      
+
       // Force UI update after loading data
       setState(() {
         // This will trigger a rebuild to show the loaded data
       });
-      
+
       // Auto-expand categories with checked items
       _expandAllCheckedCategories();
-      
+
       // Debug the final state
       _debugCurrentState();
-      
     } catch (e) {
       debugPrint('❌ Error loading existing data: $e');
     }
@@ -338,19 +435,24 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     debugPrint('🔍 Categories count: ${categories.length}');
     debugPrint('🔍 Report data: ${reportData?.keys.toList()}');
     debugPrint('🔍 Existing categories: ${existingCategories?.runtimeType}');
-    
+
     for (var category in categories) {
       debugPrint('🔍 Category: ${category.label} (${category.id})');
       debugPrint('🔍   - Expanded: ${expandedCategories[category.id]}');
-      debugPrint('🔍   - Subcategories count: ${category.subcategories.length}');
-      
+      debugPrint(
+        '🔍   - Subcategories count: ${category.subcategories.length}',
+      );
+
       for (var subcategory in category.subcategories) {
-        final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
+        final isChecked =
+            checkedSubcategories[category.id]?[subcategory.id] ?? false;
         final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
-        debugPrint('🔍   - Subcategory: ${subcategory.label} (${subcategory.id})');
+        debugPrint(
+          '🔍   - Subcategory: ${subcategory.label} (${subcategory.id})',
+        );
         debugPrint('🔍     * Checked: $isChecked');
         debugPrint('🔍     * Files count: ${files.length}');
-        
+
         for (var file in files) {
           debugPrint('🔍       - File: ${file.fileName} (${file.id})');
         }
@@ -363,7 +465,11 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     debugPrint('🔧 Expanding all categories with checked items');
     setState(() {
       for (var category in categories) {
-        final hasCheckedItems = checkedSubcategories[category.id]?.values.any((checked) => checked) ?? false;
+        final hasCheckedItems =
+            checkedSubcategories[category.id]?.values.any(
+              (checked) => checked,
+            ) ??
+            false;
         if (hasCheckedItems) {
           expandedCategories[category.id] = true;
           debugPrint('✅ Expanded category: ${category.label}');
@@ -375,43 +481,57 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   void _testDataLoading() {
     debugPrint('🧪 === TESTING DATA LOADING ===');
     debugPrint('🧪 Categories loaded: ${categories.length}');
-    debugPrint('🧪 First category: ${categories.isNotEmpty ? categories.first.label : 'None'}');
-    
+    debugPrint(
+      '🧪 First category: ${categories.isNotEmpty ? categories.first.label : 'None'}',
+    );
+
     if (categories.isNotEmpty) {
       final firstCategory = categories.first;
       debugPrint('🧪 First category ID: ${firstCategory.id}');
-      debugPrint('🧪 First category subcategories: ${firstCategory.subcategories.length}');
-      
+      debugPrint(
+        '🧪 First category subcategories: ${firstCategory.subcategories.length}',
+      );
+
       if (firstCategory.subcategories.isNotEmpty) {
         final firstSubcategory = firstCategory.subcategories.first;
         debugPrint('🧪 First subcategory ID: ${firstSubcategory.id}');
-        debugPrint('🧪 Is checked: ${checkedSubcategories[firstCategory.id]?[firstSubcategory.id]}');
-        debugPrint('🧪 Files count: ${uploadedFiles[firstCategory.id]?[firstSubcategory.id]?.length ?? 0}');
+        debugPrint(
+          '🧪 Is checked: ${checkedSubcategories[firstCategory.id]?[firstSubcategory.id]}',
+        );
+        debugPrint(
+          '🧪 Files count: ${uploadedFiles[firstCategory.id]?[firstSubcategory.id]?.length ?? 0}',
+        );
       }
     }
-    
+
     // Show summary in UI
     int totalChecked = 0;
     int totalFiles = 0;
-    
+
     for (var category in categories) {
-      final checkedCount = checkedSubcategories[category.id]?.values.where((checked) => checked).length ?? 0;
+      final checkedCount =
+          checkedSubcategories[category.id]?.values
+              .where((checked) => checked)
+              .length ??
+          0;
       totalChecked += checkedCount;
-      
+
       for (var subcategory in category.subcategories) {
         final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
         totalFiles += files.length;
       }
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Data Summary: $totalChecked subcategories checked, $totalFiles files loaded'),
+        content: Text(
+          'Data Summary: $totalChecked subcategories checked, $totalFiles files loaded',
+        ),
         backgroundColor: Colors.blue,
         duration: const Duration(seconds: 3),
       ),
     );
-    
+
     debugPrint('🧪 === END TEST ===');
   }
 
@@ -429,67 +549,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     } catch (e) {
       return 'Unknown';
     }
-  }
-
-  Map<String, dynamic>? _extractReportData(dynamic responseData) {
-    debugPrint('🔍 Extracting report data from: ${responseData.runtimeType}');
-    
-    if (responseData is Map<String, dynamic>) {
-      debugPrint('✅ Response data is already a Map');
-      return responseData;
-    } else if (responseData is List) {
-      debugPrint('🔍 Response data is a List with ${responseData.length} items');
-      if (responseData.isNotEmpty) {
-        final firstItem = responseData.first;
-        debugPrint('🔍 First item type: ${firstItem.runtimeType}');
-        if (firstItem is Map<String, dynamic>) {
-          debugPrint('✅ First item is a valid Map');
-          return firstItem;
-        } else {
-          debugPrint('⚠️ First item is not a Map: $firstItem');
-        }
-      }
-      debugPrint('⚠️ Report data list is empty or contains invalid items');
-      return null;
-    } else {
-      debugPrint('⚠️ Response data is neither Map nor List: $responseData');
-      return null;
-    }
-  }
-
-  Map<String, dynamic>? _normalizeReportData(Map<String, dynamic> reportData) {
-    debugPrint('🔍 Normalizing report data...');
-    debugPrint('🔍 Report data keys: ${reportData.keys.toList()}');
-    
-    // Check if the report data has the expected structure
-    if (reportData.containsKey('categories')) {
-      debugPrint('✅ Report data has categories key');
-      return reportData;
-    }
-    
-    // If no categories key, check if the data itself is structured as categories
-    if (reportData.containsKey('subcategories')) {
-      debugPrint('✅ Report data has subcategories key - treating as single category');
-      return {
-        'categories': [reportData],
-        'status': reportData['status'] ?? 'unknown',
-        'createdAt': reportData['createdAt'] ?? DateTime.now().toIso8601String(),
-      };
-    }
-    
-    // If neither, return as is
-    debugPrint('⚠️ Report data has neither categories nor subcategories key');
-    return reportData;
-  }
-
-  Map<String, dynamic> _createDefaultReportStructure() {
-    debugPrint('🔧 Creating default report structure');
-    return {
-      'categories': [],
-      'status': 'unknown',
-      'createdAt': DateTime.now().toIso8601String(),
-      'id': widget.reportId,
-    };
   }
 
   Future<void> _pickImage(String categoryId, String subcategoryId) async {
@@ -563,7 +622,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
   void _removeFile(String categoryId, String subcategoryId, String fileId) {
     setState(() {
-      uploadedFiles[categoryId]![subcategoryId]!.removeWhere((file) => file.id == fileId);
+      uploadedFiles[categoryId]![subcategoryId]!.removeWhere(
+        (file) => file.id == fileId,
+      );
     });
   }
 
@@ -576,7 +637,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
-    
+
     // Here you would implement the actual file viewing logic
     // For now, just show a message
     debugPrint('🔍 Viewing file: ${file.fileName} (${file.filePath})');
@@ -584,14 +645,16 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
   void _toggleCategory(String categoryId) {
     setState(() {
-      expandedCategories[categoryId] = !(expandedCategories[categoryId] ?? false);
+      expandedCategories[categoryId] =
+          !(expandedCategories[categoryId] ?? false);
     });
   }
 
   void _toggleSubcategory(String categoryId, String subcategoryId) {
     setState(() {
-      checkedSubcategories[categoryId]![subcategoryId] = !(checkedSubcategories[categoryId]![subcategoryId] ?? false);
-      
+      checkedSubcategories[categoryId]![subcategoryId] =
+          !(checkedSubcategories[categoryId]![subcategoryId] ?? false);
+
       if (checkedSubcategories[categoryId]![subcategoryId]!) {
         selectedSubcategories[categoryId]!.add(subcategoryId);
       } else {
@@ -606,12 +669,26 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         isSaving = true;
       });
 
-      // Prepare the updated payload
-      final payload = _prepareUpdatePayload();
-      
-      // Call API to update the report
-      final response = await _apiService.updateDueDiligenceReport(widget.reportId, payload);
-      
+      debugPrint('🔄 Starting save changes for report: ${widget.reportId}');
+
+      // Step 1: Upload any new files first
+      final uploadResponses = await _uploadNewFiles();
+      debugPrint(
+        '✅ File uploads completed: ${uploadResponses.length} files uploaded',
+      );
+
+      // Step 2: Prepare the updated payload with uploaded file URLs
+      final payload = _prepareUpdatePayload(uploadResponses);
+      debugPrint('📤 Prepared payload: ${payload.toString()}');
+
+      // Step 3: Call API to update the report
+      final response = await _apiService.updateDueDiligenceReport(
+        widget.reportId,
+        payload,
+      );
+
+      debugPrint('📡 Update API response: ${response.toString()}');
+
       if (response['status'] == 'success') {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -619,7 +696,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Navigate back to list view
         Navigator.pop(context);
       } else {
@@ -640,15 +717,110 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
   }
 
-  Map<String, dynamic> _prepareUpdatePayload() {
+  Future<List<Map<String, dynamic>>> _uploadNewFiles() async {
+    List<Map<String, dynamic>> uploadResponses = [];
+
+    debugPrint('🔄 Starting file uploads...');
+
+    for (var categoryId in uploadedFiles.keys) {
+      for (var subcategoryId in uploadedFiles[categoryId]!.keys) {
+        final files = uploadedFiles[categoryId]![subcategoryId]!;
+
+        for (var file in files) {
+          // Only upload new files (not existing ones)
+          // New files have local file paths, existing files have URLs
+          final isNewFile =
+              file.filePath.startsWith('/') ||
+              file.filePath.startsWith('file://') ||
+              file.id.isEmpty ||
+              file.id == DateTime.now().millisecondsSinceEpoch.toString();
+
+          if (isNewFile && file.filePath.isNotEmpty) {
+            try {
+              debugPrint('📤 Uploading new file: ${file.fileName}');
+
+              // Create File object from filePath
+              final fileObj = File(file.filePath);
+
+              // Upload file using the upload API
+              final uploadResponse = await _apiService.uploadDueDiligenceFile(
+                fileObj,
+                widget.reportId,
+                categoryId,
+                subcategoryId,
+              );
+
+              debugPrint('✅ File uploaded successfully: ${file.fileName}');
+              debugPrint('📡 Upload response: ${uploadResponse.toString()}');
+
+              // Store the upload response with file info
+              uploadResponses.add({
+                'categoryId': categoryId,
+                'subcategoryId': subcategoryId,
+                'fileData': file,
+                'uploadResponse': uploadResponse,
+              });
+            } catch (e) {
+              debugPrint('❌ Failed to upload file ${file.fileName}: $e');
+              // Continue with other files even if one fails
+            }
+          } else {
+            debugPrint('⏭️ Skipping existing file: ${file.fileName}');
+          }
+        }
+      }
+    }
+
+    debugPrint(
+      '✅ File upload process completed. ${uploadResponses.length} files uploaded.',
+    );
+    return uploadResponses;
+  }
+
+  Map<String, dynamic> _prepareUpdatePayload([
+    List<Map<String, dynamic>> uploadResponses = const [],
+  ]) {
+    // Get the actual group_id from report data or user profile
+    String? groupId = reportData?['group_id'] ?? reportData?['groupId'];
+
+    // If not found in report data, try to get from user profile
+    if (groupId == null) {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUser = authProvider.currentUser;
+
+        if (currentUser?.additionalData != null) {
+          groupId =
+              currentUser!.additionalData!['group_id'] ??
+              currentUser.additionalData!['groupId'] ??
+              currentUser.additionalData!['group'] ??
+              'default-group-id';
+          debugPrint('🔑 Using group_id from user profile: $groupId');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error getting group_id from user profile: $e');
+      }
+    }
+
+    // Final fallback
+    if (groupId == null) {
+      debugPrint('⚠️ No group_id found, using reportId as fallback');
+      groupId = widget.reportId;
+    }
+
     final payload = <String, dynamic>{
       'categories': [],
-      'updatedAt': DateTime.now().toIso8601String(),
+      'group_id': groupId,
+      'comments': '',
+      'status': 'submitted',
     };
+
+    debugPrint(
+      '🔧 Preparing payload with ${uploadResponses.length} upload responses',
+    );
 
     for (var category in categories) {
       final categoryData = <String, dynamic>{
-        'id': category.id,
         'name': category.label,
         'subcategories': [],
       };
@@ -656,18 +828,95 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       for (var subcategory in category.subcategories) {
         if (checkedSubcategories[category.id]?[subcategory.id] == true) {
           final subcategoryData = <String, dynamic>{
-            'id': subcategory.id,
             'name': subcategory.label,
-            'files': uploadedFiles[category.id]?[subcategory.id]?.map((file) => {
-              'id': file.id,
-              'fileName': file.fileName,
-              'filePath': file.filePath,
-              'fileSize': file.fileSize,
-              'fileType': file.fileType,
-              'uploadDate': file.uploadDate.toIso8601String(),
-            }).toList() ?? [],
+            'files': [],
           };
-          
+
+          // Get files for this subcategory
+          final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
+
+          for (var file in files) {
+            Map<String, dynamic> fileData;
+
+            // Check if this file was just uploaded
+            Map<String, dynamic>? uploadResponse;
+            try {
+              uploadResponse = uploadResponses.firstWhere(
+                (response) =>
+                    response['categoryId'] == category.id &&
+                    response['subcategoryId'] == subcategory.id &&
+                    (response['fileData'] as FileData).id == file.id,
+              );
+            } catch (e) {
+              uploadResponse = null;
+            }
+
+            if (uploadResponse != null) {
+              // This is a newly uploaded file - use the upload response data
+              final uploadData = uploadResponse['uploadResponse'];
+              debugPrint('🔗 Using upload response for file: ${file.fileName}');
+
+              // Extract file URL from upload response
+              String fileUrl = '';
+              if (uploadData['url'] != null &&
+                  uploadData['url'].toString().isNotEmpty) {
+                fileUrl = uploadData['url'].toString();
+              } else if (uploadData['data'] != null &&
+                  uploadData['data']['url'] != null &&
+                  uploadData['data']['url'].toString().isNotEmpty) {
+                fileUrl = uploadData['data']['url'].toString();
+              } else if (uploadData['fileName'] != null &&
+                  uploadData['fileName'].toString().isNotEmpty) {
+                fileUrl =
+                    'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadData['fileName']}';
+              } else {
+                debugPrint(
+                  '⚠️ No valid URL found in upload response for file: ${file.fileName}',
+                );
+                debugPrint('⚠️ Upload response data: ${uploadData.toString()}');
+                // Skip this file if no valid URL
+                continue;
+              }
+
+              // Determine proper file type from file extension
+              String properFileType = _getFileMimeType(file.fileName);
+
+              fileData = {
+                'name': file.fileName,
+                'size': file.fileSize,
+                'type': properFileType,
+                'url': fileUrl,
+                'comments': '',
+              };
+            } else {
+              // This is an existing file - use existing data
+              debugPrint('📁 Using existing file data: ${file.fileName}');
+
+              // Determine proper file type from file extension
+              String properFileType = _getFileMimeType(file.fileName);
+
+              fileData = {
+                'name': file.fileName,
+                'size': file.fileSize,
+                'type': properFileType,
+                'url': file
+                    .filePath, // For existing files, filePath contains the URL
+                'comments': '',
+              };
+            }
+
+            // Only add file if it has a valid URL
+            if (fileData['url'] != null &&
+                fileData['url'].toString().isNotEmpty) {
+              subcategoryData['files'].add(fileData);
+              debugPrint('✅ Added file to payload: ${fileData['name']}');
+            } else {
+              debugPrint(
+                '⚠️ Skipping file with empty URL: ${fileData['name']}',
+              );
+            }
+          }
+
           categoryData['subcategories'].add(subcategoryData);
         }
       }
@@ -677,7 +926,79 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       }
     }
 
+    debugPrint(
+      '📤 Final payload prepared with ${payload['categories'].length} categories',
+    );
+    debugPrint('📤 Payload structure: ${payload.toString()}');
+
+    // Additional debugging for payload validation
+    debugPrint('🔍 Payload validation:');
+    debugPrint('   - group_id: ${payload['group_id']}');
+    debugPrint('   - comments: ${payload['comments']}');
+    debugPrint('   - status: ${payload['status']}');
+    debugPrint('   - categories count: ${payload['categories'].length}');
+
+    for (int i = 0; i < payload['categories'].length; i++) {
+      final category = payload['categories'][i];
+      debugPrint('   - Category $i: ${category['name']}');
+      debugPrint('     - Subcategories: ${category['subcategories'].length}');
+
+      for (int j = 0; j < category['subcategories'].length; j++) {
+        final subcategory = category['subcategories'][j];
+        debugPrint('     - Subcategory $j: ${subcategory['name']}');
+        debugPrint('       - Files: ${subcategory['files'].length}');
+
+        for (int k = 0; k < subcategory['files'].length; k++) {
+          final file = subcategory['files'][k];
+          debugPrint(
+            '       - File $k: ${file['name']} (${file['size']} bytes)',
+          );
+          debugPrint('         - URL: ${file['url']}');
+          debugPrint('         - Type: ${file['type']}');
+        }
+      }
+    }
+
     return payload;
+  }
+
+  String _getFileMimeType(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'txt':
+        return 'text/plain';
+      case 'mp4':
+        return 'video/mp4';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mov':
+        return 'video/quicktime';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   @override
@@ -716,54 +1037,52 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         ],
       ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.red.shade600),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _refreshData,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red.shade400,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _refreshData,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header Section
-                        _buildHeaderSection(),
-                        const SizedBox(height: 24),
-                        
-                        // Categories Section
-                        _buildCategoriesSection(),
-                        const SizedBox(height: 24),
-                        
-                        // Save Button
-                        _buildSaveButton(),
-                      ],
-                    ),
+                  const SizedBox(height: 16),
+                  Text(
+                    errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red.shade600),
                   ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _refreshData,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _refreshData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Section
+                    _buildHeaderSection(),
+                    const SizedBox(height: 24),
+
+                    // Categories Section
+                    _buildCategoriesSection(),
+                    const SizedBox(height: 24),
+
+                    // Save Button
+                    _buildSaveButton(),
+                  ],
                 ),
+              ),
+            ),
     );
   }
 
@@ -793,11 +1112,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.blue.shade600,
-                  size: 24,
-                ),
+                child: Icon(Icons.edit, color: Colors.blue.shade600, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -814,7 +1129,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                     ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(6),
@@ -829,77 +1147,90 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
           const SizedBox(height: 16),
           // Report Status and Info
-           if (reportData != null) ...[
-             Row(
-               children: [
-                 Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
-                 const SizedBox(width: 8),
-                 Text(
-                   'Report Status: ${reportData!['status'] ?? 'Unknown'}',
-                   style: TextStyle(
-                     fontSize: 14,
-                     color: Colors.blue.shade700,
-                     fontWeight: FontWeight.w500,
-                   ),
-                 ),
-                 const Spacer(),
-                 if (reportData!['createdAt'] != null)
-                   Text(
-                     'Created: ${_formatDate(reportData!['createdAt'])}',
-                     style: TextStyle(
-                       fontSize: 12,
-                       color: Colors.grey.shade600,
-                     ),
-                   ),
-               ],
-             ),
-             const SizedBox(height: 8),
-           ],
-           
-           // Data Loading Status
-           Container(
-             padding: const EdgeInsets.all(12),
-             decoration: BoxDecoration(
-               color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-                   ? Colors.green.shade50 
-                   : Colors.orange.shade50,
-               borderRadius: BorderRadius.circular(8),
-               border: Border.all(
-                 color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-                     ? Colors.green.shade200 
-                     : Colors.orange.shade200,
-               ),
-             ),
-             child: Row(
-               children: [
-                 Icon(
-                   existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-                       ? Icons.folder_open 
-                       : Icons.info_outline,
-                   size: 16,
-                   color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-                       ? Colors.green.shade600 
-                       : Colors.orange.shade600,
-                 ),
-                 const SizedBox(width: 8),
-                 Expanded(
-                   child: Text(
-                     existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-                         ? 'Existing data loaded: ${(existingCategories as List).length} categories with files'
-                         : 'No existing data found. You can create a new due diligence report.',
-                     style: TextStyle(
-                       fontSize: 13,
-                       color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-                           ? Colors.green.shade700 
-                           : Colors.orange.shade700,
-                       height: 1.3,
-                     ),
-                   ),
-                 ),
-               ],
-             ),
-           ),
-          
+          if (reportData != null) ...[
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  'Report Status: ${reportData!['status'] ?? 'Unknown'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                if (reportData!['createdAt'] != null)
+                  Text(
+                    'Created: ${_formatDate(reportData!['createdAt'])}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Data Loading Status
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color:
+                  existingCategories != null &&
+                      existingCategories is List &&
+                      (existingCategories as List).isNotEmpty
+                  ? Colors.green.shade50
+                  : Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color:
+                    existingCategories != null &&
+                        existingCategories is List &&
+                        (existingCategories as List).isNotEmpty
+                    ? Colors.green.shade200
+                    : Colors.orange.shade200,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  existingCategories != null &&
+                          existingCategories is List &&
+                          (existingCategories as List).isNotEmpty
+                      ? Icons.folder_open
+                      : Icons.info_outline,
+                  size: 16,
+                  color:
+                      existingCategories != null &&
+                          existingCategories is List &&
+                          (existingCategories as List).isNotEmpty
+                      ? Colors.green.shade600
+                      : Colors.orange.shade600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    existingCategories != null &&
+                            existingCategories is List &&
+                            (existingCategories as List).isNotEmpty
+                        ? 'Existing data loaded: ${(existingCategories as List).length} categories with files'
+                        : 'No existing data found. You can create a new due diligence report.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color:
+                          existingCategories != null &&
+                              existingCategories is List &&
+                              (existingCategories as List).isNotEmpty
+                          ? Colors.green.shade700
+                          : Colors.orange.shade700,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Text(
           //   'Make changes to your due diligence report below. You can modify categories, subcategories, and upload new files.',
           //   style: TextStyle(
@@ -908,20 +1239,20 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //     height: 1.4,
           //   ),
           // ),
-          
-                     // Existing Files Summary
+
+          // Existing Files Summary
           //  if (reportData != null) ...[
           //    const SizedBox(height: 16),
           //    Container(
           //      padding: const EdgeInsets.all(12),
           //      decoration: BoxDecoration(
-          //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-          //            ? Colors.green.shade50 
+          //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+          //            ? Colors.green.shade50
           //            : Colors.orange.shade50,
           //        borderRadius: BorderRadius.circular(8),
           //        border: Border.all(
-          //          color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-          //              ? Colors.green.shade200 
+          //          color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+          //              ? Colors.green.shade200
           //              : Colors.orange.shade200,
           //        ),
           //      ),
@@ -931,12 +1262,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //          Row(
           //            children: [
           //              Icon(
-          //                existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-          //                    ? Icons.folder_open 
+          //                existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+          //                    ? Icons.folder_open
           //                    : Icons.info_outline,
           //                size: 16,
-          //                color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-          //                    ? Colors.green.shade600 
+          //                color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+          //                    ? Colors.green.shade600
           //                    : Colors.orange.shade600,
           //              ),
           //              const SizedBox(width: 8),
@@ -947,14 +1278,14 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //             //          : 'No existing data found. You can create a new due diligence report by selecting categories and uploading files.',
           //             //      style: TextStyle(
           //             //        fontSize: 13,
-          //             //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty 
-          //             //            ? Colors.green.shade700 
+          //             //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+          //             //            ? Colors.green.shade700
           //             //            : Colors.orange.shade700,
           //             //        height: 1.3,
           //             //      ),
           //             //    ),
           //             //  ),
-                    
+
           //            ],
           //          ),
           //          // Debug info
@@ -1001,7 +1332,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //      ),
           //    ),
           //  ],
-       
         ],
       ),
     );
@@ -1063,7 +1393,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
   Widget _buildCategoryCard(Category category) {
     final isExpanded = expandedCategories[category.id] ?? false;
-    final hasCheckedItems = checkedSubcategories[category.id]?.values.any((checked) => checked) ?? false;
+    final hasCheckedItems =
+        checkedSubcategories[category.id]?.values.any((checked) => checked) ??
+        false;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1095,13 +1427,18 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: hasCheckedItems ? Colors.blue.shade700 : Colors.black87,
+                        color: hasCheckedItems
+                            ? Colors.blue.shade700
+                            : Colors.black87,
                       ),
                     ),
                   ),
                   if (hasCheckedItems)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade100,
                         borderRadius: BorderRadius.circular(12),
@@ -1119,17 +1456,25 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               ),
             ),
           ),
-          
+
           // Subcategories
           if (isExpanded)
             Container(
               padding: const EdgeInsets.only(left: 32, right: 16, bottom: 16),
               child: Column(
                 children: category.subcategories.map((subcategory) {
-                  final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
-                  final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
-                  
-                  return _buildSubcategoryItem(category, subcategory, isChecked, files);
+                  final isChecked =
+                      checkedSubcategories[category.id]?[subcategory.id] ??
+                      false;
+                  final files =
+                      uploadedFiles[category.id]?[subcategory.id] ?? [];
+
+                  return _buildSubcategoryItem(
+                    category,
+                    subcategory,
+                    isChecked,
+                    files,
+                  );
                 }).toList(),
               ),
             ),
@@ -1138,7 +1483,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     );
   }
 
-  Widget _buildSubcategoryItem(Category category, Subcategory subcategory, bool isChecked, List<FileData> files) {
+  Widget _buildSubcategoryItem(
+    Category category,
+    Subcategory subcategory,
+    bool isChecked,
+    List<FileData> files,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -1165,15 +1515,15 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                 const SizedBox(width: 4),
                 Text(
                   '${files.length} file(s)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 if (files.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade100,
                       borderRadius: BorderRadius.circular(4),
@@ -1191,11 +1541,15 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               ],
             ),
             value: isChecked,
-            onChanged: (value) => _toggleSubcategory(category.id, subcategory.id),
+            onChanged: (value) =>
+                _toggleSubcategory(category.id, subcategory.id),
             controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
           ),
-          
+
           // File Upload Section
           if (isChecked)
             Container(
@@ -1204,11 +1558,13 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // File Upload Buttons
-                  Row(
+                  Column(
                     children: [
-                      Expanded(
+                      SizedBox(
+                        width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () => _pickImage(category.id, subcategory.id),
+                          onPressed: () =>
+                              _pickImage(category.id, subcategory.id),
                           icon: const Icon(Icons.image, size: 16),
                           label: const Text('Add Image'),
                           style: ElevatedButton.styleFrom(
@@ -1218,10 +1574,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () => _pickDocument(category.id, subcategory.id),
+                          onPressed: () =>
+                              _pickDocument(category.id, subcategory.id),
                           icon: const Icon(Icons.description, size: 16),
                           label: const Text('Add Document'),
                           style: ElevatedButton.styleFrom(
@@ -1233,13 +1591,17 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                       ),
                     ],
                   ),
-                  
+
                   // Uploaded Files List
                   if (files.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Icon(Icons.folder_open, size: 16, color: Colors.grey.shade700),
+                        Icon(
+                          Icons.folder_open,
+                          size: 16,
+                          color: Colors.grey.shade700,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Files (${files.length}):',
@@ -1252,7 +1614,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    ...files.map((file) => _buildFileItem(category.id, subcategory.id, file)),
+                    ...files.map(
+                      (file) =>
+                          _buildFileItem(category.id, subcategory.id, file),
+                    ),
                   ],
                 ],
               ),
@@ -1262,10 +1627,20 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     );
   }
 
-  Widget _buildFileItem(String categoryId, String subcategoryId, FileData file) {
-    final isExistingFile = file.id.isNotEmpty && 
-                           file.id != DateTime.now().millisecondsSinceEpoch.toString();
-    
+  Widget _buildFileItem(
+    String categoryId,
+    String subcategoryId,
+    FileData file,
+  ) {
+    // Check if this is an existing file (has URL) or new file (has local path)
+    final isExistingFile =
+        file.filePath.startsWith('http') ||
+        file.filePath.startsWith('https') ||
+        (file.id.isNotEmpty &&
+            !file.id.startsWith(
+              DateTime.now().millisecondsSinceEpoch.toString().substring(0, 8),
+            ));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -1282,12 +1657,16 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: isExistingFile ? Colors.blue.shade100 : Colors.grey.shade100,
+              color: isExistingFile
+                  ? Colors.blue.shade100
+                  : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
               file.fileType == 'image' ? Icons.image : Icons.description,
-              color: isExistingFile ? Colors.blue.shade600 : Colors.grey.shade600,
+              color: isExistingFile
+                  ? Colors.blue.shade600
+                  : Colors.grey.shade600,
               size: 16,
             ),
           ),
@@ -1298,20 +1677,27 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      file.fileName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: isExistingFile ? Colors.blue.shade700 : Colors.black87,
+                    Expanded(
+                      child: Text(
+                        file.fileName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isExistingFile
+                              ? Colors.blue.shade700
+                              : Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     if (isExistingFile) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade200,
                           borderRadius: BorderRadius.circular(4),
@@ -1325,34 +1711,65 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                           ),
                         ),
                       ),
+                    ] else ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'NEW',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${(file.fileSize / 1024).toStringAsFixed(1)} KB • ${_formatDate(file.uploadDate.toIso8601String())}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ],
             ),
           ),
+          // Action buttons
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               // View button for existing files
               if (isExistingFile)
                 IconButton(
                   onPressed: () => _viewFile(file),
-                  icon: Icon(Icons.visibility, color: Colors.blue.shade600, size: 18),
+                  icon: Icon(
+                    Icons.visibility,
+                    color: Colors.blue.shade600,
+                    size: 18,
+                  ),
                   tooltip: 'View file',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: EdgeInsets.zero,
                 ),
               // Remove button
               IconButton(
-                onPressed: () => _removeFile(categoryId, subcategoryId, file.id),
+                onPressed: () =>
+                    _removeFile(categoryId, subcategoryId, file.id),
                 icon: Icon(Icons.delete, color: Colors.red.shade600, size: 18),
                 tooltip: 'Remove file',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
               ),
             ],
           ),
@@ -1386,8 +1803,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //     color: Colors.grey.shade700,
           //   ),
           // ),
-         
           const SizedBox(height: 16),
+
           // Text(
           //   'Click the button below to save all your changes to this due diligence report.',
           //   textAlign: TextAlign.center,
@@ -1396,7 +1813,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //     color: Colors.grey.shade600,
           //   ),
           // ),
-          
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -1419,7 +1835,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         ),
                         SizedBox(width: 12),
@@ -1468,10 +1886,7 @@ class Subcategory {
   final String id;
   final String label;
 
-  Subcategory({
-    required this.id,
-    required this.label,
-  });
+  Subcategory({required this.id, required this.label});
 
   factory Subcategory.fromJson(Map<String, dynamic> json) {
     return Subcategory(

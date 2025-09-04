@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../custom/customButton.dart';
 import '../../services/api_service.dart';
 import '../../provider/auth_provider.dart';
-import 'Due_diligence_view.dart';
 import 'Due_diligence_list_view.dart';
 
 class DueDiligenceWrapper extends StatefulWidget {
@@ -182,7 +180,28 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
       // Create the payload structure as per API requirements
       final List<Map<String, dynamic>> categoriesPayload = [];
 
-      for (var categoryId in uploadResponses.keys) {
+      // If no upload responses (no files uploaded), use checked subcategories instead
+      final Map<String, Map<String, List<Map<String, dynamic>>>> dataToProcess;
+
+      if (uploadResponses.isEmpty) {
+        // No files uploaded, create structure from checked subcategories
+        dataToProcess = {};
+        for (var categoryId in checkedSubcategories.keys) {
+          for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
+            if (checkedSubcategories[categoryId]![subcategoryId] == true) {
+              if (dataToProcess[categoryId] == null) {
+                dataToProcess[categoryId] = {};
+              }
+              dataToProcess[categoryId]![subcategoryId] =
+                  []; // Empty files list
+            }
+          }
+        }
+      } else {
+        dataToProcess = uploadResponses;
+      }
+
+      for (var categoryId in dataToProcess.keys) {
         // Find the category details
         final category = categories.firstWhere(
           (cat) => cat.id == categoryId,
@@ -191,7 +210,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
         final List<Map<String, dynamic>> subcategoriesPayload = [];
 
-        for (var subcategoryId in uploadResponses[categoryId]!.keys) {
+        for (var subcategoryId in dataToProcess[categoryId]!.keys) {
           // Find the subcategory details
           final subcategory = category.subcategories.firstWhere(
             (sub) => sub.id == subcategoryId,
@@ -202,8 +221,8 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           final List<Map<String, dynamic>> filesPayload = [];
 
           // Check if there are uploaded files for this subcategory
-          if (uploadResponses[categoryId]![subcategoryId]!.isNotEmpty) {
-            for (var uploadData in uploadResponses[categoryId]![subcategoryId]!) {
+          if (dataToProcess[categoryId]![subcategoryId]!.isNotEmpty) {
+            for (var uploadData in dataToProcess[categoryId]![subcategoryId]!) {
               final fileData = uploadData['fileData'] as FileData;
               final uploadResponse =
                   uploadData['uploadResponse'] as Map<String, dynamic>;
@@ -242,7 +261,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                 'name': fileData.fileName,
                 'size': await fileData.file.length(),
                 'type': fileData.fileType,
-              'url': fileUrl,
+                'url': fileUrl,
                 'comments': fileData.documentNumber.isNotEmpty
                     ? fileData.documentNumber
                     : '',
@@ -352,7 +371,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         return AlertDialog(
           title: const Text('Submit Due Diligence'),
           content: const Text(
-            'Are you sure you want to submit the due diligence report? Files are optional - you can submit with or without files.',
+            'Are you sure you want to submit the due diligence report? Files are optional - you can submit with just the selected categories/subcategories.',
           ),
           actions: [
             TextButton(
@@ -467,35 +486,27 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         }
       }
 
+      // Files are optional - proceed with submission even if no files
       if (!hasUploadedFiles) {
-        print('⚠️ No files to upload');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select and upload at least one file'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        setState(() {
-          isLoading = false;
-        });
-        return;
+        print('⚠️ No files to upload - proceeding with submission anyway');
       }
 
       // Create the API payload for due diligence submission
-      if (uploadedFilesCount > 0) {
-        try {
-          await _submitDueDiligenceToAPI(uploadResponses);
-          print('✅ Due diligence submitted to API successfully');
-        } catch (e) {
-          print('❌ Failed to submit due diligence to API: $e');
-          uploadErrors.add('Failed to submit due diligence: $e');
-        }
+      // Submit regardless of whether files were uploaded or not
+      try {
+        await _submitDueDiligenceToAPI(uploadResponses);
+        print('✅ Due diligence submitted to API successfully');
+      } catch (e) {
+        print('❌ Failed to submit due diligence to API: $e');
+        uploadErrors.add('Failed to submit due diligence: $e');
       }
 
       // Show success message
       if (uploadErrors.isEmpty) {
-        if (hasUploadedFiles) {
-          print('✅ All files uploaded and due diligence submitted successfully');
+        if (hasUploadedFiles && uploadedFilesCount > 0) {
+          print(
+            '✅ All files uploaded and due diligence submitted successfully',
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Due Diligence submitted successfully with files!'),
@@ -603,21 +614,18 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF064FAD),
-        foregroundColor: Colors.white,
+        title: Text(
+          'Create Due Diligence Report',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
         elevation: 0,
-        title: const Text(
-          'Due Diligence',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.visibility, color: Colors.white),
+            icon: Icon(Icons.visibility, color: Colors.blue.shade600),
             onPressed: () {
               print(
                 '🔍 Debug: Navigating to view with reportId: ${widget.reportId}',
@@ -629,169 +637,303 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
             },
             tooltip: 'View Due Diligence',
           ),
-
-          // IconButton(
-          //   icon: const Icon(Icons.bug_report, color: Colors.white),
-          //   onPressed: () {
-          //     print('🐛 Debug: Testing navigation...');
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       SnackBar(
-          //         content: Text('Report ID: ${widget.reportId ?? "null"}'),
-          //         backgroundColor: Colors.blue,
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Debug Info',
-          // ),
-          // IconButton(
-          //   icon: const Icon(Icons.play_arrow, color: Colors.white),
-          //   onPressed: () {
-          //     print('🚀 Force navigation test...');
-          //     Navigator.of(context).pushReplacement(
-          //       MaterialPageRoute(
-          //         builder: (context) => DueDiligenceView(
-          //           reportId: widget.reportId ?? 'test-report',
-          //         ),
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Force Navigate',
-          // ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: Column(
-          children: [
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : errorMessage != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            errorMessage!,
-                            style: const TextStyle(color: Colors.red),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _loadCategories,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      physics: AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: categories.map((category) {
-                          return _buildCategorySection(category);
-                        }).toList(),
-                      ),
-                    ),
-            ),
-            // Submit/Cancel Buttons
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.2),
-                    spreadRadius: 1,
-                    blurRadius: 3,
-                    offset: const Offset(0, -1),
-                  ),
-                ],
-              ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (isLoading) ...[
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              const Color(0xFF064FAD),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Uploading files and submitting...',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomButton(
-                          onPressed: isLoading
-                              ? null
-                              : () async => _cancelDueDiligence(),
-                          text: 'Cancel',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: CustomButton(
-                          onPressed: isLoading
-                              ? null
-                              : () async => _submitDueDiligence(),
-                          text: isLoading ? 'Submitting...' : 'Submit',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red.shade600),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadCategories,
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
+            )
+          : RefreshIndicator(
+              onRefresh: _refreshData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Section
+                    _buildHeaderSection(),
+                    const SizedBox(height: 24),
+
+                    // Categories Section
+                    _buildCategoriesSection(),
+                    const SizedBox(height: 24),
+
+                    // Submit Button
+                    _buildSubmitButton(),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.add_circle,
+                  color: Colors.blue.shade600,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Create Due Diligence Report',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Select categories and subcategories, then upload files (optional)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Files are optional - you can submit with just selected categories/subcategories.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.blue.shade700,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCategorySection(Category category) {
+  Widget _buildCategoriesSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.category, color: Colors.blue.shade600, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'Categories & Subcategories',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              return _buildCategoryCard(category);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : _cancelDueDiligence,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade200,
+                    foregroundColor: Colors.grey.shade700,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : _submitDueDiligence,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: isLoading
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text('Submitting...'),
+                          ],
+                        )
+                      : const Text(
+                          'Submit Report',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(Category category) {
     final isExpanded = expandedCategories[category.id] ?? false;
     final hasCheckedItems =
         checkedSubcategories[category.id]?.values.any((checked) => checked) ??
         false;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.grey[300]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasCheckedItems ? Colors.blue.shade200 : Colors.grey.shade200,
+          width: hasCheckedItems ? 2 : 1,
+        ),
       ),
       child: Column(
         children: [
-          // Category Header (Clickable to expand/collapse)
+          // Category Header
           InkWell(
             onTap: () {
               setState(() {
@@ -799,97 +941,135 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
               });
             },
             child: Container(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       category.label,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF185ABC),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: hasCheckedItems
+                            ? Colors.blue.shade700
+                            : Colors.black87,
                       ),
                     ),
                   ),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: const Color(0xFF185ABC),
-                    size: 24,
-                  ),
+                  if (hasCheckedItems)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${checkedSubcategories[category.id]?.values.where((checked) => checked).length ?? 0} selected',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          // Subcategories (shown when expanded)
-          if (isExpanded) ...[
+          // Subcategories
+          if (isExpanded)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.only(left: 32, right: 16, bottom: 16),
               child: Column(
                 children: category.subcategories.map((subcategory) {
-                  return _buildSubcategoryCheckbox(category, subcategory);
+                  final isChecked =
+                      checkedSubcategories[category.id]?[subcategory.id] ??
+                      false;
+                  final files =
+                      uploadedFiles[category.id]?[subcategory.id] ?? [];
+
+                  return _buildSubcategoryItem(
+                    category,
+                    subcategory,
+                    isChecked,
+                    files,
+                  );
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-
-          // File Upload Section (shown when any subcategory is checked)
-          if (hasCheckedItems) ...[
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(8.0),
-                  bottomRight: Radius.circular(8.0),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'File Upload for ${category.label} (Optional)',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF185ABC),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...category.subcategories
-                      .where(
-                        (subcategory) =>
-                            checkedSubcategories[category.id]?[subcategory
-                                .id] ==
-                            true,
-                      )
-                      .map((subcategory) {
-                        return _buildFileUploadSection(category, subcategory);
-                      }),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildSubcategoryCheckbox(Category category, Subcategory subcategory) {
-    final isChecked =
-        checkedSubcategories[category.id]?[subcategory.id] ?? false;
-
+  Widget _buildSubcategoryItem(
+    Category category,
+    Subcategory subcategory,
+    bool isChecked,
+    List<FileData> files,
+  ) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isChecked ? Colors.blue.shade50 : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isChecked ? Colors.blue.shade200 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
         children: [
-          Checkbox(
+          // Subcategory Header
+          CheckboxListTile(
+            title: Text(
+              subcategory.label,
+              style: TextStyle(
+                fontWeight: isChecked ? FontWeight.w600 : FontWeight.normal,
+                color: isChecked ? Colors.blue.shade700 : Colors.black87,
+              ),
+            ),
+            subtitle: Row(
+              children: [
+                Icon(Icons.attach_file, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  '${files.length} file(s)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                if (subcategory.required) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Required',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.red.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
             value: isChecked,
-            onChanged: (bool? value) {
+            onChanged: (value) {
               setState(() {
                 checkedSubcategories[category.id]![subcategory.id] =
                     value ?? false;
@@ -901,187 +1081,128 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                 }
               });
             },
-            activeColor: const Color(0xFF185ABC),
-          ),
-          Expanded(
-            child: Text(
-              subcategory.label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
             ),
           ),
-          if (subcategory.required)
+
+          // File Upload Section
+          if (isChecked)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.red[100],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Required',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFileUploadSection(Category category, Subcategory subcategory) {
-    final files = uploadedFiles[category.id]![subcategory.id] ?? [];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6.0),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  subcategory.label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF185ABC),
-                  ),
-                ),
-              ),
-              if (subcategory.required)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red[100],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Required',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // File Upload Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _pickFile(category.id, subcategory.id),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add File (Optional)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade50,
+                        foregroundColor: Colors.blue.shade700,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
 
-          // Add File Button (Optional)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _pickFile(category.id, subcategory.id),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add File (Optional)', style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[50],
-                foregroundColor: Colors.blue[700],
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                  // Uploaded Files List
+                  if (files.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.folder_open,
+                          size: 16,
+                          color: Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Files (${files.length}):',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...files.map(
+                      (file) =>
+                          _buildFileItem(category.id, subcategory.id, file),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-
-          // File List
-          if (files.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Files (${files.length})',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...files.map(
-              (fileData) => _buildFileItem(category, subcategory, fileData),
-            ),
-          ],
         ],
       ),
     );
   }
 
   Widget _buildFileItem(
-    Category category,
-    Subcategory subcategory,
-    FileData fileData,
+    String categoryId,
+    String subcategoryId,
+    FileData file,
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey[300]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.file_present, color: Colors.blue, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fileData.fileName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      fileData.documentNumber.isNotEmpty
-                          ? 'Doc #: ${fileData.documentNumber} | Type: ${fileData.fileType}'
-                          : 'Type: ${fileData.fileType}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                    ),
-                  ],
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              Icons.file_present,
+              color: Colors.grey.shade600,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file.fileName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: () =>
-                        _uploadFile(category.id, subcategory.id, fileData),
-                    icon: const Icon(
-                      Icons.cloud_upload,
-                      color: Colors.green,
-                      size: 16,
-                    ),
-                    tooltip: 'Upload file',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        _deleteFile(category.id, subcategory.id, fileData.id),
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 16),
-                    tooltip: 'Delete file',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  file.documentNumber.isNotEmpty
+                      ? 'Doc #: ${file.documentNumber} | Type: ${file.fileType}'
+                      : 'Type: ${file.fileType}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _deleteFile(categoryId, subcategoryId, file.id),
+            icon: Icon(Icons.delete, color: Colors.red.shade600, size: 18),
+            tooltip: 'Remove file',
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
           ),
         ],
       ),

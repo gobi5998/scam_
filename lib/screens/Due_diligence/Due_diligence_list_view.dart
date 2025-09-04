@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'Due_diligence1.dart' as dd1;
-import 'Due_diligence_view.dart' as ddv;
+
 import 'due_diligence_edit_screen.dart';
 
 class DueDiligenceListView extends StatefulWidget {
@@ -96,13 +96,16 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        _dueDiligenceReports.clear(); // Clear existing data
       });
 
       await _loadRealDueDiligenceData();
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('❌ Error loading real data: $e');
       String errorDetails = 'Failed to load due diligence reports.\n\n';
@@ -112,10 +115,12 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       errorDetails += '2. Server is running\n';
       errorDetails += '3. Authentication is valid';
 
-      setState(() {
-        _errorMessage = errorDetails;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = errorDetails;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -145,6 +150,30 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         final List<dynamic> reportsData = response['data'];
         final pagination = response['pagination'] as Map<String, dynamic>?;
 
+        // Debug logging to see the raw API response
+        debugPrint('🔍 Raw API response structure:');
+        for (int i = 0; i < reportsData.length && i < 3; i++) {
+          final report = reportsData[i];
+          debugPrint('   Report $i keys: ${report.keys.toList()}');
+          debugPrint('   Report $i full structure: $report');
+
+          // Check all possible category locations
+          if (report['categories'] != null) {
+            debugPrint('   - categories field: ${report['categories']}');
+          }
+          if (report['category'] != null) {
+            debugPrint('   - category field: ${report['category']}');
+          }
+          if (report['data'] != null) {
+            debugPrint('   - data field: ${report['data']}');
+          }
+          if (report['dueDiligenceData'] != null) {
+            debugPrint(
+              '   - dueDiligenceData field: ${report['dueDiligenceData']}',
+            );
+          }
+        }
+
         if (_currentPage == 1) {
           _dueDiligenceReports = List<Map<String, dynamic>>.from(reportsData);
         } else {
@@ -170,6 +199,13 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         debugPrint(
           '✅ Loaded ${reportsData.length} due diligence reports from API (Total: ${_dueDiligenceReports.length})',
         );
+
+        // Force UI update after loading data
+        if (mounted) {
+          setState(() {
+            // This will trigger a rebuild to show the loaded data
+          });
+        }
       } else {
         throw Exception(
           'API returned error: ${response['message'] ?? 'Unknown error'}',
@@ -180,8 +216,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       rethrow;
     }
   }
-
-
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
@@ -212,24 +246,43 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   }
 
   Future<void> _refreshData() async {
+    debugPrint('🔄 Starting refresh...');
     setState(() {
       _currentPage = 1;
       _hasMoreData = true;
       _isLoading = true;
       _errorMessage = null;
+      _dueDiligenceReports.clear(); // Clear existing data
     });
 
     try {
       // Ensure we have the groupId before loading data
       if (_groupId == null) {
+        debugPrint('🔄 Fetching groupId...');
         await _fetchUserGroupId();
       }
 
+      debugPrint('🔄 Loading data with groupId: $_groupId');
       await _loadRealDueDiligenceData();
+
+      debugPrint(
+        '✅ Refresh completed. Reports count: ${_dueDiligenceReports.length}',
+      );
+
+      // Ensure we update the UI after loading
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to refresh data: $e';
-      });
+      debugPrint('❌ Error in _refreshData: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to refresh data: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -237,15 +290,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => dd1.DueDiligenceWrapper()),
-    );
-  }
-
-  void _navigateToView(String reportId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ddv.DueDiligenceView(reportId: reportId),
-      ),
     );
   }
 
@@ -262,9 +306,11 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // First API call: Get report details by ID
       debugPrint('🔄 Fetching report details for ID: $reportId');
-      final reportResponse = await _apiService.getDueDiligenceReportById(reportId);
-      
-      if (reportResponse == null || reportResponse['status'] != 'success') {
+      final reportResponse = await _apiService.getDueDiligenceReportById(
+        reportId,
+      );
+
+      if (reportResponse['status'] != 'success') {
         throw Exception('Failed to fetch report details');
       }
 
@@ -273,9 +319,10 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // Second API call: Get categories and subcategories
       debugPrint('🔄 Fetching categories and subcategories...');
-      final categoriesResponse = await _apiService.getCategoriesWithSubcategories();
-      
-      if (categoriesResponse == null || categoriesResponse['status'] != 'success') {
+      final categoriesResponse = await _apiService
+          .getCategoriesWithSubcategories();
+
+      if (categoriesResponse['status'] != 'success') {
         throw Exception('Failed to fetch categories');
       }
 
@@ -287,9 +334,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DueDiligenceEditScreen(
-              reportId: reportId,
-            ),
+            builder: (context) => DueDiligenceEditScreen(reportId: reportId),
           ),
         );
       }
@@ -306,7 +351,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       }
     }
   }
-  
+
   void _saveReportAsPDF(String reportId) {
     // TODO: Implement PDF generation and saving
     ScaffoldMessenger.of(context).showSnackBar(
@@ -316,7 +361,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         duration: const Duration(seconds: 2),
       ),
     );
-    
+
     // Here you would implement the actual PDF generation logic
     // For now, just show a success message
     Future.delayed(const Duration(seconds: 2), () {
@@ -349,24 +394,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     }
   }
 
-  String _formatFullDate(DateTime date) {
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
   // Helper method to get all individual reports sorted by date
   List<Map<String, dynamic>> _getAllReportsSorted() {
     List<Map<String, dynamic>> allReports = [];
@@ -375,24 +402,141 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       final reportId = report['_id'] ?? report['id'] ?? '';
       final reportStatus = report['status'] ?? 'pending';
       final submittedAt = report['submitted_at'] ?? report['createdAt'] ?? '';
-      final categories = report['categories'] as List? ?? [];
-      
+
+      // Try multiple possible field names and structures for categories
+      List<dynamic> categories = [];
+
+      // Try different possible locations for categories
+      if (report['categories'] != null) {
+        categories = report['categories'] as List;
+      } else if (report['category'] != null) {
+        categories = report['category'] as List;
+      } else if (report['data'] != null &&
+          report['data']['categories'] != null) {
+        categories = report['data']['categories'] as List;
+      } else if (report['dueDiligenceData'] != null &&
+          report['dueDiligenceData']['categories'] != null) {
+        categories = report['dueDiligenceData']['categories'] as List;
+      } else if (report['reportData'] != null &&
+          report['reportData']['categories'] != null) {
+        categories = report['reportData']['categories'] as List;
+      } else if (report['submittedData'] != null &&
+          report['submittedData']['categories'] != null) {
+        categories = report['submittedData']['categories'] as List;
+      }
+
+      // If still no categories found, try to extract from nested structures
+      if (categories.isEmpty) {
+        // Check if categories are stored as a single object instead of array
+        if (report['category'] != null && report['category'] is Map) {
+          categories = [report['category']];
+        } else if (report['categories'] != null &&
+            report['categories'] is Map) {
+          categories = [report['categories']];
+        }
+      }
+
+      // Debug logging to see the actual structure
+      debugPrint('🔍 Processing report $reportId:');
+      debugPrint('   - Status: $reportStatus');
+      debugPrint('   - Categories count: ${categories.length}');
+      debugPrint(
+        '   - Categories structure: ${categories.map((c) => c.toString()).toList()}',
+      );
+      debugPrint('   - All report keys: ${report.keys.toList()}');
+
       // Count total files across all categories and subcategories
       int totalFileCount = 0;
       List<String> categoryNames = [];
       List<String> subcategoryNames = [];
 
       for (var category in categories) {
-        final categoryName = category['name'] ?? 'Unknown Category';
+        // Try different possible field names for category name
+        final categoryName =
+            category['name'] ??
+            category['label'] ??
+            category['title'] ??
+            category['categoryName'] ??
+            'Unknown Category';
         categoryNames.add(categoryName);
+        debugPrint('   - Category: $categoryName');
 
-        final subcategories = category['subcategories'] as List? ?? [];
+        // Try different possible field names for subcategories
+        List<dynamic> subcategories =
+            category['subcategories'] as List? ??
+            category['subcategory'] as List? ??
+            category['items'] as List? ??
+            category['fields'] as List? ??
+            [];
+        debugPrint('   - Subcategories count: ${subcategories.length}');
+
         for (var subcategory in subcategories) {
-          final subcategoryName = subcategory['name'] ?? 'Unknown Subcategory';
+          // Try different possible field names for subcategory name
+          final subcategoryName =
+              subcategory['name'] ??
+              subcategory['label'] ??
+              subcategory['title'] ??
+              subcategory['subcategoryName'] ??
+              subcategory['fieldName'] ??
+              'Unknown Subcategory';
           subcategoryNames.add(subcategoryName);
-          
-          final fileCount = (subcategory['fileCount'] ?? 0) as int;
+          debugPrint('     - Subcategory: $subcategoryName');
+
+          // Count files in this subcategory - try different field names
+          List<dynamic> files =
+              subcategory['files'] as List? ??
+              subcategory['file'] as List? ??
+              subcategory['attachments'] as List? ??
+              subcategory['documents'] as List? ??
+              [];
+          final fileCount = files.length;
           totalFileCount += fileCount;
+          debugPrint('       - Files count: $fileCount');
+        }
+      }
+
+      // If no categories found, try to extract from other possible fields
+      if (categoryNames.isEmpty && subcategoryNames.isEmpty) {
+        debugPrint(
+          '   - No categories/subcategories found in standard locations',
+        );
+
+        // Try to extract from other possible fields in the report
+        if (report['categoryName'] != null) {
+          categoryNames.add(report['categoryName'] as String);
+        }
+        if (report['subcategoryName'] != null) {
+          subcategoryNames.add(report['subcategoryName'] as String);
+        }
+        if (report['type'] != null) {
+          categoryNames.add(report['type'] as String);
+        }
+        if (report['subtype'] != null) {
+          subcategoryNames.add(report['subtype'] as String);
+        }
+
+        // Try to extract from nested data structures
+        if (report['data'] != null && report['data'] is Map) {
+          final data = report['data'] as Map<String, dynamic>;
+          if (data['categoryName'] != null) {
+            categoryNames.add(data['categoryName'] as String);
+          }
+          if (data['subcategoryName'] != null) {
+            subcategoryNames.add(data['subcategoryName'] as String);
+          }
+          if (data['type'] != null) {
+            categoryNames.add(data['type'] as String);
+          }
+          if (data['subtype'] != null) {
+            subcategoryNames.add(data['subtype'] as String);
+          }
+        }
+
+        // If still no categories found, add a default entry to show the report exists
+        if (categoryNames.isEmpty && subcategoryNames.isEmpty) {
+          debugPrint('   - Still no categories found, adding default entry');
+          categoryNames.add('Due Diligence Report');
+          subcategoryNames.add('Submitted Report');
         }
       }
 
@@ -407,11 +551,17 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         'subcategoryCount': subcategoryNames.length,
         'categories': categoryNames,
         'subcategories': subcategoryNames,
-            'groupId': report['group_id'] ?? '',
+        'groupId': report['group_id'] ?? '',
         'description': report['description'] ?? 'Due Diligence Report',
         'createdAt': submittedAt,
         'updatedAt': report['updatedAt'] ?? submittedAt,
       };
+
+      // Final debug log to show what was extracted
+      debugPrint('   - Final extracted data:');
+      debugPrint('     - Category names: $categoryNames');
+      debugPrint('     - Subcategory names: $subcategoryNames');
+      debugPrint('     - Total file count: $totalFileCount');
 
       allReports.add(reportWithDetails);
     }
@@ -435,55 +585,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     return allReports;
   }
 
-  // Helper method to get subcategories grouped by date
-  List<Map<String, dynamic>> _getSubcategoriesGroupedByDate() {
-    final sortedReports = _getAllReportsSorted();
-    List<Map<String, dynamic>> groupedList = [];
-
-    String? currentDateGroup = '';
-
-    for (var report in sortedReports) {
-      final createdAt =
-          DateTime.tryParse(report['submittedAt'] ?? '') ?? DateTime.now();
-
-      final dateGroup = _getDateGroup(createdAt);
-
-      if (dateGroup != currentDateGroup) {
-        currentDateGroup = dateGroup;
-        // Add date header
-        groupedList.add({
-          'type': 'header',
-          'date': dateGroup,
-          'dateTime': createdAt,
-        });
-      }
-
-      // Add report
-      groupedList.add({'type': 'report', 'data': report});
-    }
-
-    return groupedList;
-  }
-
-  // Helper method to get date group string
-  String _getDateGroup(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final dateOnly = DateTime(date.year, date.month, date.day);
-
-    if (dateOnly == today) {
-      return 'Today';
-    } else if (dateOnly == yesterday) {
-      return 'Yesterday';
-    } else if (dateOnly.isAfter(today.subtract(const Duration(days: 7)))) {
-      final daysAgo = today.difference(dateOnly).inDays;
-      return '$daysAgo days ago';
-    } else {
-      return _formatFullDate(date);
-    }
-  }
-
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -496,28 +597,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         return Colors.red;
       default:
         return Colors.grey;
-    }
-  }
-
-  IconData _getFileTypeIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'docx':
-      case 'doc':
-        return Icons.description;
-      case 'xlsx':
-      case 'xls':
-        return Icons.table_chart;
-      case 'pptx':
-      case 'ppt':
-        return Icons.slideshow;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-        return Icons.image;
-      default:
-        return Icons.insert_drive_file;
     }
   }
 
@@ -546,226 +625,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     }
     return const SizedBox.shrink();
   }
-
-  Widget _buildCategoryCard(Map<String, dynamic> category, int index) {
-    final categoryName =
-        category['label'] as String? ??
-        category['name'] as String? ??
-        'Unknown Category';
-
-    final categoryId =
-        category['id'] as String? ?? category['_id'] as String? ?? 'unknown';
-
-    final description =
-        category['description'] as String? ?? 'No description available';
-
-    final subcategories = category['subcategories'] as List? ?? [];
-    final subcategoryCount = subcategories.length;
-
-    final createdAt =
-        category['createdAt'] as String? ??
-        category['updatedAt'] as String? ??
-        DateTime.now().toIso8601String();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.category,
-                    color: Colors.blue.shade600,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        categoryName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
-                    '$subcategoryCount ${subcategoryCount == 1 ? 'Item' : 'Items'}',
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (subcategories.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Subcategories',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: subcategories.take(5).map((sub) {
-                        final subName =
-                            sub['label'] as String? ??
-                            sub['name'] as String? ??
-                            'Unknown';
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Text(
-                            subName,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    if (subcategories.length > 5)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          '... and ${subcategories.length - 5} more',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey.shade500),
-                const SizedBox(width: 8),
-                Text(
-                  'Created: ${_formatSubmittedDate(DateTime.tryParse(createdAt) ?? DateTime.now())}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const Spacer(),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () => _navigateToView(categoryId),
-                      icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('View'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _navigateToEdit(categoryId),
-                      icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('Edit'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade600,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -797,16 +656,41 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.add, color: Colors.blue.shade600),
-            onPressed: _navigateToCreate,
-            tooltip: 'Create New Due Diligence',
-          ),
+          // IconButton(
+          //   icon: Icon(Icons.add, color: Colors.blue.shade600),
+          //   onPressed: _navigateToCreate,
+          //   tooltip: 'Create New Due Diligence',
+          // ),
+          
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.blue.shade600),
             onPressed: _refreshData,
             tooltip: 'Refresh Data',
           ),
+          // IconButton(
+          //   icon: Icon(Icons.bug_report, color: Colors.orange.shade600),
+          //   onPressed: () {
+          //     debugPrint('🔍 Current State Debug:');
+          //     debugPrint('   - isLoading: $_isLoading');
+          //     debugPrint('   - errorMessage: $_errorMessage');
+          //     debugPrint('   - reports count: ${_dueDiligenceReports.length}');
+          //     debugPrint('   - groupId: $_groupId');
+          //     debugPrint('   - currentPage: $_currentPage');
+          //     debugPrint('   - hasMoreData: $_hasMoreData');
+
+          //     ScaffoldMessenger.of(context).showSnackBar(
+          //       SnackBar(
+          //         content: Text(
+          //           'Debug: ${_dueDiligenceReports.length} reports, isLoading: $_isLoading',
+          //         ),
+          //         backgroundColor: Colors.blue,
+          //         duration: const Duration(seconds: 2),
+          //       ),
+          //     );
+          //   },
+          //   tooltip: 'Debug State',
+          // ),
+          
           IconButton(
             icon: Icon(Icons.vertical_align_top, color: Colors.blue.shade600),
             onPressed: () {
@@ -850,9 +734,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
-                      ),
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -1033,9 +917,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     final report = sortedReports[index];
     final reportId = report['id'] as String? ?? '';
     final status = report['status'] as String? ?? 'pending';
-    final totalFileCount = report['totalFileCount'] as int? ?? 0;
-    final categoryCount = report['categoryCount'] as int? ?? 0;
-    final subcategoryCount = report['subcategoryCount'] as int? ?? 0;
     final submittedAt = report['submittedAt'] as String? ?? '';
     final categories = report['categories'] as List<String>? ?? [];
     final subcategories = report['subcategories'] as List<String>? ?? [];
@@ -1065,20 +946,20 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             Row(
               children: [
                 // Status Badge
-            Container(
+                Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
                   ),
-              decoration: BoxDecoration(
-                color: _getStatusColor(status).withValues(alpha: 0.2),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(status).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _getStatusColor(status)),
-              ),
+                  ),
                   child: Text(
                     status.toUpperCase(),
                     style: TextStyle(
-                color: _getStatusColor(status),
+                      color: _getStatusColor(status),
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
                     ),
@@ -1121,9 +1002,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Report Title and ID
             // Row(
             //   children: [
@@ -1161,16 +1042,14 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             // //           //     fontFamily: 'monospace',
             // //           //   ),
             // //           // ),
-                    
+
             // //         ],
             // //       ),
             // //     ),
-              
+
             //   ],
             // ),
-            
-            
-            
+
             // Statistics Row
             //       Row(
             //         children: [
@@ -1196,47 +1075,46 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             //     ),
             //   ],
             // ),
-            
             if (categories.isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                      Text(
-                        'Categories: ${categories.length}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
+                    Text(
+                      'Categories: ${categories.length}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                    
+                    ),
+
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: categories.take(5).map((category) {
                         return Container(
-                        padding: const EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
+                          ),
+                          decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Text(
+                          ),
+                          child: Text(
                             category,
-                          style: TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                            color: Colors.blue.shade700,
+                              color: Colors.blue.shade700,
                             ),
                           ),
                         );
@@ -1254,11 +1132,11 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                           ),
                         ),
                       ),
-                    ],
+                  ],
                 ),
               ),
             ],
-            
+
             if (subcategories.isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(
@@ -1269,8 +1147,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                     Text(
+                  children: [
+                    Text(
                       'Subcategories: ${subcategories.length}',
                       style: TextStyle(
                         fontSize: 14,
@@ -1284,19 +1162,19 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       runSpacing: 8,
                       children: subcategories.take(5).map((subcategory) {
                         return Container(
-                  padding: const EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
+                          ),
+                          decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
+                          ),
+                          child: Text(
                             subcategory,
-                    style: TextStyle(
-                      fontSize: 12,
+                            style: TextStyle(
+                              fontSize: 12,
                               color: Colors.green.shade700,
                             ),
                           ),
@@ -1314,17 +1192,17 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             fontStyle: FontStyle.italic,
                           ),
                         ),
-            ),
-          ],
-        ),
-      ),
+                      ),
+                  ],
+                ),
+              ),
             ],
-            
+
             const SizedBox(height: 16),
-            
+
             // Footer with Date and View Button
             Row(
-        children: [
+              children: [
                 Icon(Icons.access_time, size: 16, color: Colors.grey.shade500),
                 const SizedBox(width: 8),
                 Text(
@@ -1332,22 +1210,22 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => _navigateToView(reportId),
-                  icon: const Icon(Icons.visibility, size: 16),
-                  label: const Text('View Details'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade600,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
+                // ElevatedButton.icon(
+                //   onPressed: () => _navigateToView(reportId),
+                //   icon: const Icon(Icons.visibility, size: 16),
+                //   label: const Text('View Details'),
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.blue.shade600,
+                //     foregroundColor: Colors.white,
+                //     padding: const EdgeInsets.symmetric(
+                //       horizontal: 16,
+                //       vertical: 8,
+                //     ),
+                //     shape: RoundedRectangleBorder(
+                //       borderRadius: BorderRadius.circular(8),
+                //     ),
+                //   ),
+                // ),
               ],
             ),
           ],
@@ -1355,47 +1233,4 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       ),
     );
   }
-  
-  // Helper method to build stat item
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-                    child: Column(
-                      children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-                        Text(
-              value,
-                          style: TextStyle(
-                            fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-                          ),
-                        ),
-                        Text(
-              label,
-                          style: TextStyle(
-                fontSize: 10,
-                color: color.withValues(alpha: 0.7),
-                fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-      ),
-    );
-  }
-
-
 }

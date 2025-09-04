@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:security_alert/provider/scam_report_provider.dart';
 import 'package:security_alert/screens/Due_diligence/Due_diligence1.dart';
+import 'package:security_alert/screens/Due_diligence/Due_diligence_list_view.dart';
 import 'package:security_alert/screens/menu/feedbackPage.dart';
 import 'package:security_alert/screens/menu/profile_page.dart';
 import 'package:security_alert/screens/menu/ratepage.dart';
 import 'package:security_alert/screens/menu/shareApp.dart';
 import 'package:security_alert/screens/menu/theard_database.dart';
-import 'package:security_alert/screens/Due_diligence/Due_diligence_view.dart';
-import 'package:security_alert/screens/Due_diligence/Due_diligence_demo.dart';
 import 'package:security_alert/screens/menu/thread_database_listpage.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
 import 'package:security_alert/screens/scam/report_scam_1.dart';
@@ -16,9 +15,6 @@ import 'package:security_alert/screens/malware/report_malware_1.dart';
 import 'package:security_alert/screens/Fraud/ReportFraudStep1.dart';
 import 'package:security_alert/widgets/auth_guard.dart';
 import 'package:security_alert/screens/biometric_auth_screen.dart';
-
-import 'package:security_alert/screens/subscriptionPage/subscription_plans_page.dart';
-
 import 'package:security_alert/provider/auth_provider.dart';
 import 'package:security_alert/provider/dashboard_provider.dart';
 import 'package:security_alert/screens/SplashScreen.dart';
@@ -269,10 +265,10 @@ class MyApp extends StatelessWidget {
         '/due-diligence-view': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final reportId = args as String?;
-          return AuthGuard(child: DueDiligenceView(reportId: reportId));
+          return AuthGuard(child: DueDiligenceListView());
         },
-        '/due-diligence-demo': (context) =>
-            AuthGuard(child: DueDiligenceDemo()),
+        // '/due-diligence-demo': (context) =>
+        //     AuthGuard(child: DueDiligenceDemo()),
         // '/subscription': (context) => AuthGuard(child: SubscriptionPlansPage()),
         '/rate': (context) => AuthGuard(child: Ratepage()),
         '/share': (context) => AuthGuard(child: Shareapp()),
