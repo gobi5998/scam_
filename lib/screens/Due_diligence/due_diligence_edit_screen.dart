@@ -169,9 +169,23 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         debugPrint(
           '✅ Categories is a List with ${categoriesList.length} items',
         );
+      } else if (existingCategories is Map) {
+        // Handle case where categories might be wrapped in a Map
+        final categoriesMap = existingCategories as Map<String, dynamic>;
+        if (categoriesMap['categories'] is List) {
+          categoriesList = categoriesMap['categories'] as List;
+          debugPrint(
+            '✅ Found categories in Map with ${categoriesList.length} items',
+          );
+        } else {
+          debugPrint(
+            '⚠️ Expected categories List in Map but got: ${categoriesMap['categories'].runtimeType}',
+          );
+          return;
+        }
       } else {
         debugPrint(
-          '⚠️ Expected List but got: ${existingCategories.runtimeType}',
+          '⚠️ Expected List or Map but got: ${existingCategories.runtimeType}',
         );
         return;
       }
@@ -368,6 +382,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           // Mark as checked
           checkedSubcategories[matchedCategoryId]?[matchedSubcategoryId] = true;
           debugPrint('✅ Marked subcategory as checked: $subcategoryName');
+          
+          // Also add to selectedSubcategories list
+          if (!selectedSubcategories[matchedCategoryId]!.contains(matchedSubcategoryId)) {
+            selectedSubcategories[matchedCategoryId]!.add(matchedSubcategoryId);
+            debugPrint('✅ Added to selectedSubcategories: $subcategoryName');
+          }
 
           // Load existing files if any
           final files = subcategory['files'] as List? ?? [];
@@ -388,17 +408,15 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                   file['_id'] ??
                   DateTime.now().millisecondsSinceEpoch.toString(),
               fileName: file['name'] ?? file['fileName'] ?? 'Unknown',
-              filePath:
-                  file['url'] ??
-                  file['filePath'] ??
-                  '', // Use URL as filePath for existing files
-              fileSize: file['size'] ?? file['fileSize'] ?? 0,
               fileType: file['type'] ?? file['fileType'] ?? 'unknown',
-              uploadDate:
+              documentNumber: file['comments'] ?? file['documentNumber'] ?? '',
+              uploadTime:
                   DateTime.tryParse(
                     file['uploaded_at'] ?? file['uploadDate'] ?? '',
                   ) ??
                   DateTime.now(),
+              filePath: file['url'] ?? file['filePath'] ?? '', // Use URL as filePath for existing files
+              fileSize: file['size'] ?? file['fileSize'] ?? 0,
             );
 
             debugPrint(
@@ -418,6 +436,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       // Force UI update after loading data
       setState(() {
         // This will trigger a rebuild to show the loaded data
+        debugPrint('🔄 UI updated - checkboxes should now show checked state');
       });
 
       // Auto-expand categories with checked items
@@ -425,6 +444,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
       // Debug the final state
       _debugCurrentState();
+      
+      // Show summary of loaded data
+      _showLoadedDataSummary();
     } catch (e) {
       debugPrint('❌ Error loading existing data: $e');
     }
@@ -459,6 +481,74 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       }
     }
     debugPrint('🔍 === END DEBUG ===');
+  }
+
+  void _debugCheckboxState() {
+    debugPrint('🔘 === CHECKBOX STATE DEBUG ===');
+    debugPrint('🔘 Total categories: ${categories.length}');
+    
+    int totalChecked = 0;
+    for (var category in categories) {
+      debugPrint('🔘 Category: ${category.label} (${category.id})');
+      debugPrint('🔘   - CheckedSubcategories keys: ${checkedSubcategories[category.id]?.keys.toList()}');
+      debugPrint('🔘   - SelectedSubcategories: ${selectedSubcategories[category.id]}');
+      
+      for (var subcategory in category.subcategories) {
+        final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
+        debugPrint('🔘   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked');
+        if (isChecked) totalChecked++;
+      }
+    }
+    
+    debugPrint('🔘 Total checked subcategories: $totalChecked');
+    debugPrint('🔘 === END CHECKBOX DEBUG ===');
+    
+    // Show in UI
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Checkbox Debug: $totalChecked subcategories selected'),
+        backgroundColor: Colors.purple,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showLoadedDataSummary() {
+    int totalChecked = 0;
+    int totalFiles = 0;
+    
+    for (var category in categories) {
+      for (var subcategory in category.subcategories) {
+        final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
+        if (isChecked) totalChecked++;
+        
+        final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
+        totalFiles += files.length;
+      }
+    }
+    
+    debugPrint('📊 Loaded Data Summary:');
+    debugPrint('📊   - Checked subcategories: $totalChecked');
+    debugPrint('📊   - Total files: $totalFiles');
+    
+    // Show summary in UI
+    if (totalChecked > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Loaded existing data: $totalChecked subcategories checked, $totalFiles files loaded'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No existing data found. You can select categories and add files.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   void _expandAllCheckedCategories() {
@@ -551,73 +641,76 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
   }
 
-  Future<void> _pickImage(String categoryId, String subcategoryId) async {
+  Future<void> _pickFile(String categoryId, String subcategoryId) async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
+      final XFile? file = await picker.pickMedia();
 
-      if (image != null) {
-        final file = File(image.path);
+      if (file != null) {
+        // Show dialog to get document number (optional)
+        final documentNumber = await _showDocumentNumberDialog();
+
         final fileData = FileData(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          fileName: image.name,
-          filePath: image.path,
-          fileSize: await file.length(),
-          fileType: 'image',
-          uploadDate: DateTime.now(),
+          file: File(file.path),
+          fileName: file.path.split('/').last,
+          fileType: file.mimeType ?? 'unknown',
+          documentNumber: documentNumber ?? '',
+          uploadTime: DateTime.now(),
         );
 
         setState(() {
           uploadedFiles[categoryId]![subcategoryId]!.add(fileData);
-          fileTypes[categoryId]![subcategoryId] = 'image';
         });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File added: ${fileData.fileName} (will be uploaded when you click Update Report)'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
-      debugPrint('❌ Error picking image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error picking image: $e'),
+          content: Text('Error picking file: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _pickDocument(String categoryId, String subcategoryId) async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? document = await picker.pickMedia();
+  Future<String?> _showDocumentNumberDialog() async {
+    String documentNumber = '';
 
-      if (document != null) {
-        final file = File(document.path);
-        final fileData = FileData(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          fileName: document.name,
-          filePath: document.path,
-          fileSize: await file.length(),
-          fileType: 'document',
-          uploadDate: DateTime.now(),
+    return await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Enter Document Number (Optional)'),
+          content: TextField(
+            decoration: const InputDecoration(
+              labelText: 'Document Number',
+              hintText: 'Enter document number (e.g., DOC-001) - Optional',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              documentNumber = value;
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(documentNumber),
+              child: const Text('Add File'),
+            ),
+          ],
         );
-
-        setState(() {
-          uploadedFiles[categoryId]![subcategoryId]!.add(fileData);
-          fileTypes[categoryId]![subcategoryId] = 'document';
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error picking document: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking document: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      },
+    );
   }
 
   void _removeFile(String categoryId, String subcategoryId, String fileId) {
@@ -627,6 +720,19 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       );
     });
   }
+
+  void _clearUploadedFiles() {
+    debugPrint('🧹 Clearing all uploaded files...');
+    setState(() {
+      for (var categoryId in uploadedFiles.keys) {
+        for (var subcategoryId in uploadedFiles[categoryId]!.keys) {
+          uploadedFiles[categoryId]![subcategoryId]!.clear();
+        }
+      }
+    });
+    debugPrint('✅ All uploaded files cleared');
+  }
+
 
   void _viewFile(FileData file) {
     // TODO: Implement file viewing functionality
@@ -651,16 +757,24 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   }
 
   void _toggleSubcategory(String categoryId, String subcategoryId) {
+    debugPrint('🔘 Toggling subcategory: $subcategoryId in category: $categoryId');
+    debugPrint('🔘 Current state: ${checkedSubcategories[categoryId]?[subcategoryId]}');
+    
     setState(() {
       checkedSubcategories[categoryId]![subcategoryId] =
           !(checkedSubcategories[categoryId]![subcategoryId] ?? false);
 
       if (checkedSubcategories[categoryId]![subcategoryId]!) {
         selectedSubcategories[categoryId]!.add(subcategoryId);
+        debugPrint('✅ Added subcategory to selected: $subcategoryId');
       } else {
         selectedSubcategories[categoryId]!.remove(subcategoryId);
+        debugPrint('❌ Removed subcategory from selected: $subcategoryId');
       }
     });
+    
+    debugPrint('🔘 New state: ${checkedSubcategories[categoryId]?[subcategoryId]}');
+    debugPrint('🔘 Selected subcategories for category $categoryId: ${selectedSubcategories[categoryId]}');
   }
 
   Future<void> _saveChanges() async {
@@ -671,34 +785,122 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
       debugPrint('🔄 Starting save changes for report: ${widget.reportId}');
 
-      // Step 1: Upload any new files first
+      // Step 1: Check if any categories/subcategories are selected
+      debugPrint('🔍 Checking selected categories/subcategories...');
+      bool hasSelectedItems = false;
+      for (var category in categories) {
+        debugPrint('🔍 Category: ${category.label} (${category.id})');
+        for (var subcategory in category.subcategories) {
+          final isChecked = checkedSubcategories[category.id]?[subcategory.id] == true;
+          debugPrint('🔍   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked');
+          if (isChecked) {
+            hasSelectedItems = true;
+            debugPrint('✅ Found selected subcategory: ${subcategory.label}');
+          }
+        }
+        if (hasSelectedItems) break;
+      }
+      
+      debugPrint('🔍 Total selected items: $hasSelectedItems');
+
+      if (!hasSelectedItems) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select at least one category/subcategory before updating'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Step 2: Upload any new files first
+      debugPrint('📤 Step 1: Uploading new files...');
       final uploadResponses = await _uploadNewFiles();
       debugPrint(
         '✅ File uploads completed: ${uploadResponses.length} files uploaded',
       );
 
-      // Step 2: Prepare the updated payload with uploaded file URLs
-      final payload = _prepareUpdatePayload(uploadResponses);
+      // Step 3: Prepare the updated payload with uploaded file URLs
+      debugPrint('📋 Step 2: Preparing payload with categories, subcategories, and files...');
+      final payload = await _prepareUpdatePayload(uploadResponses);
       debugPrint('📤 Prepared payload: ${payload.toString()}');
 
-      // Step 3: Call API to update the report
+      // Step 4: Call API to update the report
+      debugPrint('🔄 Step 3: Updating report with API...');
       final response = await _apiService.updateDueDiligenceReport(
         widget.reportId,
         payload,
       );
 
       debugPrint('📡 Update API response: ${response.toString()}');
+      
+      // Step 5: Verify the update by fetching the report again
+      debugPrint('🔍 Step 4: Verifying update by fetching report data...');
+      try {
+        final verifyResponse = await _apiService.getDueDiligenceReportById(widget.reportId);
+        debugPrint('✅ Verification response: ${verifyResponse.toString()}');
+      } catch (e) {
+        debugPrint('⚠️ Verification failed: $e');
+      }
 
       if (response['status'] == 'success') {
+        // Show success message
+        final totalUploadedFiles = uploadResponses.values
+            .map((m) => m.values.map((f) => f.length).fold(0, (a, b) => a + b))
+            .fold(0, (a, b) => a + b);
+        final totalSelectedCategories = payload['categories'].length;
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report updated successfully!'),
+          SnackBar(
+            content: Text('Report updated successfully! $totalUploadedFiles files uploaded, $totalSelectedCategories categories updated.'),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
           ),
         );
 
-        // Navigate back to list view
-        Navigator.pop(context);
+        // Clear the uploaded files map to force reload from server
+        debugPrint('🔄 Clearing uploaded files to force reload from server...');
+        _clearUploadedFiles();
+        
+        // Refresh the report data to show the newly uploaded files
+        debugPrint('🔄 Refreshing report data after successful update...');
+        await _loadReportData();
+        
+        // Show final confirmation
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report data refreshed! All changes are now saved.'),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Navigate back to the due diligence list view after successful update
+        debugPrint('🔄 Attempting to navigate back to list view...');
+        debugPrint('🔄 Widget mounted: $mounted');
+        debugPrint('🔄 Context: $context');
+        
+        // Add a small delay to ensure user sees the success message
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        if (mounted) {
+          debugPrint('✅ Widget is mounted, calling Navigator.pop()');
+          try {
+            Navigator.pop(context);
+            debugPrint('✅ Navigator.pop() called successfully');
+          } catch (e) {
+            debugPrint('❌ Error during navigation: $e');
+            // Try alternative navigation method
+            try {
+              Navigator.of(context).pop();
+              debugPrint('✅ Alternative navigation successful');
+            } catch (e2) {
+              debugPrint('❌ Alternative navigation also failed: $e2');
+            }
+          }
+        } else {
+          debugPrint('❌ Widget is not mounted, cannot navigate');
+        }
       } else {
         throw Exception(response['message'] ?? 'Failed to update report');
       }
@@ -717,34 +919,30 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _uploadNewFiles() async {
-    List<Map<String, dynamic>> uploadResponses = [];
+  Future<Map<String, Map<String, List<Map<String, dynamic>>>>> _uploadNewFiles() async {
+    final Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses = {};
 
     debugPrint('🔄 Starting file uploads...');
 
     for (var categoryId in uploadedFiles.keys) {
+      uploadResponses[categoryId] = {};
+
       for (var subcategoryId in uploadedFiles[categoryId]!.keys) {
+        uploadResponses[categoryId]![subcategoryId] = [];
         final files = uploadedFiles[categoryId]![subcategoryId]!;
 
         for (var file in files) {
           // Only upload new files (not existing ones)
-          // New files have local file paths, existing files have URLs
-          final isNewFile =
-              file.filePath.startsWith('/') ||
-              file.filePath.startsWith('file://') ||
-              file.id.isEmpty ||
-              file.id == DateTime.now().millisecondsSinceEpoch.toString();
+          // New files have File objects, existing files have URLs in filePath
+          final isNewFile = file.file != null && file.filePath == null;
 
-          if (isNewFile && file.filePath.isNotEmpty) {
+          if (isNewFile && file.file != null) {
             try {
               debugPrint('📤 Uploading new file: ${file.fileName}');
 
-              // Create File object from filePath
-              final fileObj = File(file.filePath);
-
               // Upload file using the upload API
               final uploadResponse = await _apiService.uploadDueDiligenceFile(
-                fileObj,
+                file.file!,
                 widget.reportId,
                 categoryId,
                 subcategoryId,
@@ -752,14 +950,22 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
               debugPrint('✅ File uploaded successfully: ${file.fileName}');
               debugPrint('📡 Upload response: ${uploadResponse.toString()}');
+              debugPrint('📡 Upload response keys: ${uploadResponse.keys.toList()}');
+              debugPrint('📡 Report ID used: ${widget.reportId}');
+              debugPrint('📡 Category ID used: $categoryId');
+              debugPrint('📡 Subcategory ID used: $subcategoryId');
 
-              // Store the upload response with file info
-              uploadResponses.add({
-                'categoryId': categoryId,
-                'subcategoryId': subcategoryId,
+              // Store the upload response with file info (matching Due_diligence1.dart structure)
+              uploadResponses[categoryId]![subcategoryId]!.add({
                 'fileData': file,
                 'uploadResponse': uploadResponse,
               });
+              
+              debugPrint('💾 Stored upload response for file: ${file.fileName}');
+              debugPrint('💾 Category ID: $categoryId');
+              debugPrint('💾 Subcategory ID: $subcategoryId');
+              debugPrint('💾 File ID: ${file.id}');
+              debugPrint('💾 Upload response keys: ${uploadResponse.keys.toList()}');
             } catch (e) {
               debugPrint('❌ Failed to upload file ${file.fileName}: $e');
               // Continue with other files even if one fails
@@ -772,14 +978,14 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
 
     debugPrint(
-      '✅ File upload process completed. ${uploadResponses.length} files uploaded.',
+      '✅ File upload process completed. ${uploadResponses.values.map((m) => m.values.map((f) => f.length).fold(0, (a, b) => a + b)).fold(0, (a, b) => a + b)} files uploaded.',
     );
     return uploadResponses;
   }
 
-  Map<String, dynamic> _prepareUpdatePayload([
-    List<Map<String, dynamic>> uploadResponses = const [],
-  ]) {
+  Future<Map<String, dynamic>> _prepareUpdatePayload([
+    Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses = const {},
+  ]) async {
     // Get the actual group_id from report data or user profile
     String? groupId = reportData?['group_id'] ?? reportData?['groupId'];
 
@@ -809,122 +1015,138 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
 
     final payload = <String, dynamic>{
-      'categories': [],
       'group_id': groupId,
-      'comments': '',
+      'categories': [],
       'status': 'submitted',
+      'comments': '',
     };
 
-    debugPrint(
-      '🔧 Preparing payload with ${uploadResponses.length} upload responses',
-    );
+    // Create the payload structure as per API requirements (matching Due_diligence1.dart)
+    final List<Map<String, dynamic>> categoriesPayload = [];
 
-    for (var category in categories) {
-      final categoryData = <String, dynamic>{
-        'name': category.label,
-        'subcategories': [],
-      };
-
-      for (var subcategory in category.subcategories) {
-        if (checkedSubcategories[category.id]?[subcategory.id] == true) {
-          final subcategoryData = <String, dynamic>{
-            'name': subcategory.label,
-            'files': [],
-          };
-
-          // Get files for this subcategory
-          final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
-
-          for (var file in files) {
-            Map<String, dynamic> fileData;
-
-            // Check if this file was just uploaded
-            Map<String, dynamic>? uploadResponse;
-            try {
-              uploadResponse = uploadResponses.firstWhere(
-                (response) =>
-                    response['categoryId'] == category.id &&
-                    response['subcategoryId'] == subcategory.id &&
-                    (response['fileData'] as FileData).id == file.id,
-              );
-            } catch (e) {
-              uploadResponse = null;
-            }
-
-            if (uploadResponse != null) {
-              // This is a newly uploaded file - use the upload response data
-              final uploadData = uploadResponse['uploadResponse'];
-              debugPrint('🔗 Using upload response for file: ${file.fileName}');
-
-              // Extract file URL from upload response
-              String fileUrl = '';
-              if (uploadData['url'] != null &&
-                  uploadData['url'].toString().isNotEmpty) {
-                fileUrl = uploadData['url'].toString();
-              } else if (uploadData['data'] != null &&
-                  uploadData['data']['url'] != null &&
-                  uploadData['data']['url'].toString().isNotEmpty) {
-                fileUrl = uploadData['data']['url'].toString();
-              } else if (uploadData['fileName'] != null &&
-                  uploadData['fileName'].toString().isNotEmpty) {
-                fileUrl =
-                    'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadData['fileName']}';
-              } else {
-                debugPrint(
-                  '⚠️ No valid URL found in upload response for file: ${file.fileName}',
-                );
-                debugPrint('⚠️ Upload response data: ${uploadData.toString()}');
-                // Skip this file if no valid URL
-                continue;
-              }
-
-              // Determine proper file type from file extension
-              String properFileType = _getFileMimeType(file.fileName);
-
-              fileData = {
-                'name': file.fileName,
-                'size': file.fileSize,
-                'type': properFileType,
-                'url': fileUrl,
-                'comments': '',
-              };
-            } else {
-              // This is an existing file - use existing data
-              debugPrint('📁 Using existing file data: ${file.fileName}');
-
-              // Determine proper file type from file extension
-              String properFileType = _getFileMimeType(file.fileName);
-
-              fileData = {
-                'name': file.fileName,
-                'size': file.fileSize,
-                'type': properFileType,
-                'url': file
-                    .filePath, // For existing files, filePath contains the URL
-                'comments': '',
-              };
-            }
-
-            // Only add file if it has a valid URL
-            if (fileData['url'] != null &&
-                fileData['url'].toString().isNotEmpty) {
-              subcategoryData['files'].add(fileData);
-              debugPrint('✅ Added file to payload: ${fileData['name']}');
-            } else {
-              debugPrint(
-                '⚠️ Skipping file with empty URL: ${fileData['name']}',
-              );
-            }
+    // Always use only the currently checked subcategories (user's current selection)
+    final Map<String, Map<String, List<Map<String, dynamic>>>> dataToProcess = {};
+    
+    debugPrint('🔍 Processing only currently checked subcategories...');
+    
+    // Process only the subcategories that are currently checked in the UI
+    for (var categoryId in checkedSubcategories.keys) {
+      for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
+        if (checkedSubcategories[categoryId]![subcategoryId] == true) {
+          debugPrint('✅ Including checked subcategory: $subcategoryId in category: $categoryId');
+          
+          if (dataToProcess[categoryId] == null) {
+            dataToProcess[categoryId] = {};
           }
-
-          categoryData['subcategories'].add(subcategoryData);
+          
+          // Check if this subcategory has upload responses (new files)
+          if (uploadResponses.containsKey(categoryId) && 
+              uploadResponses[categoryId]!.containsKey(subcategoryId)) {
+            // Use upload responses for this subcategory
+            dataToProcess[categoryId]![subcategoryId] = uploadResponses[categoryId]![subcategoryId]!;
+            debugPrint('📁 Using upload responses for subcategory: $subcategoryId');
+          } else {
+            // No new files, but subcategory is checked - include existing files
+            dataToProcess[categoryId]![subcategoryId] = [];
+            debugPrint('📁 No new files for subcategory: $subcategoryId');
+          }
+        } else {
+          debugPrint('❌ Skipping unchecked subcategory: $subcategoryId in category: $categoryId');
         }
       }
-
-      if (categoryData['subcategories'].isNotEmpty) {
-        payload['categories'].add(categoryData);
-      }
     }
+
+    debugPrint('🔧 Processing data with ${dataToProcess.length} categories');
+
+    for (var categoryId in dataToProcess.keys) {
+      // Find the category details
+      final category = categories.firstWhere(
+        (cat) => cat.id == categoryId,
+        orElse: () => throw Exception('Category not found: $categoryId'),
+      );
+
+      final List<Map<String, dynamic>> subcategoriesPayload = [];
+
+      for (var subcategoryId in dataToProcess[categoryId]!.keys) {
+        // Find the subcategory details
+        final subcategory = category.subcategories.firstWhere(
+          (sub) => sub.id == subcategoryId,
+          orElse: () => throw Exception('Subcategory not found: $subcategoryId'),
+        );
+
+        final List<Map<String, dynamic>> filesPayload = [];
+
+        // Check if there are uploaded files for this subcategory
+        if (dataToProcess[categoryId]![subcategoryId]!.isNotEmpty) {
+          for (var uploadData in dataToProcess[categoryId]![subcategoryId]!) {
+            final fileData = uploadData['fileData'] as FileData;
+            final uploadResponse = uploadData['uploadResponse'] as Map<String, dynamic>;
+
+            debugPrint('🔍 Upload response for ${fileData.fileName}: ${uploadResponse.toString()}');
+
+            // Extract the actual file URL from the upload response
+            String fileUrl = '';
+
+            // Check multiple possible locations for the URL in the upload response
+            if (uploadResponse['url'] != null) {
+              fileUrl = uploadResponse['url'];
+            } else if (uploadResponse['data'] != null && uploadResponse['data']['url'] != null) {
+              fileUrl = uploadResponse['data']['url'];
+            } else if (uploadResponse['_doc'] != null && uploadResponse['_doc']['url'] != null) {
+              fileUrl = uploadResponse['_doc']['url'];
+            } else if (uploadResponse['fileName'] != null) {
+              // If we have fileName but no URL, construct the URL using the fileName
+              fileUrl = 'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadResponse['fileName']}';
+            } else {
+              // Last fallback - use the file ID
+              fileUrl = 'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${fileData.id}';
+            }
+
+            debugPrint('🔗 Extracted file URL: $fileUrl');
+
+            // Create file payload with actual upload data
+            filesPayload.add({
+              'document_id': null,
+              'name': fileData.fileName,
+              'size': await fileData.file!.length(),
+              'type': fileData.fileType,
+              'url': fileUrl,
+              'comments': fileData.documentNumber.isNotEmpty ? fileData.documentNumber : '',
+            });
+          }
+        } else {
+          // No new files uploaded, but subcategory is checked - include existing files
+          debugPrint('📁 Including existing files for subcategory: ${subcategory.label}');
+          final existingFiles = uploadedFiles[categoryId]?[subcategoryId] ?? [];
+          for (var file in existingFiles) {
+            if (file.filePath != null && file.filePath!.isNotEmpty) {
+              // This is an existing file
+              debugPrint('📁 Adding existing file: ${file.fileName}');
+              filesPayload.add({
+                'document_id': null,
+                'name': file.fileName,
+                'size': file.fileSize ?? 0,
+                'type': file.fileType,
+                'url': file.filePath!,
+                'comments': file.documentNumber.isNotEmpty ? file.documentNumber : '',
+              });
+            }
+          }
+        }
+
+        subcategoriesPayload.add({
+          'name': subcategory.label,
+          'files': filesPayload,
+        });
+      }
+
+      categoriesPayload.add({
+        'name': category.label,
+        'subcategories': subcategoriesPayload,
+      });
+    }
+
+    payload['categories'] = categoriesPayload;
 
     debugPrint(
       '📤 Final payload prepared with ${payload['categories'].length} categories',
@@ -962,44 +1184,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     return payload;
   }
 
-  String _getFileMimeType(String fileName) {
-    final extension = fileName.toLowerCase().split('.').last;
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'gif':
-        return 'image/gif';
-      case 'webp':
-        return 'image/webp';
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls':
-        return 'application/vnd.ms-excel';
-      case 'xlsx':
-        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'txt':
-        return 'text/plain';
-      case 'mp4':
-        return 'video/mp4';
-      case 'avi':
-        return 'video/x-msvideo';
-      case 'mov':
-        return 'video/quicktime';
-      case 'mp3':
-        return 'audio/mpeg';
-      case 'wav':
-        return 'audio/wav';
-      default:
-        return 'application/octet-stream';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1033,6 +1217,11 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
             icon: Icon(Icons.bug_report, color: Colors.orange.shade600),
             onPressed: _debugCurrentState,
             tooltip: 'Debug State',
+          ),
+          IconButton(
+            icon: Icon(Icons.checklist, color: Colors.purple.shade600),
+            onPressed: _debugCheckboxState,
+            tooltip: 'Debug Checkboxes',
           ),
         ],
       ),
@@ -1557,39 +1746,19 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // File Upload Buttons
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _pickImage(category.id, subcategory.id),
-                          icon: const Icon(Icons.image, size: 16),
-                          label: const Text('Add Image'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
+                  // File Upload Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _pickFile(category.id, subcategory.id),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add File (Optional)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade50,
+                        foregroundColor: Colors.blue.shade700,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _pickDocument(category.id, subcategory.id),
-                          icon: const Icon(Icons.description, size: 16),
-                          label: const Text('Add Document'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
 
                   // Uploaded Files List
@@ -1633,13 +1802,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     FileData file,
   ) {
     // Check if this is an existing file (has URL) or new file (has local path)
-    final isExistingFile =
-        file.filePath.startsWith('http') ||
-        file.filePath.startsWith('https') ||
-        (file.id.isNotEmpty &&
-            !file.id.startsWith(
-              DateTime.now().millisecondsSinceEpoch.toString().substring(0, 8),
-            ));
+    final isExistingFile = file.filePath != null && 
+        (file.filePath!.startsWith('http') || file.filePath!.startsWith('https'));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1663,7 +1827,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
-              file.fileType == 'image' ? Icons.image : Icons.description,
+              Icons.file_present,
               color: isExistingFile
                   ? Colors.blue.shade600
                   : Colors.grey.shade600,
@@ -1675,70 +1839,46 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        file.fileName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isExistingFile
-                              ? Colors.blue.shade700
-                              : Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isExistingFile) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade200,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'EXISTING',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade200,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'NEW',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  file.fileName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isExistingFile
+                        ? Colors.blue.shade700
+                        : Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${(file.fileSize / 1024).toStringAsFixed(1)} KB • ${_formatDate(file.uploadDate.toIso8601String())}',
+                  file.documentNumber.isNotEmpty
+                      ? 'Doc #: ${file.documentNumber} | Type: ${file.fileType}'
+                      : 'Type: ${file.fileType}',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
+                if (isExistingFile) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'EXISTING',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1898,18 +2038,32 @@ class Subcategory {
 
 class FileData {
   final String id;
+  final File? file;
   final String fileName;
-  final String filePath;
-  final int fileSize;
   final String fileType;
-  final DateTime uploadDate;
+  final String documentNumber;
+  final DateTime uploadTime;
+  final String? filePath; // For existing files from API
+  final int? fileSize; // For existing files from API
 
   FileData({
     required this.id,
+    this.file,
     required this.fileName,
-    required this.filePath,
-    required this.fileSize,
     required this.fileType,
-    required this.uploadDate,
+    required this.documentNumber,
+    required this.uploadTime,
+    this.filePath,
+    this.fileSize,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'fileName': fileName,
+      'fileType': fileType,
+      'documentNumber': documentNumber,
+      'uploadTime': uploadTime.toIso8601String(),
+    };
+  }
 }

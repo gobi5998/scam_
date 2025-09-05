@@ -102,9 +102,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       await _loadRealDueDiligenceData();
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      setState(() {
+        _isLoading = false;
+      });
       }
     } catch (e) {
       debugPrint('❌ Error loading real data: $e');
@@ -116,10 +116,10 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       errorDetails += '3. Authentication is valid';
 
       if (mounted) {
-        setState(() {
-          _errorMessage = errorDetails;
-          _isLoading = false;
-        });
+      setState(() {
+        _errorMessage = errorDetails;
+        _isLoading = false;
+      });
       }
     }
   }
@@ -278,10 +278,10 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     } catch (e) {
       debugPrint('❌ Error in _refreshData: $e');
       if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to refresh data: $e';
+      setState(() {
+        _errorMessage = 'Failed to refresh data: $e';
           _isLoading = false;
-        });
+      });
       }
     }
   }
@@ -331,8 +331,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // Navigate to edit form with reportId
       if (mounted) {
-        Navigator.push(
-          context,
+    Navigator.push(
+      context,
           MaterialPageRoute(
             builder: (context) => DueDiligenceEditScreen(reportId: reportId),
           ),
@@ -497,7 +497,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // If no categories found, try to extract from other possible fields
       if (categoryNames.isEmpty && subcategoryNames.isEmpty) {
-        debugPrint(
+      debugPrint(
           '   - No categories/subcategories found in standard locations',
         );
 
@@ -734,9 +734,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -939,32 +939,32 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             // Header Row with Status and Actions
-            Row(
-              children: [
+                  Row(
+                    children: [
                 // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status).withValues(alpha: 0.2),
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(status).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _getStatusColor(status)),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                      color: _getStatusColor(status),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            color: _getStatusColor(status),
                       fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                 const Spacer(),
                 // Action Buttons
                 Row(
@@ -996,12 +996,12 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       style: IconButton.styleFrom(
                         backgroundColor: Colors.red.shade50,
                         padding: const EdgeInsets.all(8),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                    ],
+                  ),
+                ],
+              ),
 
             const SizedBox(height: 16),
 
@@ -1085,8 +1085,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              children: [
+                Text(
                       'Categories: ${categories.length}',
                       style: const TextStyle(
                         fontSize: 14,
@@ -1101,19 +1101,19 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       runSpacing: 8,
                       children: categories.take(5).map((category) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
+                  ),
+                  decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.blue.shade200),
-                          ),
-                          child: Text(
+                  ),
+                  child: Text(
                             category,
-                            style: TextStyle(
-                              fontSize: 12,
+                    style: TextStyle(
+                      fontSize: 12,
                               color: Colors.blue.shade700,
                             ),
                           ),
@@ -1131,16 +1131,16 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             fontStyle: FontStyle.italic,
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
+            ),
+          ],
+        ),
+      ),
             ],
 
             if (subcategories.isNotEmpty) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
+          Container(
+            padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(12),
@@ -1153,9 +1153,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
+                color: Colors.black87,
+              ),
+            ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
@@ -1166,8 +1166,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             horizontal: 12,
                             vertical: 6,
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+            decoration: BoxDecoration(
+              color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.green.shade200),
                           ),
@@ -1191,10 +1191,10 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             color: Colors.grey.shade500,
                             fontStyle: FontStyle.italic,
                           ),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                      ],
+                    ),
               ),
             ],
 
