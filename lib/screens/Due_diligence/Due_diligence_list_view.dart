@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'dart:io';
+import 'dart:convert';
 import '../../services/api_service.dart';
-import '../../services/token_storage.dart';
 import 'Due_diligence1.dart' as dd1;
 
 import 'due_diligence_edit_screen.dart';
@@ -375,67 +374,118 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         ),
       );
 
-      // Construct the direct PDF download URL
-      final pdfUrl =
-          'https://mvp.edetectives.co.bw/reports/api/v1/reports/due-diligence/$reportId/print?format=pdf';
+      // Use ApiService to generate/download PDF (handles JWT token automatically)
+      final response = await _apiService.generateReportPDF(reportId);
 
-      debugPrint('📄 PDF URL: $pdfUrl');
+      debugPrint('📄 PDF API response: ${response.toString()}');
 
-      // Get the JWT token for authentication
-      final token = await TokenStorage.getAccessToken();
-      if (token == null || token.isEmpty) {
-        throw Exception('No authentication token found. Please login again.');
-      }
-
-      // Download the PDF file with authentication headers
-      final response = await http.get(
-        Uri.parse(pdfUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/pdf',
-          'Content-Type': 'application/pdf',
-        },
-      );
-
-      if (response.statusCode == 200) {
+      if (response['status'] == 'success' || response['success'] == true) {
         // Get the downloads directory
         final directory = await getApplicationDocumentsDirectory();
         final fileName = 'due_diligence_report_$reportId.pdf';
         final filePath = '${directory.path}/$fileName';
 
-        // Save the PDF file
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
+        // Handle different response formats from ApiService
+        List<int> pdfBytes = [];
 
-        debugPrint('✅ PDF saved to: $filePath');
+        if (response['data'] is List<int>) {
+          // Direct binary PDF data from API service
+          pdfBytes = response['data'] as List<int>;
+          debugPrint(
+            '📄 Using direct binary PDF data (${pdfBytes.length} bytes)',
+          );
+        } else if (response['data'] is String) {
+          // Direct PDF content from API service
+          final pdfContent = response['data'] as String;
 
-        // Show success message with option to open
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('PDF downloaded successfully!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Open',
-              textColor: Colors.white,
-              onPressed: () async {
-                try {
-                  await OpenFilex.open(filePath);
-                } catch (e) {
-                  debugPrint('❌ Error opening PDF: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Could not open PDF: $e'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              },
+          // Check if it's a valid PDF by looking for PDF header
+          if (pdfContent.startsWith('%PDF-') || pdfContent.startsWith('PDF-')) {
+            // This is raw PDF content, convert to bytes
+            pdfBytes = utf8.encode(pdfContent);
+            debugPrint(
+              '📄 Processing raw PDF content (${pdfBytes.length} bytes)',
+            );
+          } else {
+            // Try to decode as base64
+            try {
+              pdfBytes = base64Decode(pdfContent);
+              debugPrint(
+                '📄 Decoded base64 PDF content (${pdfBytes.length} bytes)',
+              );
+            } catch (e) {
+              debugPrint('❌ Failed to decode as base64: $e');
+              // If not base64, treat as raw content
+              pdfBytes = utf8.encode(pdfContent);
+              debugPrint(
+                '📄 Using raw content as PDF (${pdfBytes.length} bytes)',
+              );
+            }
+          }
+        } else if (response['data'] is Map<String, dynamic>) {
+          final data = response['data'] as Map<String, dynamic>;
+          if (data['content'] != null) {
+            // PDF content in data.content
+            final pdfContent = data['content'] as String;
+            try {
+              pdfBytes = base64Decode(pdfContent);
+              debugPrint(
+                '📄 Decoded base64 PDF from data.content (${pdfBytes.length} bytes)',
+              );
+            } catch (e) {
+              pdfBytes = utf8.encode(pdfContent);
+              debugPrint(
+                '📄 Using raw content from data.content (${pdfBytes.length} bytes)',
+              );
+            }
+          } else if (data['url'] != null) {
+            // If it's a URL, we need to download it separately
+            throw Exception(
+              'URL response not supported. Please use direct PDF content.',
+            );
+          }
+        } else if (response['data'] is List<int>) {
+          // Direct byte array
+          pdfBytes = response['data'] as List<int>;
+          debugPrint('📄 Using direct byte array (${pdfBytes.length} bytes)');
+        }
+
+        if (pdfBytes.isNotEmpty) {
+          // Save the PDF file
+          final file = File(filePath);
+          await file.writeAsBytes(pdfBytes);
+
+          debugPrint('✅ PDF saved to: $filePath');
+
+          // Show success message with option to open
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF downloaded successfully!'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await OpenFilex.open(filePath);
+                  } catch (e) {
+                    debugPrint('❌ Error opening PDF: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Could not open PDF: $e'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          throw Exception('No PDF content received from API');
+        }
       } else {
-        throw Exception('Failed to download PDF: HTTP ${response.statusCode}');
+        throw Exception(response['message'] ?? 'Failed to generate PDF');
       }
     } catch (e) {
       debugPrint('❌ Error downloading PDF: $e');
