@@ -3205,4 +3205,98 @@ class ApiService {
 
     return results;
   }
+
+  // ========================================
+  // PDF GENERATION METHODS
+  // ========================================
+
+  /// Generate PDF for a due diligence report
+  Future<Map<String, dynamic>> generateReportPDF(String reportId) async {
+    try {
+      print('🔄 Generating PDF for report: $reportId');
+      
+      // Create a custom Dio instance for PDF requests
+      final dio = Dio();
+      
+      // Get the access token
+      final accessToken = await TokenStorage.getAccessToken();
+      if (accessToken == null) {
+        throw Exception('No access token available');
+      }
+      
+      // Make the request with proper headers for PDF content
+      final response = await dio.get(
+        '${ApiConfig.reportsBaseUrl}/api/v1/reports/due-diligence/$reportId/print',
+        queryParameters: {
+          'format': 'pdf',
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/pdf, */*',
+          },
+          responseType: ResponseType.plain, // This is important for PDF content
+        ),
+      );
+
+      print('📄 PDF generation response status: ${response.statusCode}');
+      print('📄 PDF generation response data type: ${response.data.runtimeType}');
+      print('📄 PDF generation response data length: ${response.data.toString().length}');
+      print('📄 PDF generation response data preview: ${response.data.toString().substring(0, response.data.toString().length > 200 ? 200 : response.data.toString().length)}...');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // The response data should be the PDF content as a string
+        final pdfContent = response.data.toString();
+        
+        // Check if it's actually PDF content
+        if (pdfContent.startsWith('%PDF-') || pdfContent.startsWith('PDF-')) {
+          return {
+            'status': 'success',
+            'data': pdfContent,
+            'message': 'PDF generated successfully',
+          };
+        } else if (pdfContent.startsWith('http://') || pdfContent.startsWith('https://')) {
+          return {
+            'status': 'success',
+            'data': {
+              'url': pdfContent,
+              'message': 'PDF generated successfully',
+            },
+            'message': 'PDF generated successfully',
+          };
+        } else {
+          // Try to parse as JSON in case it's wrapped
+          try {
+            final jsonData = json.decode(pdfContent);
+            return {
+              'status': 'success',
+              'data': jsonData,
+              'message': 'PDF generated successfully',
+            };
+          } catch (e) {
+            // If not JSON, treat as raw content
+            return {
+              'status': 'success',
+              'data': pdfContent,
+              'message': 'PDF generated successfully',
+            };
+          }
+        }
+      } else {
+        return {
+          'status': 'error',
+          'message': 'Failed to generate PDF: ${response.statusMessage}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error generating PDF: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      print('❌ Error details: ${e.toString()}');
+      
+      return {
+        'status': 'error',
+        'message': 'Error generating PDF: $e',
+      };
+    }
+  }
 }
