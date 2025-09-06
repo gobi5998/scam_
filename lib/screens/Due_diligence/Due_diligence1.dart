@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
+import '../../services/offline_storage_service.dart';
+import '../../models/due_diligence_offline_models.dart';
 import '../../provider/auth_provider.dart';
 import 'Due_diligence_list_view.dart';
 
@@ -25,11 +27,20 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   Map<String, Map<String, String>> fileTypes = {};
   Map<String, bool> expandedCategories = {};
   Map<String, Map<String, bool>> checkedSubcategories = {};
+  bool _isOnline = true;
+  bool _isOfflineMode = false;
 
   @override
   void initState() {
     super.initState();
+    _checkOnlineStatus();
     _loadCategories();
+  }
+
+  Future<void> _checkOnlineStatus() async {
+    _isOnline = await OfflineStorageService.isOnline();
+    _isOfflineMode = !_isOnline;
+    debugPrint('🌐 Online status: $_isOnline, Offline mode: $_isOfflineMode');
   }
 
   // Add refresh functionality
@@ -44,30 +55,50 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         errorMessage = null;
       });
 
-      final response = await _apiService.getCategoriesWithSubcategories();
+      if (_isOnline) {
+        // Load from API
+        final response = await _apiService.getCategoriesWithSubcategories();
 
-      if (response['status'] == 'success') {
-        final List<dynamic> data = response['data'];
-        categories = data.map((json) => Category.fromJson(json)).toList();
+        if (response['status'] == 'success') {
+          final List<dynamic> data = response['data'];
+          categories = data.map((json) => Category.fromJson(json)).toList();
 
-        // Initialize selected subcategories and uploaded files
-        for (var category in categories) {
-          selectedSubcategories[category.id] = [];
-          uploadedFiles[category.id] = {};
-          fileTypes[category.id] = {};
-          expandedCategories[category.id] = false;
-          checkedSubcategories[category.id] = {};
-
-          for (var subcategory in category.subcategories) {
-            uploadedFiles[category.id]![subcategory.id] = [];
-            fileTypes[category.id]![subcategory.id] = '';
-            checkedSubcategories[category.id]![subcategory.id] = false;
-          }
+          // Cache categories for offline use
+          await OfflineStorageService.cacheCategories(data);
+        } else {
+          setState(() {
+            errorMessage = 'Failed to load categories';
+          });
         }
       } else {
-        setState(() {
-          errorMessage = 'Failed to load categories';
-        });
+        // Load from cache
+        final cachedCategories =
+            await OfflineStorageService.getCachedCategories();
+        if (cachedCategories != null) {
+          categories = cachedCategories
+              .map((json) => Category.fromJson(json))
+              .toList();
+        } else {
+          setState(() {
+            errorMessage =
+                'No cached categories available. Please connect to internet to load categories.';
+          });
+        }
+      }
+
+      // Initialize selected subcategories and uploaded files
+      for (var category in categories) {
+        selectedSubcategories[category.id] = [];
+        uploadedFiles[category.id] = {};
+        fileTypes[category.id] = {};
+        expandedCategories[category.id] = false;
+        checkedSubcategories[category.id] = {};
+
+        for (var subcategory in category.subcategories) {
+          uploadedFiles[category.id]![subcategory.id] = [];
+          fileTypes[category.id]![subcategory.id] = '';
+          checkedSubcategories[category.id]![subcategory.id] = false;
+        }
       }
     } catch (e) {
       setState(() {
@@ -399,6 +430,94 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
       print('🚀 Starting due diligence submission...');
       print('📋 Report ID: ${widget.reportId}');
+      print('🌐 Online mode: $_isOnline');
+
+      if (_isOfflineMode) {
+        // Handle offline submission
+        await _submitOffline();
+      } else {
+        // Handle online submission
+        await _submitOnline();
+      }
+    } catch (e) {
+      print('❌ Error in _confirmSubmit: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error submitting due diligence: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitOffline() async {
+    try {
+      print('📱 Submitting offline...');
+
+      // Get the current user's group_id from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      String groupId = 'default-group-id'; // Fallback
+      if (currentUser?.additionalData != null) {
+        groupId =
+            currentUser!.additionalData!['group_id'] ??
+            currentUser.additionalData!['groupId'] ??
+            currentUser.additionalData!['group'] ??
+            'default-group-id';
+      }
+
+      // Create offline report
+      final reportId = DateTime.now().millisecondsSinceEpoch.toString();
+      final offlineReport = OfflineDueDiligenceReport(
+        id: reportId,
+        groupId: groupId,
+        status: 'draft',
+        comments: '',
+        categories: _buildOfflineCategories(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isOffline: true,
+        needsSync: true,
+      );
+
+      // Save offline
+      await OfflineStorageService.saveReportOffline(offlineReport);
+
+      print('✅ Due diligence saved offline successfully');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Due Diligence saved offline! It will sync when you are online.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      // Navigate to view page
+      await Future.delayed(Duration(milliseconds: 2000));
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => DueDiligenceListView()),
+        );
+      }
+    } catch (e) {
+      print('❌ Error submitting offline: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _submitOnline() async {
+    try {
+      print('🌐 Submitting online...');
 
       // Create a completely isolated copy of all data
       final Map<String, Map<String, List<FileData>>> isolatedFiles = {};
@@ -567,20 +686,72 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         );
       }
     } catch (e) {
-      print('❌ Error in _confirmSubmit: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error submitting due diligence: $e'),
-          backgroundColor: Colors.red,
-        ),
+      print('❌ Error submitting online: $e');
+      rethrow;
+    }
+  }
+
+  List<OfflineCategory> _buildOfflineCategories() {
+    List<OfflineCategory> offlineCategories = [];
+
+    for (var categoryId in checkedSubcategories.keys) {
+      final category = categories.firstWhere(
+        (cat) => cat.id == categoryId,
+        orElse: () => throw Exception('Category not found: $categoryId'),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+
+      List<OfflineSubcategory> offlineSubcategories = [];
+
+      for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
+        if (checkedSubcategories[categoryId]![subcategoryId] == true) {
+          final subcategory = category.subcategories.firstWhere(
+            (sub) => sub.id == subcategoryId,
+            orElse: () =>
+                throw Exception('Subcategory not found: $subcategoryId'),
+          );
+
+          List<OfflineFile> offlineFiles = [];
+          final files = uploadedFiles[categoryId]?[subcategoryId] ?? [];
+
+          for (var fileData in files) {
+            offlineFiles.add(
+              OfflineFile(
+                id: fileData.id,
+                name: fileData.fileName,
+                type: fileData.fileType,
+                size: 0, // Will be updated when file is processed
+                localPath: fileData.file.path,
+                comments: fileData.documentNumber,
+                uploadTime: fileData.uploadTime,
+                isOffline: true,
+              ),
+            );
+          }
+
+          offlineSubcategories.add(
+            OfflineSubcategory(
+              id: subcategory.id,
+              name: subcategory.label,
+              label: subcategory.label,
+              files: offlineFiles,
+            ),
+          );
+        }
+      }
+
+      if (offlineSubcategories.isNotEmpty) {
+        offlineCategories.add(
+          OfflineCategory(
+            id: category.id,
+            name: category.label,
+            label: category.label,
+            subcategories: offlineSubcategories,
+          ),
+        );
       }
     }
+
+    return offlineCategories;
   }
 
   void _cancelDueDiligence() {
@@ -624,6 +795,44 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         foregroundColor: Colors.black87,
         elevation: 0,
         actions: [
+          // Online/Offline status indicator
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _isOnline ? Colors.green.shade100 : Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isOnline
+                    ? Colors.green.shade300
+                    : Colors.orange.shade300,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isOnline ? Icons.wifi : Icons.wifi_off,
+                  size: 16,
+                  color: _isOnline
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOnline
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           IconButton(
             icon: Icon(Icons.visibility, color: Colors.blue.shade600),
             onPressed: () {
@@ -775,7 +984,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   //         ),
   //       ],
   //     ),
-    
+
   //   );
   // }
 
@@ -818,9 +1027,8 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           //   //     ),
           //   //   ],
           //   // ),
-          
+
           // ),
-          
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -902,8 +1110,8 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                             Text('Submitting...'),
                           ],
                         )
-                      : const Text(
-                          'Submit Report',
+                      : Text(
+                          _isOfflineMode ? 'Save Offline' : 'Submit Report',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

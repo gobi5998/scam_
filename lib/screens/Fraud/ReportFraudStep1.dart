@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 import 'package:hive/hive.dart';
 // import 'package:path_provider/path_provider.dart';
 import 'package:security_alert/custom/CustomDropdown.dart';
@@ -14,8 +13,6 @@ import '../../custom/location_picker_screen.dart';
 import '../../services/location_storage_service.dart';
 
 import '../../models/fraud_report_model.dart';
-import '../../services/api_service.dart';
-import '../../services/jwt_service.dart';
 import 'ReportFraudStep2.dart';
 // import 'view_pending_reports.dart';
 import 'fraud_report_service.dart';

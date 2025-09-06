@@ -132,7 +132,7 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Authentication Failed'),
         content: Text(
-          '${_biometricType} authentication failed. Please try again.\n\nAttempts remaining: ${maxAttempts - _attempts}',
+          '$_biometricType authentication failed. Please try again.\n\nAttempts remaining: ${maxAttempts - _attempts}',
         ),
         actions: [
           TextButton(

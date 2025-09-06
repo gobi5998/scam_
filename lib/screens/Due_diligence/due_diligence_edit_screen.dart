@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
+import '../../services/offline_storage_service.dart';
+import '../../models/due_diligence_offline_models.dart';
 import '../../provider/auth_provider.dart';
 
 class DueDiligenceEditScreen extends StatefulWidget {
@@ -29,11 +31,23 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   // Report data
   Map<String, dynamic>? reportData;
   dynamic existingCategories; // Changed to dynamic to handle both Map and List
+  bool _isOnline = true;
+  bool _isOfflineMode = false;
+  OfflineDueDiligenceReport? _offlineReport;
 
   @override
   void initState() {
     super.initState();
+    _checkOnlineStatus();
     _loadReportData();
+  }
+
+  Future<void> _checkOnlineStatus() async {
+    _isOnline = await OfflineStorageService.isOnline();
+    _isOfflineMode = !_isOnline;
+    debugPrint(
+      '🌐 Edit Screen - Online status: $_isOnline, Offline mode: $_isOfflineMode',
+    );
   }
 
   Future<void> _loadReportData() async {
@@ -44,67 +58,102 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       });
 
       // Load categories first
-      final categoriesResponse = await _apiService
-          .getCategoriesWithSubcategories();
-      if (categoriesResponse['status'] == 'success') {
-        final List<dynamic> data = categoriesResponse['data'];
-        categories = data.map((json) => Category.fromJson(json)).toList();
+      if (_isOnline) {
+        final categoriesResponse = await _apiService
+            .getCategoriesWithSubcategories();
+        if (categoriesResponse['status'] == 'success') {
+          final List<dynamic> data = categoriesResponse['data'];
+          categories = data.map((json) => Category.fromJson(json)).toList();
 
-        // Initialize data structures
-        _initializeDataStructures();
+          // Cache categories for offline use
+          await OfflineStorageService.cacheCategories(data);
+
+          // Initialize data structures
+          _initializeDataStructures();
+        } else {
+          throw Exception('Failed to load categories');
+        }
       } else {
-        throw Exception('Failed to load categories');
-      }
+        // Load from cache
+        final cachedCategories =
+            await OfflineStorageService.getCachedCategories();
+        if (cachedCategories != null) {
+          categories = cachedCategories
+              .map((json) => Category.fromJson(json))
+              .toList();
 
-      // Load existing report data
-      final reportResponse = await _apiService.getDueDiligenceReportById(
-        widget.reportId,
-      );
-      debugPrint('🔍 Full report response: $reportResponse');
-      debugPrint('🔍 Response status: ${reportResponse['status']}');
-      debugPrint(
-        '🔍 Response data type: ${reportResponse['data']?.runtimeType}',
-      );
-      debugPrint('🔍 Response data: ${reportResponse['data']}');
-
-      // Debug the actual structure
-      if (reportResponse['data'] != null) {
-        final data = reportResponse['data'];
-        debugPrint('🔍 Data runtime type: ${data.runtimeType}');
-        if (data is List) {
-          debugPrint('🔍 Data is List with ${data.length} items');
-          for (int i = 0; i < data.length; i++) {
-            debugPrint('🔍 Item $i: ${data[i]} (type: ${data[i].runtimeType})');
-          }
-        } else if (data is Map) {
-          debugPrint('🔍 Data is Map with keys: ${data.keys.toList()}');
+          // Initialize data structures
+          _initializeDataStructures();
+        } else {
+          throw Exception(
+            'No cached categories available. Please connect to internet to load categories.',
+          );
         }
       }
 
-      if (reportResponse['status'] == 'success' &&
-          reportResponse['data'] != null) {
-        // The API response structure is straightforward: {status: success, data: {...}}
-        reportData = reportResponse['data'] as Map<String, dynamic>;
-        debugPrint('✅ Report data extracted: ${reportData?.keys.toList()}');
+      // Load existing report data
+      if (_isOnline) {
+        // Try to load from API first
+        try {
+          final reportResponse = await _apiService.getDueDiligenceReportById(
+            widget.reportId,
+          );
+          debugPrint('🔍 Full report response: $reportResponse');
+          debugPrint('🔍 Response status: ${reportResponse['status']}');
+          debugPrint(
+            '🔍 Response data type: ${reportResponse['data']?.runtimeType}',
+          );
+          debugPrint('🔍 Response data: ${reportResponse['data']}');
 
-        // Extract categories directly from the response data
-        existingCategories = reportData?['categories'];
-        debugPrint(
-          '🔍 Existing categories type: ${existingCategories.runtimeType}',
-        );
-        debugPrint('🔍 Existing categories: $existingCategories');
+          // Debug the actual structure
+          if (reportResponse['data'] != null) {
+            final data = reportResponse['data'];
+            debugPrint('🔍 Data runtime type: ${data.runtimeType}');
+            if (data is List) {
+              debugPrint('🔍 Data is List with ${data.length} items');
+              for (int i = 0; i < data.length; i++) {
+                debugPrint(
+                  '🔍 Item $i: ${data[i]} (type: ${data[i].runtimeType})',
+                );
+              }
+            } else if (data is Map) {
+              debugPrint('🔍 Data is Map with keys: ${data.keys.toList()}');
+            }
+          }
 
-        // Load existing selections and files
-        await _loadExistingData();
-      } else if (reportResponse['status'] == 'success' &&
-          reportResponse['data'] == null) {
-        debugPrint('⚠️ API returned success but no data');
-        reportData = null;
-        existingCategories = [];
+          if (reportResponse['status'] == 'success' &&
+              reportResponse['data'] != null) {
+            // The API response structure is straightforward: {status: success, data: {...}}
+            reportData = reportResponse['data'] as Map<String, dynamic>;
+            debugPrint('✅ Report data extracted: ${reportData?.keys.toList()}');
+
+            // Extract categories directly from the response data
+            existingCategories = reportData?['categories'];
+            debugPrint(
+              '🔍 Existing categories type: ${existingCategories.runtimeType}',
+            );
+            debugPrint('🔍 Existing categories: $existingCategories');
+
+            // Load existing selections and files
+            await _loadExistingData();
+          } else if (reportResponse['status'] == 'success' &&
+              reportResponse['data'] == null) {
+            debugPrint('⚠️ API returned success but no data');
+            reportData = null;
+            existingCategories = [];
+          } else {
+            throw Exception(
+              'Failed to load report data: ${reportResponse['message'] ?? 'Unknown error'}',
+            );
+          }
+        } catch (e) {
+          debugPrint('❌ Failed to load from API, trying offline: $e');
+          // Fallback to offline
+          await _loadOfflineReport();
+        }
       } else {
-        throw Exception(
-          'Failed to load report data: ${reportResponse['message'] ?? 'Unknown error'}',
-        );
+        // Load offline report
+        await _loadOfflineReport();
       }
     } catch (e) {
       setState(() {
@@ -116,6 +165,120 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadOfflineReport() async {
+    try {
+      _offlineReport = await OfflineStorageService.getReportById(
+        widget.reportId,
+      );
+
+      if (_offlineReport != null) {
+        debugPrint('📱 Loaded offline report: ${_offlineReport!.id}');
+        _populateOfflineFormData();
+      } else {
+        throw Exception('Offline report not found');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading offline report: $e');
+      rethrow;
+    }
+  }
+
+  void _populateOfflineFormData() {
+    if (_offlineReport == null) return;
+
+    // Populate form data from offline report
+    for (var offlineCategory in _offlineReport!.categories) {
+      for (var offlineSubcategory in offlineCategory.subcategories) {
+        // Mark subcategory as checked
+        checkedSubcategories[offlineCategory.id]![offlineSubcategory.id] = true;
+
+        // Add files if any
+        for (var offlineFile in offlineSubcategory.files) {
+          if (offlineFile.localPath != null) {
+            final file = File(offlineFile.localPath!);
+            if (file.existsSync()) {
+              final fileData = FileData(
+                id: offlineFile.id,
+                file: file,
+                fileName: offlineFile.name,
+                fileType: offlineFile.type,
+                documentNumber: offlineFile.comments ?? '',
+                uploadTime: offlineFile.uploadTime,
+              );
+
+              uploadedFiles[offlineCategory.id]![offlineSubcategory.id]!.add(
+                fileData,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  List<OfflineCategory> _buildOfflineCategories() {
+    List<OfflineCategory> offlineCategories = [];
+
+    for (var categoryId in checkedSubcategories.keys) {
+      final category = categories.firstWhere(
+        (cat) => cat.id == categoryId,
+        orElse: () => throw Exception('Category not found: $categoryId'),
+      );
+
+      List<OfflineSubcategory> offlineSubcategories = [];
+
+      for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
+        if (checkedSubcategories[categoryId]![subcategoryId] == true) {
+          final subcategory = category.subcategories.firstWhere(
+            (sub) => sub.id == subcategoryId,
+            orElse: () =>
+                throw Exception('Subcategory not found: $subcategoryId'),
+          );
+
+          List<OfflineFile> offlineFiles = [];
+          final files = uploadedFiles[categoryId]?[subcategoryId] ?? [];
+
+          for (var fileData in files) {
+            offlineFiles.add(
+              OfflineFile(
+                id: fileData.id,
+                name: fileData.fileName,
+                type: fileData.fileType,
+                size: 0, // Will be updated when file is processed
+                localPath: fileData.file?.path,
+                comments: fileData.documentNumber,
+                uploadTime: fileData.uploadTime,
+                isOffline: true,
+              ),
+            );
+          }
+
+          offlineSubcategories.add(
+            OfflineSubcategory(
+              id: subcategory.id,
+              name: subcategory.label,
+              label: subcategory.label,
+              files: offlineFiles,
+            ),
+          );
+        }
+      }
+
+      if (offlineSubcategories.isNotEmpty) {
+        offlineCategories.add(
+          OfflineCategory(
+            id: category.id,
+            name: category.label,
+            label: category.label,
+            subcategories: offlineSubcategories,
+          ),
+        );
+      }
+    }
+
+    return offlineCategories;
   }
 
   void _initializeDataStructures() {
@@ -382,9 +545,11 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           // Mark as checked
           checkedSubcategories[matchedCategoryId]?[matchedSubcategoryId] = true;
           debugPrint('✅ Marked subcategory as checked: $subcategoryName');
-          
+
           // Also add to selectedSubcategories list
-          if (!selectedSubcategories[matchedCategoryId]!.contains(matchedSubcategoryId)) {
+          if (!selectedSubcategories[matchedCategoryId]!.contains(
+            matchedSubcategoryId,
+          )) {
             selectedSubcategories[matchedCategoryId]!.add(matchedSubcategoryId);
             debugPrint('✅ Added to selectedSubcategories: $subcategoryName');
           }
@@ -415,7 +580,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                     file['uploaded_at'] ?? file['uploadDate'] ?? '',
                   ) ??
                   DateTime.now(),
-              filePath: file['url'] ?? file['filePath'] ?? '', // Use URL as filePath for existing files
+              filePath:
+                  file['url'] ??
+                  file['filePath'] ??
+                  '', // Use URL as filePath for existing files
               fileSize: file['size'] ?? file['fileSize'] ?? 0,
             );
 
@@ -444,7 +612,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
       // Debug the final state
       _debugCurrentState();
-      
+
       // Show summary of loaded data
       _showLoadedDataSummary();
     } catch (e) {
@@ -486,23 +654,30 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   void _debugCheckboxState() {
     debugPrint('🔘 === CHECKBOX STATE DEBUG ===');
     debugPrint('🔘 Total categories: ${categories.length}');
-    
+
     int totalChecked = 0;
     for (var category in categories) {
       debugPrint('🔘 Category: ${category.label} (${category.id})');
-      debugPrint('🔘   - CheckedSubcategories keys: ${checkedSubcategories[category.id]?.keys.toList()}');
-      debugPrint('🔘   - SelectedSubcategories: ${selectedSubcategories[category.id]}');
-      
+      debugPrint(
+        '🔘   - CheckedSubcategories keys: ${checkedSubcategories[category.id]?.keys.toList()}',
+      );
+      debugPrint(
+        '🔘   - SelectedSubcategories: ${selectedSubcategories[category.id]}',
+      );
+
       for (var subcategory in category.subcategories) {
-        final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
-        debugPrint('🔘   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked');
+        final isChecked =
+            checkedSubcategories[category.id]?[subcategory.id] ?? false;
+        debugPrint(
+          '🔘   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked',
+        );
         if (isChecked) totalChecked++;
       }
     }
-    
+
     debugPrint('🔘 Total checked subcategories: $totalChecked');
     debugPrint('🔘 === END CHECKBOX DEBUG ===');
-    
+
     // Show in UI
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -516,26 +691,29 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   void _showLoadedDataSummary() {
     int totalChecked = 0;
     int totalFiles = 0;
-    
+
     for (var category in categories) {
       for (var subcategory in category.subcategories) {
-        final isChecked = checkedSubcategories[category.id]?[subcategory.id] ?? false;
+        final isChecked =
+            checkedSubcategories[category.id]?[subcategory.id] ?? false;
         if (isChecked) totalChecked++;
-        
+
         final files = uploadedFiles[category.id]?[subcategory.id] ?? [];
         totalFiles += files.length;
       }
     }
-    
+
     debugPrint('📊 Loaded Data Summary:');
     debugPrint('📊   - Checked subcategories: $totalChecked');
     debugPrint('📊   - Total files: $totalFiles');
-    
+
     // Show summary in UI
     if (totalChecked > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Loaded existing data: $totalChecked subcategories checked, $totalFiles files loaded'),
+          content: Text(
+            'Loaded existing data: $totalChecked subcategories checked, $totalFiles files loaded',
+          ),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 4),
         ),
@@ -543,7 +721,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No existing data found. You can select categories and add files.'),
+          content: Text(
+            'No existing data found. You can select categories and add files.',
+          ),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 3),
         ),
@@ -665,7 +845,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('File added: ${fileData.fileName} (will be uploaded when you click Update Report)'),
+            content: Text(
+              'File added: ${fileData.fileName} (will be uploaded when you click Update Report)',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -733,7 +915,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     debugPrint('✅ All uploaded files cleared');
   }
 
-
   void _viewFile(FileData file) {
     // TODO: Implement file viewing functionality
     ScaffoldMessenger.of(context).showSnackBar(
@@ -757,9 +938,13 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   }
 
   void _toggleSubcategory(String categoryId, String subcategoryId) {
-    debugPrint('🔘 Toggling subcategory: $subcategoryId in category: $categoryId');
-    debugPrint('🔘 Current state: ${checkedSubcategories[categoryId]?[subcategoryId]}');
-    
+    debugPrint(
+      '🔘 Toggling subcategory: $subcategoryId in category: $categoryId',
+    );
+    debugPrint(
+      '🔘 Current state: ${checkedSubcategories[categoryId]?[subcategoryId]}',
+    );
+
     setState(() {
       checkedSubcategories[categoryId]![subcategoryId] =
           !(checkedSubcategories[categoryId]![subcategoryId] ?? false);
@@ -772,9 +957,13 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         debugPrint('❌ Removed subcategory from selected: $subcategoryId');
       }
     });
-    
-    debugPrint('🔘 New state: ${checkedSubcategories[categoryId]?[subcategoryId]}');
-    debugPrint('🔘 Selected subcategories for category $categoryId: ${selectedSubcategories[categoryId]}');
+
+    debugPrint(
+      '🔘 New state: ${checkedSubcategories[categoryId]?[subcategoryId]}',
+    );
+    debugPrint(
+      '🔘 Selected subcategories for category $categoryId: ${selectedSubcategories[categoryId]}',
+    );
   }
 
   Future<void> _saveChanges() async {
@@ -784,6 +973,88 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       });
 
       debugPrint('🔄 Starting save changes for report: ${widget.reportId}');
+      debugPrint('🌐 Online mode: $_isOnline');
+
+      if (_isOfflineMode) {
+        // Handle offline save
+        await _saveOffline();
+      } else {
+        // Handle online save
+        await _saveOnline();
+      }
+    } catch (e) {
+      debugPrint('❌ Error in _saveChanges: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving changes: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveOffline() async {
+    try {
+      debugPrint('📱 Saving offline...');
+
+      // Check if any categories/subcategories are selected
+      bool hasSelectedItems = false;
+      for (var category in categories) {
+        for (var subcategory in category.subcategories) {
+          if (checkedSubcategories[category.id]?[subcategory.id] == true) {
+            hasSelectedItems = true;
+            break;
+          }
+        }
+        if (hasSelectedItems) break;
+      }
+
+      if (!hasSelectedItems) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please select at least one category/subcategory before saving',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Update offline report
+      if (_offlineReport != null) {
+        _offlineReport!.categories = _buildOfflineCategories();
+        _offlineReport!.updatedAt = DateTime.now();
+        _offlineReport!.needsSync = true;
+
+        await OfflineStorageService.updateReportOffline(_offlineReport!);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Changes saved offline! They will sync when you are online.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        throw Exception('No offline report found to update');
+      }
+    } catch (e) {
+      debugPrint('❌ Error saving offline: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _saveOnline() async {
+    try {
+      debugPrint('🌐 Saving online...');
 
       // Step 1: Check if any categories/subcategories are selected
       debugPrint('🔍 Checking selected categories/subcategories...');
@@ -791,8 +1062,11 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       for (var category in categories) {
         debugPrint('🔍 Category: ${category.label} (${category.id})');
         for (var subcategory in category.subcategories) {
-          final isChecked = checkedSubcategories[category.id]?[subcategory.id] == true;
-          debugPrint('🔍   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked');
+          final isChecked =
+              checkedSubcategories[category.id]?[subcategory.id] == true;
+          debugPrint(
+            '🔍   - Subcategory: ${subcategory.label} (${subcategory.id}) - Checked: $isChecked',
+          );
           if (isChecked) {
             hasSelectedItems = true;
             debugPrint('✅ Found selected subcategory: ${subcategory.label}');
@@ -800,13 +1074,15 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         }
         if (hasSelectedItems) break;
       }
-      
+
       debugPrint('🔍 Total selected items: $hasSelectedItems');
 
       if (!hasSelectedItems) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please select at least one category/subcategory before updating'),
+            content: Text(
+              'Please select at least one category/subcategory before updating',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -821,7 +1097,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       );
 
       // Step 3: Prepare the updated payload with uploaded file URLs
-      debugPrint('📋 Step 2: Preparing payload with categories, subcategories, and files...');
+      debugPrint(
+        '📋 Step 2: Preparing payload with categories, subcategories, and files...',
+      );
       final payload = await _prepareUpdatePayload(uploadResponses);
       debugPrint('📤 Prepared payload: ${payload.toString()}');
 
@@ -833,11 +1111,13 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       );
 
       debugPrint('📡 Update API response: ${response.toString()}');
-      
+
       // Step 5: Verify the update by fetching the report again
       debugPrint('🔍 Step 4: Verifying update by fetching report data...');
       try {
-        final verifyResponse = await _apiService.getDueDiligenceReportById(widget.reportId);
+        final verifyResponse = await _apiService.getDueDiligenceReportById(
+          widget.reportId,
+        );
         debugPrint('✅ Verification response: ${verifyResponse.toString()}');
       } catch (e) {
         debugPrint('⚠️ Verification failed: $e');
@@ -849,10 +1129,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
             .map((m) => m.values.map((f) => f.length).fold(0, (a, b) => a + b))
             .fold(0, (a, b) => a + b);
         final totalSelectedCategories = payload['categories'].length;
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Report updated successfully! $totalUploadedFiles files uploaded, $totalSelectedCategories categories updated.'),
+            content: Text(
+              'Report updated successfully! $totalUploadedFiles files uploaded, $totalSelectedCategories categories updated.',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
@@ -861,17 +1143,17 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         // Clear the uploaded files map to force reload from server
         debugPrint('🔄 Clearing uploaded files to force reload from server...');
         _clearUploadedFiles();
-        
+
         // Refresh the report data to show the newly uploaded files
         debugPrint('🔄 Refreshing report data after successful update...');
         await _loadReportData();
-        
+
         // Show final confirmation
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Report data refreshed! All changes are now saved.'),
             backgroundColor: Colors.blue,
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
 
@@ -879,10 +1161,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         debugPrint('🔄 Attempting to navigate back to list view...');
         debugPrint('🔄 Widget mounted: $mounted');
         debugPrint('🔄 Context: $context');
-        
+
         // Add a small delay to ensure user sees the success message
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         if (mounted) {
           debugPrint('✅ Widget is mounted, calling Navigator.pop()');
           try {
@@ -919,8 +1201,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     }
   }
 
-  Future<Map<String, Map<String, List<Map<String, dynamic>>>>> _uploadNewFiles() async {
-    final Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses = {};
+  Future<Map<String, Map<String, List<Map<String, dynamic>>>>>
+  _uploadNewFiles() async {
+    final Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses =
+        {};
 
     debugPrint('🔄 Starting file uploads...');
 
@@ -950,7 +1234,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
 
               debugPrint('✅ File uploaded successfully: ${file.fileName}');
               debugPrint('📡 Upload response: ${uploadResponse.toString()}');
-              debugPrint('📡 Upload response keys: ${uploadResponse.keys.toList()}');
+              debugPrint(
+                '📡 Upload response keys: ${uploadResponse.keys.toList()}',
+              );
               debugPrint('📡 Report ID used: ${widget.reportId}');
               debugPrint('📡 Category ID used: $categoryId');
               debugPrint('📡 Subcategory ID used: $subcategoryId');
@@ -960,12 +1246,16 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                 'fileData': file,
                 'uploadResponse': uploadResponse,
               });
-              
-              debugPrint('💾 Stored upload response for file: ${file.fileName}');
+
+              debugPrint(
+                '💾 Stored upload response for file: ${file.fileName}',
+              );
               debugPrint('💾 Category ID: $categoryId');
               debugPrint('💾 Subcategory ID: $subcategoryId');
               debugPrint('💾 File ID: ${file.id}');
-              debugPrint('💾 Upload response keys: ${uploadResponse.keys.toList()}');
+              debugPrint(
+                '💾 Upload response keys: ${uploadResponse.keys.toList()}',
+              );
             } catch (e) {
               debugPrint('❌ Failed to upload file ${file.fileName}: $e');
               // Continue with other files even if one fails
@@ -984,7 +1274,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
   }
 
   Future<Map<String, dynamic>> _prepareUpdatePayload([
-    Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses = const {},
+    Map<String, Map<String, List<Map<String, dynamic>>>> uploadResponses =
+        const {},
   ]) async {
     // Get the actual group_id from report data or user profile
     String? groupId = reportData?['group_id'] ?? reportData?['groupId'];
@@ -1025,33 +1316,41 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     final List<Map<String, dynamic>> categoriesPayload = [];
 
     // Always use only the currently checked subcategories (user's current selection)
-    final Map<String, Map<String, List<Map<String, dynamic>>>> dataToProcess = {};
-    
+    final Map<String, Map<String, List<Map<String, dynamic>>>> dataToProcess =
+        {};
+
     debugPrint('🔍 Processing only currently checked subcategories...');
-    
+
     // Process only the subcategories that are currently checked in the UI
     for (var categoryId in checkedSubcategories.keys) {
       for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
         if (checkedSubcategories[categoryId]![subcategoryId] == true) {
-          debugPrint('✅ Including checked subcategory: $subcategoryId in category: $categoryId');
-          
+          debugPrint(
+            '✅ Including checked subcategory: $subcategoryId in category: $categoryId',
+          );
+
           if (dataToProcess[categoryId] == null) {
             dataToProcess[categoryId] = {};
           }
-          
+
           // Check if this subcategory has upload responses (new files)
-          if (uploadResponses.containsKey(categoryId) && 
+          if (uploadResponses.containsKey(categoryId) &&
               uploadResponses[categoryId]!.containsKey(subcategoryId)) {
             // Use upload responses for this subcategory
-            dataToProcess[categoryId]![subcategoryId] = uploadResponses[categoryId]![subcategoryId]!;
-            debugPrint('📁 Using upload responses for subcategory: $subcategoryId');
+            dataToProcess[categoryId]![subcategoryId] =
+                uploadResponses[categoryId]![subcategoryId]!;
+            debugPrint(
+              '📁 Using upload responses for subcategory: $subcategoryId',
+            );
           } else {
             // No new files, but subcategory is checked - include existing files
             dataToProcess[categoryId]![subcategoryId] = [];
             debugPrint('📁 No new files for subcategory: $subcategoryId');
           }
         } else {
-          debugPrint('❌ Skipping unchecked subcategory: $subcategoryId in category: $categoryId');
+          debugPrint(
+            '❌ Skipping unchecked subcategory: $subcategoryId in category: $categoryId',
+          );
         }
       }
     }
@@ -1071,7 +1370,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         // Find the subcategory details
         final subcategory = category.subcategories.firstWhere(
           (sub) => sub.id == subcategoryId,
-          orElse: () => throw Exception('Subcategory not found: $subcategoryId'),
+          orElse: () =>
+              throw Exception('Subcategory not found: $subcategoryId'),
         );
 
         final List<Map<String, dynamic>> filesPayload = [];
@@ -1080,9 +1380,12 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         if (dataToProcess[categoryId]![subcategoryId]!.isNotEmpty) {
           for (var uploadData in dataToProcess[categoryId]![subcategoryId]!) {
             final fileData = uploadData['fileData'] as FileData;
-            final uploadResponse = uploadData['uploadResponse'] as Map<String, dynamic>;
+            final uploadResponse =
+                uploadData['uploadResponse'] as Map<String, dynamic>;
 
-            debugPrint('🔍 Upload response for ${fileData.fileName}: ${uploadResponse.toString()}');
+            debugPrint(
+              '🔍 Upload response for ${fileData.fileName}: ${uploadResponse.toString()}',
+            );
 
             // Extract the actual file URL from the upload response
             String fileUrl = '';
@@ -1090,16 +1393,20 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
             // Check multiple possible locations for the URL in the upload response
             if (uploadResponse['url'] != null) {
               fileUrl = uploadResponse['url'];
-            } else if (uploadResponse['data'] != null && uploadResponse['data']['url'] != null) {
+            } else if (uploadResponse['data'] != null &&
+                uploadResponse['data']['url'] != null) {
               fileUrl = uploadResponse['data']['url'];
-            } else if (uploadResponse['_doc'] != null && uploadResponse['_doc']['url'] != null) {
+            } else if (uploadResponse['_doc'] != null &&
+                uploadResponse['_doc']['url'] != null) {
               fileUrl = uploadResponse['_doc']['url'];
             } else if (uploadResponse['fileName'] != null) {
               // If we have fileName but no URL, construct the URL using the fileName
-              fileUrl = 'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadResponse['fileName']}';
+              fileUrl =
+                  'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${uploadResponse['fileName']}';
             } else {
               // Last fallback - use the file ID
-              fileUrl = 'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${fileData.id}';
+              fileUrl =
+                  'https://scamdetect-dev-afsouth1.s3.af-south-1.amazonaws.com/due-diligence/${fileData.id}';
             }
 
             debugPrint('🔗 Extracted file URL: $fileUrl');
@@ -1111,12 +1418,16 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
               'size': await fileData.file!.length(),
               'type': fileData.fileType,
               'url': fileUrl,
-              'comments': fileData.documentNumber.isNotEmpty ? fileData.documentNumber : '',
+              'comments': fileData.documentNumber.isNotEmpty
+                  ? fileData.documentNumber
+                  : '',
             });
           }
         } else {
           // No new files uploaded, but subcategory is checked - include existing files
-          debugPrint('📁 Including existing files for subcategory: ${subcategory.label}');
+          debugPrint(
+            '📁 Including existing files for subcategory: ${subcategory.label}',
+          );
           final existingFiles = uploadedFiles[categoryId]?[subcategoryId] ?? [];
           for (var file in existingFiles) {
             if (file.filePath != null && file.filePath!.isNotEmpty) {
@@ -1128,7 +1439,9 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                 'size': file.fileSize ?? 0,
                 'type': file.fileType,
                 'url': file.filePath!,
-                'comments': file.documentNumber.isNotEmpty ? file.documentNumber : '',
+                'comments': file.documentNumber.isNotEmpty
+                    ? file.documentNumber
+                    : '',
               });
             }
           }
@@ -1184,7 +1497,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     return payload;
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1197,6 +1509,46 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
+        actions: [
+          // Online/Offline status indicator
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _isOnline ? Colors.green.shade100 : Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isOnline
+                    ? Colors.green.shade300
+                    : Colors.orange.shade300,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isOnline ? Icons.wifi : Icons.wifi_off,
+                  size: 16,
+                  color: _isOnline
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOnline
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         // actions: [
         //   IconButton(
         //     icon: Icon(Icons.refresh, color: Colors.blue.shade600),
@@ -1224,7 +1576,6 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         //     tooltip: 'Debug Checkboxes',
         //   ),
         // ],
-      
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -1566,7 +1917,7 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
           //       ),
           //     ],
           //   ),
-         
+
           // ),
           ListView.builder(
             shrinkWrap: true,
@@ -1804,8 +2155,10 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     FileData file,
   ) {
     // Check if this is an existing file (has URL) or new file (has local path)
-    final isExistingFile = file.filePath != null && 
-        (file.filePath!.startsWith('http') || file.filePath!.startsWith('https'));
+    final isExistingFile =
+        file.filePath != null &&
+        (file.filePath!.startsWith('http') ||
+            file.filePath!.startsWith('https'));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1986,8 +2339,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                         Text('Updating...'),
                       ],
                     )
-                  : const Text(
-                      'Update Report',
+                  : Text(
+                      _isOfflineMode ? 'Save Offline' : 'Update Report',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

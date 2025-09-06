@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:dio/dio.dart';
-import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../../utils/responsive_helper.dart';
 import '../../widgets/responsive_widget.dart';
-import '../../services/api_service.dart';
 import '../../models/user_model.dart';
-import '../../services/profile_image_service.dart';
-import '../../services/dynamic_profile_service.dart';
 import '../../services/dynamic_profile_flow_service.dart';
 import '../../services/api_test_service.dart';
 import '../../widgets/profile_image_widget.dart';
-import '../../provider/auth_provider.dart';
 import '../../custom/customTextfield.dart';
 
 class EditProfilePage extends StatefulWidget {

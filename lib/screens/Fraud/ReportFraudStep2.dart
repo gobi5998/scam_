@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:security_alert/screens/Fraud/fraud_report_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../services/jwt_service.dart';
@@ -18,7 +13,6 @@ import '../../custom/customButton.dart';
 import '../../custom/customDropdown.dart';
 import '../../custom/Success_page.dart';
 import '../../services/api_service.dart';
-import '../../config/api_config.dart';
 import '../../custom/fileUpload.dart';
 
 class ReportFraudStep2 extends StatefulWidget {

@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:security_alert/screens/login.dart';
-import 'package:security_alert/screens/dashboard_page.dart';
 import '../services/app_version_service.dart';
 import '../services/token_storage.dart';
 import '../services/biometric_service.dart';
-import '../provider/auth_provider.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {

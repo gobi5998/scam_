@@ -1003,7 +1003,6 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.desc,
     this.highlight = false,
-    super.key,
   });
 
   @override

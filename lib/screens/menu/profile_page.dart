@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../../utils/responsive_helper.dart';
 import '../../widgets/responsive_widget.dart';
 import 'edit_profile_page.dart';
 import '../../services/app_version_service.dart';
@@ -17,7 +15,6 @@ import '../../services/profile_image_service.dart';
 import '../../widgets/profile_image_widget.dart';
 import '../../provider/auth_provider.dart';
 import '../login.dart';
-import 'edit_profile_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {

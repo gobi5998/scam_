@@ -10,9 +10,6 @@ import '../../models/filter_model.dart';
 import '../../models/scam_report_model.dart';
 import '../../models/fraud_report_model.dart';
 import '../../models/malware_report_model.dart';
-import '../scam/scam_local_service.dart';
-import '../Fraud/fraud_local_service.dart';
-import '../malware/malware_local_service.dart';
 
 class ThreadDatabaseFilterPage extends StatefulWidget {
   const ThreadDatabaseFilterPage({super.key});

@@ -30,7 +30,7 @@ class LocationStorageService {
     if (data is List) {
       return data
           .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e as Map))
+          .map((e) => Map<String, dynamic>.from(e))
           .toList();
     }
     return [];

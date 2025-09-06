@@ -192,7 +192,7 @@ class _BiometricSetupDialogState extends State<BiometricSetupDialog> {
                         : (_availableBiometrics.isNotEmpty ? _availableBiometrics.first : null);
                     
                     return DropdownButtonFormField<String>(
-                      value: validValue,
+                      initialValue: validValue,
                       decoration: const InputDecoration(
                         labelText: 'Select Biometric Type',
                         border: OutlineInputBorder(),

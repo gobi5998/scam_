@@ -18,7 +18,7 @@ class OfflineCacheService {
     if (raw is List) {
       return raw
           .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e as Map))
+          .map((e) => Map<String, dynamic>.from(e))
           .toList();
     }
     return [];

@@ -6,7 +6,6 @@ import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'thread_database_listpage.dart';
 import '../../services/api_service.dart';
-import '../../models/filter_model.dart';
 import '../../models/scam_report_model.dart';
 import '../../models/fraud_report_model.dart';
 import '../../models/malware_report_model.dart';

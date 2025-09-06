@@ -4,6 +4,8 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../../services/api_service.dart';
+import '../../services/offline_storage_service.dart';
+import '../../models/due_diligence_offline_models.dart';
 import 'Due_diligence1.dart' as dd1;
 
 import 'due_diligence_edit_screen.dart';
@@ -22,6 +24,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   final TextEditingController _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _dueDiligenceReports = [];
+  List<OfflineDueDiligenceReport> _offlineReports = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -30,6 +33,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   String? _errorMessage;
   String? _groupId;
   late TabController _tabController;
+  bool _isOnline = true;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -42,10 +47,21 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
   Future<void> _initializeData() async {
     try {
+      // Check online status
+      _isOnline = await OfflineStorageService.isOnline();
+      debugPrint('🌐 Online status: $_isOnline');
+
       // First get the user's groupId
       await _fetchUserGroupId();
-      // Then load the due diligence data
-      await _loadDueDiligenceReports();
+
+      if (_isOnline) {
+        // Load online data and sync offline data
+        await _loadDueDiligenceReports();
+        await _syncOfflineData();
+      } else {
+        // Load offline data only
+        await _loadOfflineReports();
+      }
     } catch (e) {
       debugPrint('❌ Error initializing data: $e');
       setState(() {
@@ -251,6 +267,60 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     }
   }
 
+  Future<void> _loadOfflineReports() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      debugPrint('📱 Loading offline reports...');
+      _offlineReports = await OfflineStorageService.getAllOfflineReports();
+
+      debugPrint('📱 Loaded ${_offlineReports.length} offline reports');
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading offline reports: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load offline reports: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _syncOfflineData() async {
+    if (!_isOnline) return;
+
+    try {
+      setState(() {
+        _isSyncing = true;
+      });
+
+      debugPrint('🔄 Syncing offline data...');
+      await OfflineStorageService.syncOfflineData(_apiService);
+
+      // Reload offline reports after sync
+      await _loadOfflineReports();
+
+      debugPrint('✅ Offline data sync completed');
+    } catch (e) {
+      debugPrint('❌ Error syncing offline data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
   Future<void> _refreshData() async {
     debugPrint('🔄 Starting refresh...');
     setState(() {
@@ -263,17 +333,26 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     });
 
     try {
+      // Check online status
+      _isOnline = await OfflineStorageService.isOnline();
+
       // Ensure we have the groupId before loading data
       if (_groupId == null) {
         debugPrint('🔄 Fetching groupId...');
         await _fetchUserGroupId();
       }
 
-      debugPrint('🔄 Loading data with groupId: $_groupId');
-      await _loadRealDueDiligenceData();
+      if (_isOnline) {
+        debugPrint('🔄 Loading online data with groupId: $_groupId');
+        await _loadRealDueDiligenceData();
+        await _syncOfflineData();
+      } else {
+        debugPrint('📱 Loading offline data...');
+        await _loadOfflineReports();
+      }
 
       debugPrint(
-        '✅ Refresh completed. Reports count: ${_dueDiligenceReports.length}',
+        '✅ Refresh completed. Online reports: ${_dueDiligenceReports.length}, Offline reports: ${_offlineReports.length}',
       );
 
       // Ensure we update the UI after loading
@@ -287,7 +366,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to refresh data: $e';
-
           _isLoading = false;
         });
       }
@@ -299,6 +377,81 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       context,
       MaterialPageRoute(builder: (context) => dd1.DueDiligenceWrapper()),
     );
+  }
+
+  Future<void> _navigateToEditOffline(String reportId) async {
+    try {
+      // Navigate to edit screen with offline report ID
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DueDiligenceEditScreen(reportId: reportId),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error navigating to edit offline report: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open offline report: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteOfflineReport(String reportId) async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Delete Offline Report'),
+            content: const Text(
+              'Are you sure you want to delete this offline report? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed == true) {
+        await OfflineStorageService.deleteReportOffline(reportId);
+
+        // Remove from local list
+        setState(() {
+          _offlineReports.removeWhere((report) => report.id == reportId);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Offline report deleted successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting offline report: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete offline report: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _navigateToEdit(String reportId) async {
@@ -773,46 +926,75 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           tabs: [
             Tab(
               icon: const Icon(Icons.category),
-
-              text: 'Due Diligence Reports (${_dueDiligenceReports.length})',
+              text:
+                  'Due Diligence Reports (${_dueDiligenceReports.length + _offlineReports.length})',
             ),
           ],
         ),
         actions: [
-          // IconButton(
-          //   icon: Icon(Icons.add, color: Colors.blue.shade600),
-          //   onPressed: _navigateToCreate,
-          //   tooltip: 'Create New Due Diligence',
-          // ),
+          // Online/Offline status indicator
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _isOnline ? Colors.green.shade100 : Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isOnline
+                    ? Colors.green.shade300
+                    : Colors.orange.shade300,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isOnline ? Icons.wifi : Icons.wifi_off,
+                  size: 16,
+                  color: _isOnline
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOnline
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Sync button (only show when online and has offline data)
+          if (_isOnline && _offlineReports.isNotEmpty)
+            IconButton(
+              icon: _isSyncing
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.blue.shade600,
+                        ),
+                      ),
+                    )
+                  : Icon(Icons.sync, color: Colors.blue.shade600),
+              onPressed: _isSyncing ? null : _syncOfflineData,
+              tooltip: 'Sync Offline Data',
+            ),
+
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.blue.shade600),
             onPressed: _refreshData,
             tooltip: 'Refresh Data',
           ),
 
-          // IconButton(
-          //   icon: Icon(Icons.bug_report, color: Colors.orange.shade600),
-          //   onPressed: () {
-          //     debugPrint('🔍 Current State Debug:');
-          //     debugPrint('   - isLoading: $_isLoading');
-          //     debugPrint('   - errorMessage: $_errorMessage');
-          //     debugPrint('   - reports count: ${_dueDiligenceReports.length}');
-          //     debugPrint('   - groupId: $_groupId');
-          //     debugPrint('   - currentPage: $_currentPage');
-          //     debugPrint('   - hasMoreData: $_hasMoreData');
-
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       SnackBar(
-          //         content: Text(
-          //           'Debug: ${_dueDiligenceReports.length} reports, isLoading: $_isLoading',
-          //         ),
-          //         backgroundColor: Colors.blue,
-          //         duration: const Duration(seconds: 2),
-          //       ),
-          //     );
-          //   },
-          //   tooltip: 'Debug State',
-          // ),
           IconButton(
             icon: Icon(Icons.vertical_align_top, color: Colors.blue.shade600),
             onPressed: () {
@@ -851,13 +1033,27 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Due Diligence Reports: ${_getAllReportsSorted().length}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Due Diligence Reports: ${_getAllReportsSorted().length + _offlineReports.length}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (_offlineReports.isNotEmpty)
+                        Text(
+                          '${_offlineReports.length} offline reports',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -933,7 +1129,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       ),
                     ),
                   )
-                : _dueDiligenceReports.isEmpty
+                : _dueDiligenceReports.isEmpty && _offlineReports.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -954,7 +1150,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Pull down to refresh or create a new report',
+                          _isOnline
+                              ? 'Pull down to refresh or create a new report'
+                              : 'You are offline. Create reports that will sync when online.',
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 14,
@@ -965,14 +1163,24 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                   )
                 : ListView.builder(
                     controller: _scrollController,
-
-                    itemCount: _getAllReportsSorted().length + 1,
+                    itemCount:
+                        _getAllReportsSorted().length +
+                        _offlineReports.length +
+                        1,
                     itemBuilder: (context, index) {
-                      if (index == _getAllReportsSorted().length) {
+                      if (index ==
+                          _getAllReportsSorted().length +
+                              _offlineReports.length) {
                         return _buildLoadingIndicator();
                       }
 
-                      return _buildReportCard(index);
+                      if (index < _getAllReportsSorted().length) {
+                        return _buildReportCard(index);
+                      } else {
+                        return _buildOfflineReportCard(
+                          index - _getAllReportsSorted().length,
+                        );
+                      }
                     },
                   ),
           ),
@@ -1031,6 +1239,247 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   //     ),
   //   );
   // }
+
+  // Helper method to build offline report card
+  Widget _buildOfflineReportCard(int index) {
+    if (index >= _offlineReports.length) {
+      return const SizedBox.shrink();
+    }
+
+    final report = _offlineReports[index];
+    final reportId = report.id;
+    final status = report.status;
+    final createdAt = report.createdAt;
+    final categories = report.categories;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: Colors.orange.shade200, width: 2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row with Status and Actions
+            Row(
+              children: [
+                // Offline Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange.shade400),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.wifi_off,
+                        size: 12,
+                        color: Colors.orange.shade700,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'OFFLINE',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(status).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _getStatusColor(status)),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: _getStatusColor(status),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    // Edit Button
+                    IconButton(
+                      onPressed: () => _navigateToEditOffline(reportId),
+                      icon: Icon(
+                        Icons.edit,
+                        color: Colors.blue.shade600,
+                        size: 20,
+                      ),
+                      tooltip: 'Edit Offline Report',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.blue.shade50,
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Delete Button
+                    IconButton(
+                      onPressed: () => _deleteOfflineReport(reportId),
+                      icon: Icon(
+                        Icons.delete,
+                        color: Colors.red.shade600,
+                        size: 20,
+                      ),
+                      tooltip: 'Delete Offline Report',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red.shade50,
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Report Info
+            if (categories.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Categories: ${categories.length}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: categories.take(5).map((category) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Text(
+                            category.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (categories.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '... and ${categories.length - 5} more',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Footer with Date and Sync Status
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  'Created: ${_formatSubmittedDate(createdAt)}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const Spacer(),
+                if (report.needsSync)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.sync_problem,
+                          size: 12,
+                          color: Colors.orange.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Needs Sync',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // Helper method to build individual report card
   Widget _buildReportCard(int index) {

@@ -874,7 +874,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Only ${remainingSlots} more screenshots allowed. ${validImages.length - remainingSlots} images were not added.',
+            'Only $remainingSlots more screenshots allowed. ${validImages.length - remainingSlots} images were not added.',
           ),
           backgroundColor: Colors.orange,
         ),

@@ -3,7 +3,7 @@ import '../services/api_service.dart';
 import '../models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/jwt_service.dart'; // Added import for JwtService
-import '../services/biometric_service.dart'; // Added import for BiometricService
+// Added import for BiometricService
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
