@@ -673,8 +673,8 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header Section
-                    _buildHeaderSection(),
-                    const SizedBox(height: 24),
+                    // _buildHeaderSection(),
+                    // const SizedBox(height: 24),
 
                     // Categories Section
                     _buildCategoriesSection(),
@@ -689,94 +689,95 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
     );
   }
 
-  Widget _buildHeaderSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.add_circle,
-                  color: Colors.blue.shade600,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create Due Diligence Report',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Select categories and subcategories, then upload files (optional)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Files are optional - you can submit with just selected categories/subcategories.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.blue.shade700,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildHeaderSection() {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(20),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withValues(alpha: 0.05),
+  //           blurRadius: 10,
+  //           offset: const Offset(0, 4),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Container(
+  //               padding: const EdgeInsets.all(12),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.blue.shade50,
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: Icon(
+  //                 Icons.add_circle,
+  //                 color: Colors.blue.shade600,
+  //                 size: 24,
+  //               ),
+  //             ),
+  //             const SizedBox(width: 16),
+  //             Expanded(
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Text(
+  //                     'Create Due Diligence Report',
+  //                     style: const TextStyle(
+  //                       fontSize: 20,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.black87,
+  //                     ),
+  //                   ),
+  //                   const SizedBox(height: 4),
+  //                   Text(
+  //                     'Select categories and subcategories, then upload files (optional)',
+  //                     style: TextStyle(
+  //                       fontSize: 14,
+  //                       color: Colors.grey.shade600,
+  //                       height: 1.3,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 16),
+  //         Container(
+  //           padding: const EdgeInsets.all(12),
+  //           decoration: BoxDecoration(
+  //             color: Colors.blue.shade50,
+  //             borderRadius: BorderRadius.circular(8),
+  //             border: Border.all(color: Colors.blue.shade200),
+  //           ),
+  //           child: Row(
+  //             children: [
+  //               Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
+  //               const SizedBox(width: 8),
+  //               Expanded(
+  //                 child: Text(
+  //                   'Files are optional - you can submit with just selected categories/subcategories.',
+  //                   style: TextStyle(
+  //                     fontSize: 13,
+  //                     color: Colors.blue.shade700,
+  //                     height: 1.3,
+  //                   ),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+    
+  //   );
+  // }
 
   Widget _buildCategoriesSection() {
     return Container(
@@ -794,30 +795,32 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.category, color: Colors.blue.shade600, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'Categories & Subcategories',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.all(20),
+          //   decoration: BoxDecoration(
+          //     color: Colors.blue.shade50,
+          //     borderRadius: const BorderRadius.only(
+          //       topLeft: Radius.circular(16),
+          //       topRight: Radius.circular(16),
+          //     ),
+          //   ),
+          //   // child: Row(
+          //   //   children: [
+          //   //     Icon(Icons.category, color: Colors.blue.shade600, size: 24),
+          //   //     const SizedBox(width: 12),
+          //   //     Text(
+          //   //       'Categories & Subcategories',
+          //   //       style: TextStyle(
+          //   //         fontSize: 18,
+          //   //         fontWeight: FontWeight.bold,
+          //   //         color: Colors.blue.shade700,
+          //   //       ),
+          //   //     ),
+          //   //   ],
+          //   // ),
+          
+          // ),
+          
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

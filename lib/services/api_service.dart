@@ -3226,10 +3226,8 @@ class ApiService {
       
       // Make the request with proper headers for PDF content
       final response = await dio.get(
-        '${ApiConfig.reportsBaseUrl}/api/v1/reports/due-diligence/$reportId/print',
-        queryParameters: {
-          'format': 'pdf',
-        },
+        '${ApiConfig.reportsBaseUrl}/api/v1/reports/due-diligence/$reportId/print?format=pdf',
+        
         options: Options(
           headers: {
             'Authorization': 'Bearer $accessToken',

@@ -1197,33 +1197,34 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: Colors.blue.shade600),
-            onPressed: _refreshData,
-            tooltip: 'Refresh Data',
-          ),
-          IconButton(
-            icon: Icon(Icons.expand_more, color: Colors.green.shade600),
-            onPressed: _expandAllCheckedCategories,
-            tooltip: 'Expand Checked Categories',
-          ),
-          IconButton(
-            icon: Icon(Icons.science, color: Colors.purple.shade600),
-            onPressed: _testDataLoading,
-            tooltip: 'Test Data Loading',
-          ),
-          IconButton(
-            icon: Icon(Icons.bug_report, color: Colors.orange.shade600),
-            onPressed: _debugCurrentState,
-            tooltip: 'Debug State',
-          ),
-          IconButton(
-            icon: Icon(Icons.checklist, color: Colors.purple.shade600),
-            onPressed: _debugCheckboxState,
-            tooltip: 'Debug Checkboxes',
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: Icon(Icons.refresh, color: Colors.blue.shade600),
+        //     onPressed: _refreshData,
+        //     tooltip: 'Refresh Data',
+        //   ),
+        //   IconButton(
+        //     icon: Icon(Icons.expand_more, color: Colors.green.shade600),
+        //     onPressed: _expandAllCheckedCategories,
+        //     tooltip: 'Expand Checked Categories',
+        //   ),
+        //   IconButton(
+        //     icon: Icon(Icons.science, color: Colors.purple.shade600),
+        //     onPressed: _testDataLoading,
+        //     tooltip: 'Test Data Loading',
+        //   ),
+        //   IconButton(
+        //     icon: Icon(Icons.bug_report, color: Colors.orange.shade600),
+        //     onPressed: _debugCurrentState,
+        //     tooltip: 'Debug State',
+        //   ),
+        //   IconButton(
+        //     icon: Icon(Icons.checklist, color: Colors.purple.shade600),
+        //     onPressed: _debugCheckboxState,
+        //     tooltip: 'Debug Checkboxes',
+        //   ),
+        // ],
+      
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -1259,8 +1260,8 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header Section
-                    _buildHeaderSection(),
-                    const SizedBox(height: 24),
+                    // _buildHeaderSection(),
+                    // const SizedBox(height: 24),
 
                     // Categories Section
                     _buildCategoriesSection(),
@@ -1275,256 +1276,256 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
     );
   }
 
-  Widget _buildHeaderSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.edit, color: Colors.blue.shade600, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Edit Due Diligence Report',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+  // Widget _buildHeaderSection() {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(20),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withValues(alpha: 0.05),
+  //           blurRadius: 10,
+  //           offset: const Offset(0, 4),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Container(
+  //               padding: const EdgeInsets.all(12),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.blue.shade50,
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: Icon(Icons.edit, color: Colors.blue.shade600, size: 24),
+  //             ),
+  //             const SizedBox(width: 16),
+  //             Expanded(
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Text(
+  //                     'Edit Due Diligence Report',
+  //                     style: const TextStyle(
+  //                       fontSize: 20,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.black87,
+  //                     ),
+  //                   ),
+  //                   const SizedBox(height: 4),
+  //                   Container(
+  //                     padding: const EdgeInsets.symmetric(
+  //                       horizontal: 8,
+  //                       vertical: 4,
+  //                     ),
+  //                     decoration: BoxDecoration(
+  //                       color: Colors.grey.shade100,
+  //                       borderRadius: BorderRadius.circular(6),
+  //                       border: Border.all(color: Colors.grey.shade300),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ],
+  //         ),
 
-          const SizedBox(height: 16),
-          // Report Status and Info
-          if (reportData != null) ...[
-            Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
-                const SizedBox(width: 8),
-                Text(
-                  'Report Status: ${reportData!['status'] ?? 'Unknown'}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.blue.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-                if (reportData!['createdAt'] != null)
-                  Text(
-                    'Created: ${_formatDate(reportData!['createdAt'])}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
+  //         const SizedBox(height: 16),
+  //         // Report Status and Info
+  //         if (reportData != null) ...[
+  //           Row(
+  //             children: [
+  //               Icon(Icons.info_outline, size: 16, color: Colors.blue.shade600),
+  //               const SizedBox(width: 8),
+  //               Text(
+  //                 'Report Status: ${reportData!['status'] ?? 'Unknown'}',
+  //                 style: TextStyle(
+  //                   fontSize: 14,
+  //                   color: Colors.blue.shade700,
+  //                   fontWeight: FontWeight.w500,
+  //                 ),
+  //               ),
+  //               const Spacer(),
+  //               if (reportData!['createdAt'] != null)
+  //                 Text(
+  //                   'Created: ${_formatDate(reportData!['createdAt'])}',
+  //                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+  //                 ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 8),
+  //         ],
 
-          // Data Loading Status
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color:
-                  existingCategories != null &&
-                      existingCategories is List &&
-                      (existingCategories as List).isNotEmpty
-                  ? Colors.green.shade50
-                  : Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color:
-                    existingCategories != null &&
-                        existingCategories is List &&
-                        (existingCategories as List).isNotEmpty
-                    ? Colors.green.shade200
-                    : Colors.orange.shade200,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  existingCategories != null &&
-                          existingCategories is List &&
-                          (existingCategories as List).isNotEmpty
-                      ? Icons.folder_open
-                      : Icons.info_outline,
-                  size: 16,
-                  color:
-                      existingCategories != null &&
-                          existingCategories is List &&
-                          (existingCategories as List).isNotEmpty
-                      ? Colors.green.shade600
-                      : Colors.orange.shade600,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    existingCategories != null &&
-                            existingCategories is List &&
-                            (existingCategories as List).isNotEmpty
-                        ? 'Existing data loaded: ${(existingCategories as List).length} categories with files'
-                        : 'No existing data found. You can create a new due diligence report.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          existingCategories != null &&
-                              existingCategories is List &&
-                              (existingCategories as List).isNotEmpty
-                          ? Colors.green.shade700
-                          : Colors.orange.shade700,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+  //         // Data Loading Status
+  //         Container(
+  //           padding: const EdgeInsets.all(12),
+  //           decoration: BoxDecoration(
+  //             color:
+  //                 existingCategories != null &&
+  //                     existingCategories is List &&
+  //                     (existingCategories as List).isNotEmpty
+  //                 ? Colors.green.shade50
+  //                 : Colors.orange.shade50,
+  //             borderRadius: BorderRadius.circular(8),
+  //             border: Border.all(
+  //               color:
+  //                   existingCategories != null &&
+  //                       existingCategories is List &&
+  //                       (existingCategories as List).isNotEmpty
+  //                   ? Colors.green.shade200
+  //                   : Colors.orange.shade200,
+  //             ),
+  //           ),
+  //           child: Row(
+  //             children: [
+  //               Icon(
+  //                 existingCategories != null &&
+  //                         existingCategories is List &&
+  //                         (existingCategories as List).isNotEmpty
+  //                     ? Icons.folder_open
+  //                     : Icons.info_outline,
+  //                 size: 16,
+  //                 color:
+  //                     existingCategories != null &&
+  //                         existingCategories is List &&
+  //                         (existingCategories as List).isNotEmpty
+  //                     ? Colors.green.shade600
+  //                     : Colors.orange.shade600,
+  //               ),
+  //               const SizedBox(width: 8),
+  //               Expanded(
+  //                 child: Text(
+  //                   existingCategories != null &&
+  //                           existingCategories is List &&
+  //                           (existingCategories as List).isNotEmpty
+  //                       ? 'Existing data loaded: ${(existingCategories as List).length} categories with files'
+  //                       : 'No existing data found. You can create a new due diligence report.',
+  //                   style: TextStyle(
+  //                     fontSize: 13,
+  //                     color:
+  //                         existingCategories != null &&
+  //                             existingCategories is List &&
+  //                             (existingCategories as List).isNotEmpty
+  //                         ? Colors.green.shade700
+  //                         : Colors.orange.shade700,
+  //                     height: 1.3,
+  //                   ),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
 
-          // Text(
-          //   'Make changes to your due diligence report below. You can modify categories, subcategories, and upload new files.',
-          //   style: TextStyle(
-          //     fontSize: 14,
-          //     color: Colors.grey.shade600,
-          //     height: 1.4,
-          //   ),
-          // ),
+  //         // Text(
+  //         //   'Make changes to your due diligence report below. You can modify categories, subcategories, and upload new files.',
+  //         //   style: TextStyle(
+  //         //     fontSize: 14,
+  //         //     color: Colors.grey.shade600,
+  //         //     height: 1.4,
+  //         //   ),
+  //         // ),
 
-          // Existing Files Summary
-          //  if (reportData != null) ...[
-          //    const SizedBox(height: 16),
-          //    Container(
-          //      padding: const EdgeInsets.all(12),
-          //      decoration: BoxDecoration(
-          //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //            ? Colors.green.shade50
-          //            : Colors.orange.shade50,
-          //        borderRadius: BorderRadius.circular(8),
-          //        border: Border.all(
-          //          color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //              ? Colors.green.shade200
-          //              : Colors.orange.shade200,
-          //        ),
-          //      ),
-          //      child: Column(
-          //        crossAxisAlignment: CrossAxisAlignment.start,
-          //        children: [
-          //          Row(
-          //            children: [
-          //              Icon(
-          //                existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //                    ? Icons.folder_open
-          //                    : Icons.info_outline,
-          //                size: 16,
-          //                color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //                    ? Colors.green.shade600
-          //                    : Colors.orange.shade600,
-          //              ),
-          //              const SizedBox(width: 8),
-          //             //  Expanded(
-          //             //    child: Text(
-          //             //      existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //             //          ? 'This report contains existing files that you can view, edit, or remove. New files can also be added.'
-          //             //          : 'No existing data found. You can create a new due diligence report by selecting categories and uploading files.',
-          //             //      style: TextStyle(
-          //             //        fontSize: 13,
-          //             //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
-          //             //            ? Colors.green.shade700
-          //             //            : Colors.orange.shade700,
-          //             //        height: 1.3,
-          //             //      ),
-          //             //    ),
-          //             //  ),
+  //         // Existing Files Summary
+  //         //  if (reportData != null) ...[
+  //         //    const SizedBox(height: 16),
+  //         //    Container(
+  //         //      padding: const EdgeInsets.all(12),
+  //         //      decoration: BoxDecoration(
+  //         //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //            ? Colors.green.shade50
+  //         //            : Colors.orange.shade50,
+  //         //        borderRadius: BorderRadius.circular(8),
+  //         //        border: Border.all(
+  //         //          color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //              ? Colors.green.shade200
+  //         //              : Colors.orange.shade200,
+  //         //        ),
+  //         //      ),
+  //         //      child: Column(
+  //         //        crossAxisAlignment: CrossAxisAlignment.start,
+  //         //        children: [
+  //         //          Row(
+  //         //            children: [
+  //         //              Icon(
+  //         //                existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //                    ? Icons.folder_open
+  //         //                    : Icons.info_outline,
+  //         //                size: 16,
+  //         //                color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //                    ? Colors.green.shade600
+  //         //                    : Colors.orange.shade600,
+  //         //              ),
+  //         //              const SizedBox(width: 8),
+  //         //             //  Expanded(
+  //         //             //    child: Text(
+  //         //             //      existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //             //          ? 'This report contains existing files that you can view, edit, or remove. New files can also be added.'
+  //         //             //          : 'No existing data found. You can create a new due diligence report by selecting categories and uploading files.',
+  //         //             //      style: TextStyle(
+  //         //             //        fontSize: 13,
+  //         //             //        color: existingCategories != null && existingCategories is List && (existingCategories as List).isNotEmpty
+  //         //             //            ? Colors.green.shade700
+  //         //             //            : Colors.orange.shade700,
+  //         //             //        height: 1.3,
+  //         //             //      ),
+  //         //             //    ),
+  //         //             //  ),
 
-          //            ],
-          //          ),
-          //          // Debug info
-          //          const SizedBox(height: 8),
-          //          Container(
-          //            padding: const EdgeInsets.all(8),
-          //            decoration: BoxDecoration(
-          //              color: Colors.grey.shade100,
-          //              borderRadius: BorderRadius.circular(4),
-          //              border: Border.all(color: Colors.grey.shade300),
-          //            ),
-          //            child: Column(
-          //              crossAxisAlignment: CrossAxisAlignment.start,
-          //              children: [
-          //                Text(
-          //                  'Debug Info:',
-          //                  style: TextStyle(
-          //                    fontSize: 11,
-          //                    fontWeight: FontWeight.bold,
-          //                    color: Colors.grey.shade700,
-          //                  ),
-          //                ),
-          //                const SizedBox(height: 2),
-          //                Text(
-          //                  'Categories: ${categories.length}',
-          //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          //                ),
-          //                Text(
-          //                  'Existing Data: ${existingCategories != null ? existingCategories.runtimeType : 'null'}',
-          //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          //                ),
-          //                Text(
-          //                  'Checked Items: ${checkedSubcategories.values.map((m) => m.values.where((v) => v).length).fold(0, (a, b) => a + b)}',
-          //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          //                ),
-          //                Text(
-          //                  'Total Files: ${uploadedFiles.values.map((m) => m.values.map((f) => f.length).fold(0, (a, b) => a + b)).fold(0, (a, b) => a + b)}',
-          //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          //                ),
-          //              ],
-          //            ),
-          //          ),
-          //        ],
-          //      ),
-          //    ),
-          //  ],
-        ],
-      ),
-    );
-  }
+  //         //            ],
+  //         //          ),
+  //         //          // Debug info
+  //         //          const SizedBox(height: 8),
+  //         //          Container(
+  //         //            padding: const EdgeInsets.all(8),
+  //         //            decoration: BoxDecoration(
+  //         //              color: Colors.grey.shade100,
+  //         //              borderRadius: BorderRadius.circular(4),
+  //         //              border: Border.all(color: Colors.grey.shade300),
+  //         //            ),
+  //         //            child: Column(
+  //         //              crossAxisAlignment: CrossAxisAlignment.start,
+  //         //              children: [
+  //         //                Text(
+  //         //                  'Debug Info:',
+  //         //                  style: TextStyle(
+  //         //                    fontSize: 11,
+  //         //                    fontWeight: FontWeight.bold,
+  //         //                    color: Colors.grey.shade700,
+  //         //                  ),
+  //         //                ),
+  //         //                const SizedBox(height: 2),
+  //         //                Text(
+  //         //                  'Categories: ${categories.length}',
+  //         //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //         //                ),
+  //         //                Text(
+  //         //                  'Existing Data: ${existingCategories != null ? existingCategories.runtimeType : 'null'}',
+  //         //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //         //                ),
+  //         //                Text(
+  //         //                  'Checked Items: ${checkedSubcategories.values.map((m) => m.values.where((v) => v).length).fold(0, (a, b) => a + b)}',
+  //         //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //         //                ),
+  //         //                Text(
+  //         //                  'Total Files: ${uploadedFiles.values.map((m) => m.values.map((f) => f.length).fold(0, (a, b) => a + b)).fold(0, (a, b) => a + b)}',
+  //         //                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //         //                ),
+  //         //              ],
+  //         //            ),
+  //         //          ),
+  //         //        ],
+  //         //      ),
+  //         //    ),
+  //         //  ],
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildCategoriesSection() {
     return Container(
@@ -1542,30 +1543,31 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.category, color: Colors.blue.shade600, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'Categories & Subcategories',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.all(20),
+          //   decoration: BoxDecoration(
+          //     color: Colors.blue.shade50,
+          //     borderRadius: const BorderRadius.only(
+          //       topLeft: Radius.circular(16),
+          //       topRight: Radius.circular(16),
+          //     ),
+          //   ),
+          //   child: Row(
+          //     children: [
+          //       Icon(Icons.category, color: Colors.blue.shade600, size: 24),
+          //       const SizedBox(width: 12),
+          //       Text(
+          //         'Categories & Subcategories',
+          //         style: TextStyle(
+          //           fontSize: 18,
+          //           fontWeight: FontWeight.bold,
+          //           color: Colors.blue.shade700,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+         
+          // ),
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
