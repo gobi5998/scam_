@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
+import 'dart:io';
 import '../../services/api_service.dart';
+import '../../services/token_storage.dart';
 import 'Due_diligence1.dart' as dd1;
-
 
 import 'due_diligence_edit_screen.dart';
 
@@ -99,19 +103,15 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         _isLoading = true;
         _errorMessage = null;
 
-
         _dueDiligenceReports.clear(); // Clear existing data
       });
 
       await _loadRealDueDiligenceData();
 
-
-
       if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-
+        setState(() {
+          _isLoading = false;
+        });
       }
     } catch (e) {
       debugPrint('❌ Error loading real data: $e');
@@ -122,15 +122,11 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       errorDetails += '2. Server is running\n';
       errorDetails += '3. Authentication is valid';
 
-
-
       if (mounted) {
-      setState(() {
-        _errorMessage = errorDetails;
-        _isLoading = false;
-      });
-
-
+        setState(() {
+          _errorMessage = errorDetails;
+          _isLoading = false;
+        });
       }
     }
   }
@@ -160,8 +156,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       if (response['status'] == 'success' && response['data'] != null) {
         final List<dynamic> reportsData = response['data'];
         final pagination = response['pagination'] as Map<String, dynamic>?;
-
-
 
         // Debug logging to see the raw API response
         debugPrint('🔍 Raw API response structure:');
@@ -213,8 +207,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           '✅ Loaded ${reportsData.length} due diligence reports from API (Total: ${_dueDiligenceReports.length})',
         );
 
-
-
         // Force UI update after loading data
         if (mounted) {
           setState(() {
@@ -261,8 +253,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   }
 
   Future<void> _refreshData() async {
-
-
     debugPrint('🔄 Starting refresh...');
     setState(() {
       _currentPage = 1;
@@ -270,20 +260,15 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       _isLoading = true;
       _errorMessage = null;
 
-
       _dueDiligenceReports.clear(); // Clear existing data
     });
 
     try {
       // Ensure we have the groupId before loading data
       if (_groupId == null) {
-
-
         debugPrint('🔄 Fetching groupId...');
         await _fetchUserGroupId();
       }
-
-
 
       debugPrint('🔄 Loading data with groupId: $_groupId');
       await _loadRealDueDiligenceData();
@@ -299,16 +284,13 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         });
       }
     } catch (e) {
-
       debugPrint('❌ Error in _refreshData: $e');
       if (mounted) {
-      setState(() {
-        _errorMessage = 'Failed to refresh data: $e';
+        setState(() {
+          _errorMessage = 'Failed to refresh data: $e';
 
           _isLoading = false;
-      });
-
-
+        });
       }
     }
   }
@@ -319,8 +301,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       MaterialPageRoute(builder: (context) => dd1.DueDiligenceWrapper()),
     );
   }
-
-
 
   Future<void> _navigateToEdit(String reportId) async {
     try {
@@ -360,8 +340,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // Navigate to edit form with reportId
       if (mounted) {
-    Navigator.push(
-      context,
+        Navigator.push(
+          context,
 
           MaterialPageRoute(
             builder: (context) => DueDiligenceEditScreen(reportId: reportId),
@@ -384,75 +364,84 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
   Future<void> _saveReportAsPDF(String reportId) async {
     try {
-      debugPrint('🔄 Generating PDF for report: $reportId');
-      
+      debugPrint('🔄 Downloading PDF for report: $reportId');
+
       // Show loading message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Generating PDF for report: $reportId'),
+          content: Text('Downloading PDF for report: $reportId'),
           backgroundColor: Colors.blue,
           duration: const Duration(seconds: 2),
         ),
       );
 
-      // Call the PDF generation API
-      final response = await _apiService.generateReportPDF(reportId);
-      
-      debugPrint('📄 PDF API response: ${response.toString()}');
-      
-      if (response['status'] == 'success' || response['success'] == true) {
-        // PDF generated successfully
-        String? pdfUrl;
-        
-        // Safely extract PDF URL from different possible response structures
-        try {
-          if (response['data'] is Map<String, dynamic>) {
-            final data = response['data'] as Map<String, dynamic>;
-            pdfUrl = data['url'] ?? data['pdfUrl'] ?? data['downloadUrl'];
-          } else if (response['data'] is String) {
-            pdfUrl = response['data'] as String;
-          } else if (response['url'] != null) {
-            pdfUrl = response['url'] as String;
-          }
-        } catch (e) {
-          debugPrint('⚠️ Error extracting PDF URL: $e');
-        }
-        
-        if (pdfUrl != null && pdfUrl.isNotEmpty) {
-          // Show success message with download option
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('PDF generated successfully!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-              action: SnackBarAction(
-                label: 'Download',
-                textColor: Colors.white,
-                onPressed: () {
-                  // TODO: Implement PDF download functionality
-                  debugPrint('📥 Download PDF from: $pdfUrl');
-                },
-              ),
+      // Construct the direct PDF download URL
+      final pdfUrl =
+          'https://mvp.edetectives.co.bw/reports/api/v1/reports/due-diligence/$reportId/print?format=pdf';
+
+      debugPrint('📄 PDF URL: $pdfUrl');
+
+      // Get the JWT token for authentication
+      final token = await TokenStorage.getAccessToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login again.');
+      }
+
+      // Download the PDF file with authentication headers
+      final response = await http.get(
+        Uri.parse(pdfUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/pdf',
+          'Content-Type': 'application/pdf',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Get the downloads directory
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = 'due_diligence_report_$reportId.pdf';
+        final filePath = '${directory.path}/$fileName';
+
+        // Save the PDF file
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        debugPrint('✅ PDF saved to: $filePath');
+
+        // Show success message with option to open
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF downloaded successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () async {
+                try {
+                  await OpenFilex.open(filePath);
+                } catch (e) {
+                  debugPrint('❌ Error opening PDF: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not open PDF: $e'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              },
             ),
-          );
-        } else {
-          // PDF generated but no URL returned
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('PDF generated successfully!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
+          ),
+        );
       } else {
-        throw Exception(response['message'] ?? 'Failed to generate PDF');
+        throw Exception('Failed to download PDF: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('❌ Error generating PDF: $e');
+      debugPrint('❌ Error downloading PDF: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to generate PDF: $e'),
+          content: Text('Failed to download PDF: $e'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),
@@ -477,14 +466,11 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     }
   }
 
-
-
   // Helper method to get all individual reports sorted by date
   List<Map<String, dynamic>> _getAllReportsSorted() {
     List<Map<String, dynamic>> allReports = [];
 
     for (var report in _dueDiligenceReports) {
-
       final reportId = report['_id'] ?? report['id'] ?? '';
       final reportStatus = report['status'] ?? 'pending';
       final submittedAt = report['submitted_at'] ?? report['createdAt'] ?? '';
@@ -527,7 +513,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       debugPrint('   - Status: $reportStatus');
       debugPrint('   - Categories count: ${categories.length}');
       debugPrint(
-
         '   - Categories structure: ${categories.map((c) => c.toString()).toList()}',
       );
       debugPrint('   - All report keys: ${report.keys.toList()}');
@@ -538,7 +523,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       List<String> subcategoryNames = [];
 
       for (var category in categories) {
-
         // Try different possible field names for category name
         final categoryName =
             category['name'] ??
@@ -559,7 +543,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         debugPrint('   - Subcategories count: ${subcategories.length}');
 
         for (var subcategory in subcategories) {
-
           // Try different possible field names for subcategory name
           final subcategoryName =
               subcategory['name'] ??
@@ -586,8 +569,7 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
       // If no categories found, try to extract from other possible fields
       if (categoryNames.isEmpty && subcategoryNames.isEmpty) {
-      debugPrint(
-
+        debugPrint(
           '   - No categories/subcategories found in standard locations',
         );
 
@@ -742,19 +724,16 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             Tab(
               icon: const Icon(Icons.category),
 
-
               text: 'Due Diligence Reports (${_dueDiligenceReports.length})',
             ),
           ],
         ),
         actions: [
-
           // IconButton(
           //   icon: Icon(Icons.add, color: Colors.blue.shade600),
           //   onPressed: _navigateToCreate,
           //   tooltip: 'Create New Due Diligence',
           // ),
-          
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.blue.shade600),
             onPressed: _refreshData,
@@ -784,7 +763,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
           //   },
           //   tooltip: 'Debug State',
           // ),
-          
           IconButton(
             icon: Icon(Icons.vertical_align_top, color: Colors.blue.shade600),
             onPressed: () {
@@ -824,16 +802,14 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
               children: [
                 Expanded(
                   child: Text(
-
-
                     'Due Diligence Reports: ${_getAllReportsSorted().length}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
-                      ),
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -854,7 +830,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-
                 hintText: 'Search reports...',
                 hintStyle: TextStyle(color: Colors.grey.shade400),
                 prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
@@ -877,7 +852,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         CircularProgressIndicator(color: Colors.blue.shade600),
                         const SizedBox(height: 16),
                         Text(
-
                           'Loading reports...',
                           style: TextStyle(
                             color: Colors.grey.shade600,
@@ -921,7 +895,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         ),
                         const SizedBox(height: 16),
                         Text(
-
                           'No reports found',
                           style: TextStyle(
                             fontSize: 18,
@@ -931,7 +904,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         ),
                         const SizedBox(height: 8),
                         Text(
-
                           'Pull down to refresh or create a new report',
                           style: TextStyle(
                             color: Colors.grey.shade500,
@@ -946,12 +918,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
 
                     itemCount: _getAllReportsSorted().length + 1,
                     itemBuilder: (context, index) {
-
-
                       if (index == _getAllReportsSorted().length) {
                         return _buildLoadingIndicator();
                       }
-
 
                       return _buildReportCard(index);
                     },
@@ -1013,16 +982,12 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
   //   );
   // }
 
-
-
   // Helper method to build individual report card
   Widget _buildReportCard(int index) {
     final sortedReports = _getAllReportsSorted();
     if (index >= sortedReports.length) {
       return const SizedBox.shrink();
     }
-
-
 
     final report = sortedReports[index];
     final reportId = report['id'] as String? ?? '';
@@ -1038,7 +1003,6 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
       decoration: BoxDecoration(
         color: Colors.white,
 
-
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1051,39 +1015,35 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
         border: Border.all(color: Colors.grey.shade100),
       ),
       child: Padding(
-
         padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             // Header Row with Status and Actions
-                  Row(
-                    children: [
-
+            Row(
+              children: [
                 // Status Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-
+                Container(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(status).withValues(alpha: 0.2),
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(status).withValues(alpha: 0.2),
 
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _getStatusColor(status)),
-                        ),
-                        child: Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            color: _getStatusColor(status),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: _getStatusColor(status),
 
                       fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
 
                 const Spacer(),
                 // Action Buttons
@@ -1116,13 +1076,12 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       style: IconButton.styleFrom(
                         backgroundColor: Colors.red.shade50,
                         padding: const EdgeInsets.all(8),
-                        ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-
+                    ),
+                  ],
+                ),
+              ],
+            ),
 
             const SizedBox(height: 16),
 
@@ -1206,9 +1165,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-
+                  children: [
+                    Text(
                       'Categories: ${categories.length}',
                       style: const TextStyle(
                         fontSize: 14,
@@ -1223,22 +1181,19 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       runSpacing: 8,
                       children: categories.take(5).map((category) {
                         return Container(
-                  padding: const EdgeInsets.symmetric(
-
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-
+                          ),
+                          decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Text(
-
+                          ),
+                          child: Text(
                             category,
-                    style: TextStyle(
-                      fontSize: 12,
+                            style: TextStyle(
+                              fontSize: 12,
 
                               color: Colors.blue.shade700,
                             ),
@@ -1257,17 +1212,16 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             fontStyle: FontStyle.italic,
                           ),
                         ),
-            ),
-          ],
-        ),
-      ),
-
+                      ),
+                  ],
+                ),
+              ),
             ],
 
             if (subcategories.isNotEmpty) ...[
               const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
+              Container(
+                padding: const EdgeInsets.all(16),
 
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
@@ -1281,9 +1235,9 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
+                        color: Colors.black87,
+                      ),
+                    ),
 
                     const SizedBox(height: 12),
                     Wrap(
@@ -1295,8 +1249,8 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                             horizontal: 12,
                             vertical: 6,
                           ),
-            decoration: BoxDecoration(
-              color: Colors.white,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
 
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.green.shade200),
@@ -1317,17 +1271,15 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
                         child: Text(
                           '... and ${subcategories.length - 5} more',
                           style: TextStyle(
-
                             fontSize: 12,
                             color: Colors.grey.shade500,
 
                             fontStyle: FontStyle.italic,
                           ),
-                          ),
                         ),
-                      ],
-                    ),
-
+                      ),
+                  ],
+                ),
               ),
             ],
 
@@ -1367,4 +1319,3 @@ class _DueDiligenceListViewState extends State<DueDiligenceListView>
     );
   }
 }
-
