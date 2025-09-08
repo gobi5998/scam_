@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:security_alert/screens/scam/scam_report_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -17,6 +14,7 @@ import '../../custom/customDropdown.dart';
 import '../../custom/Success_page.dart';
 import '../../services/api_service.dart';
 import '../../custom/fileUpload.dart';
+import '../../custom/offline_file_upload.dart' as custom;
 
 class ReportScam2 extends StatefulWidget {
   final ScamReportModel report;
@@ -39,10 +37,12 @@ class _ReportScam2State extends State<ReportScam2> {
   bool filesUploaded = false;
   String? selectedAddress; // Add selected address variable
 
+  // Age variables
+  int? minAge;
+  int? maxAge;
+
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(
-        debugLabel: 'scam_file_upload_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      GlobalKey<FileUploadWidgetState>();
 
   @override
   void initState() {
@@ -57,6 +57,35 @@ class _ReportScam2State extends State<ReportScam2> {
     print('🔍 - Social Media Handles: ${widget.report.mediaHandles}');
     print('🔍 - Report ID: ${widget.report.id}');
     print('🔍 - Report JSON: ${widget.report.toJson()}');
+  }
+
+  // Convert string alert level to ObjectId for offline mode
+  String? _getAlertLevelObjectId(String alertLevelString) {
+    try {
+      // CRITICAL FIX: Correct mapping of string values to ObjectIds based on your logs
+      final alertLevelMap = {
+        'Critical': '6887488fdc01fe5e05839d88',
+        'High': '6891c8fe05d97b83f1ae9800',
+        'Medium': '688738b2357d9e4bb381b5ba',
+        'Low': '68873fe402621a53392dc7a2',
+      };
+
+      final objectId = alertLevelMap[alertLevelString];
+      if (objectId != null) {
+        print(
+          '✅ Mapped alert level "$alertLevelString" to ObjectId: $objectId',
+        );
+        return objectId;
+      } else {
+        print(
+          '⚠️ No ObjectId mapping found for alert level: $alertLevelString',
+        );
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error getting alert level ObjectId: $e');
+      return null;
+    }
   }
 
   Future<void> _loadAlertLevels() async {
@@ -199,33 +228,44 @@ class _ReportScam2State extends State<ReportScam2> {
       // Test backend connectivity first
       await _testBackendConnectivity();
 
-      // Use already uploaded files from FileUploadWidget (auto-upload enabled)
-      Map<String, dynamic> uploadedFiles = {
-        'screenshots': [],
-        'documents': [],
-        'voiceMessages': [],
-        'videofiles': [],
-      };
+      // Use hybrid file system (offline + online)
+      Map<String, dynamic> uploadedFiles = await _getAllFiles();
 
-      // Get uploaded files from FileUploadWidget state (auto-upload enabled)
-      if (_fileUploadKey.currentState != null) {
-        final state = _fileUploadKey.currentState!;
-        print('🚀 File upload state found');
+      print('🚀 Hybrid file system - combining offline and online files');
+      print('🚀 Total files: $uploadedFiles');
+      print('🚀 Screenshots: ${uploadedFiles['screenshots']?.length ?? 0}');
+      print('🚀 Documents: ${uploadedFiles['documents']?.length ?? 0}');
+      print(
+        '🚀 Voice messages: ${uploadedFiles['voiceMessages']?.length ?? 0}',
+      );
+      print('🚀 Video files: ${uploadedFiles['videofiles']?.length ?? 0}');
 
-        // Get the already uploaded files from the widget
-        uploadedFiles = state.getCurrentUploadedFiles();
-
-        print('🚀 Using already uploaded files from auto-upload');
-        print('🚀 Uploaded files: $uploadedFiles');
-        print('🚀 Screenshots: ${uploadedFiles['screenshots']?.length ?? 0}');
-        print('🚀 Documents: ${uploadedFiles['documents']?.length ?? 0}');
+      // Debug: Check if FileUploadWidget is returning files
+      if (uploadedFiles['screenshots']?.isEmpty == true &&
+          uploadedFiles['documents']?.isEmpty == true &&
+          uploadedFiles['voiceMessages']?.isEmpty == true &&
+          uploadedFiles['videofiles']?.isEmpty == true) {
+        print('⚠️ WARNING: FileUploadWidget returned empty files!');
         print(
-          '🚀 Voice messages: ${uploadedFiles['voiceMessages']?.length ?? 0}',
+          '⚠️ This suggests the widget is not capturing offline files correctly',
         );
-        print('🚀 Video files: ${uploadedFiles['videofiles']?.length ?? 0}');
-      } else {
-        print('🚀 File upload state not found');
       }
+
+      // Log offline vs online file counts
+      int offlineCount = 0;
+      int onlineCount = 0;
+      for (String key in uploadedFiles.keys) {
+        if (uploadedFiles[key] is List) {
+          for (var file in uploadedFiles[key]) {
+            if (file['isOffline'] == true) {
+              offlineCount++;
+            } else {
+              onlineCount++;
+            }
+          }
+        }
+      }
+      print('🚀 Offline files: $offlineCount, Online files: $onlineCount');
 
       // Use categorized file objects for backend and URLs for local storage
       final screenshotsForBackend =
@@ -246,25 +286,123 @@ class _ReportScam2State extends State<ReportScam2> {
               .cast<Map<String, dynamic>>()
               .toList();
 
-      // Extract URLs for local model storage
+      // If no files were gathered yet (common in offline mode when widget didn't upload),
+      // try to fetch any stored offline files for this reportId and merge them
+      if (screenshotsForBackend.isEmpty &&
+          documentsForBackend.isEmpty &&
+          voiceMessagesForBackend.isEmpty &&
+          videoMessagesForBackend.isEmpty) {
+        try {
+          final offlineReportId =
+              widget.report.id ??
+              DateTime.now().millisecondsSinceEpoch.toString();
+          print('📦 No files collected yet, loading from offline store for: ');
+          print('📦 ReportId: ' + offlineReportId);
+
+          final offlineFiles =
+              await custom.OfflineFileUploadService.getOfflineFilesByReportId(
+                offlineReportId,
+              );
+
+          print('📦 Found ${offlineFiles.length} offline files to merge');
+
+          // Convert offline files to MongoDB format for backend submission
+          for (final f in offlineFiles) {
+            final category = (f['category'] ?? '').toString();
+            final mongoDBFileObject = {
+              '_id':
+                  f['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+              'originalName': (f['originalName'] ?? '').toString(),
+              'fileName': (f['originalName'] ?? '').toString(),
+              'mimeType': (f['mimeType'] ?? '').toString(),
+              'contentType': (f['mimeType'] ?? '').toString(),
+              'size': f['fileSize'] ?? 0,
+              'key': f['offlinePath'] ?? '',
+              's3Key': f['offlinePath'] ?? '',
+              'url': f['offlinePath'] ?? '',
+              's3Url': f['offlinePath'] ?? '',
+              'uploadPath': f['offlinePath'] ?? '',
+              'path': f['offlinePath'] ?? '',
+              'createdAt':
+                  f['createdAt'] ?? DateTime.now().toUtc().toIso8601String(),
+              'updatedAt': DateTime.now().toUtc().toIso8601String(),
+              '__v': 0,
+              'isOffline': true,
+              'offlinePath': f['offlinePath'],
+            };
+
+            print('📁 Created MongoDB object for category $category:');
+            print('📁 - File: ${f['originalName']}');
+            print('📁 - Offline Path: ${f['offlinePath']}');
+
+            switch (category) {
+              case 'screenshots':
+                screenshotsForBackend.add(mongoDBFileObject);
+                break;
+              case 'documents':
+                documentsForBackend.add(mongoDBFileObject);
+                break;
+              case 'voiceMessages':
+                voiceMessagesForBackend.add(mongoDBFileObject);
+                break;
+              case 'videofiles':
+                videoMessagesForBackend.add(mongoDBFileObject);
+                break;
+              default:
+                print('⚠️ Unknown category: $category, adding to documents');
+                documentsForBackend.add(mongoDBFileObject);
+            }
+          }
+
+          print('📦 Loaded offline files - counts after merge:');
+          print('📦 Screenshots: ${screenshotsForBackend.length}');
+          print('📦 Documents: ${documentsForBackend.length}');
+          print('📦 Voice: ${voiceMessagesForBackend.length}');
+          print('📦 Videos: ${videoMessagesForBackend.length}');
+        } catch (e) {
+          print('❌ Failed to load offline files for evidence: $e');
+        }
+      } else {
+        print(
+          '✅ FileUploadWidget already has files, no need to load from offline store',
+        );
+      }
+
+      // Extract file paths for local model storage
+      // Store both file paths and file metadata for UI display
       final screenshots = screenshotsForBackend
-          .map((f) => f['url']?.toString() ?? '')
-          .where((url) => url.isNotEmpty)
+          .map(
+            (f) => f['url']?.toString() ?? f['offlinePath']?.toString() ?? '',
+          )
+          .where((path) => path.isNotEmpty)
           .toList();
 
       final documents = documentsForBackend
-          .map((f) => f['url']?.toString() ?? '')
-          .where((url) => url.isNotEmpty)
+          .map(
+            (f) => f['url']?.toString() ?? f['offlinePath']?.toString() ?? '',
+          )
+          .where((path) => path.isNotEmpty)
           .toList();
 
       final voiceMessages = voiceMessagesForBackend
-          .map((f) => f['url']?.toString() ?? '')
-          .where((url) => url.isNotEmpty)
+          .map(
+            (f) => f['url']?.toString() ?? f['offlinePath']?.toString() ?? '',
+          )
+          .where((path) => path.isNotEmpty)
           .toList();
       final videofiles = videoMessagesForBackend
-          .map((f) => f['url']?.toString() ?? '')
-          .where((url) => url.isNotEmpty)
+          .map(
+            (f) => f['url']?.toString() ?? f['offlinePath']?.toString() ?? '',
+          )
+          .where((path) => path.isNotEmpty)
           .toList();
+
+      // Debug logging for file paths
+      print('📁 Extracted file paths for report model:');
+      print('📁 - Screenshots: ${screenshots.length} - $screenshots');
+      print('📁 - Documents: ${documents.length} - $documents');
+      print('📁 - Voice Messages: ${voiceMessages.length} - $voiceMessages');
+      print('📁 - Video Files: ${videofiles.length} - $videofiles');
 
       print('🚀 Extracted file URLs:');
       print('🚀 - Screenshots: ${screenshots.length}');
@@ -353,9 +491,7 @@ class _ReportScam2State extends State<ReportScam2> {
       );
       print('🚀 Phone Numbers from widget: ${widget.report.phoneNumbers}');
       print('🚀 Emails from widget: ${widget.report.emails}');
-      print(
-        '🚀 Media Handles from widget: ${widget.report.mediaHandles}',
-      );
+      print('🚀 Media Handles from widget: ${widget.report.mediaHandles}');
 
       // Validate arrays are not empty
       if (widget.report.phoneNumbers?.isEmpty ?? true) {
@@ -373,16 +509,54 @@ class _ReportScam2State extends State<ReportScam2> {
       print('🚀 Age Data: ${formData['age']}');
 
       // Create updated report model with all data including uploaded files
+      // Ensure we have the latest file paths after fallback
+      final finalScreenshots = screenshots.isNotEmpty
+          ? screenshots.cast<String>()
+          : <String>[];
+      final finalDocuments = documents.isNotEmpty
+          ? documents.cast<String>()
+          : <String>[];
+      final finalVoiceMessages = voiceMessages.isNotEmpty
+          ? voiceMessages.cast<String>()
+          : <String>[];
+      final finalVideofiles = videofiles.isNotEmpty
+          ? videofiles.cast<String>()
+          : <String>[];
+
       final updatedReport = widget.report.copyWith(
         alertLevels: alertLevel,
-        screenshots: screenshots,
-        documents: documents,
-        voiceMessages: voiceMessages,
+        screenshots: finalScreenshots,
+        documents: finalDocuments,
+        voiceMessages: finalVoiceMessages,
+        videofiles: finalVideofiles,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
 
       print('🚀 Updated report model created');
+      print('📁 File paths in updated report:');
+      print('📁 - Screenshots: ${updatedReport.screenshots}');
+      print('📁 - Documents: ${updatedReport.documents}');
+      print('📁 - Voice Messages: ${updatedReport.voiceMessages}');
+      print('📁 - Video Files: ${updatedReport.videofiles}');
+
+      // Verify file paths are not empty before saving
+      if (screenshots.isEmpty &&
+          documents.isEmpty &&
+          voiceMessages.isEmpty &&
+          videofiles.isEmpty) {
+        print(
+          '⚠️ WARNING: All file arrays are empty! This will cause "No Evidence" display',
+        );
+        print('⚠️ Check if file extraction logic is working correctly');
+      } else {
+        print('✅ File paths are properly populated');
+        print('✅ Final file counts:');
+        print('✅ - Screenshots: ${screenshots.length}');
+        print('✅ - Documents: ${documents.length}');
+        print('✅ - Voice Messages: ${voiceMessages.length}');
+        print('✅ - Video Files: ${videofiles.length}');
+      }
 
       // Save to local thread database first (offline-first approach)
       setState(() {
@@ -410,6 +584,41 @@ class _ReportScam2State extends State<ReportScam2> {
       if (allReports.isNotEmpty) {
         final lastReport = allReports.last;
         print('💾 Last saved report: ${lastReport.toJson()}');
+      }
+
+      // Handle offline file uploads for the saved report
+      if (finalScreenshots.isNotEmpty ||
+          finalDocuments.isNotEmpty ||
+          finalVoiceMessages.isNotEmpty ||
+          finalVideofiles.isNotEmpty) {
+        print(
+          '📁 Handling offline file uploads for scam report: ${updatedReport.id}',
+        );
+
+        try {
+          final offlineFiles =
+              await custom.OfflineFileUploadService.getOfflineFilesByReportId(
+                updatedReport.id.toString(),
+              );
+          print(
+            '📁 Found ${offlineFiles.length} offline files for scam report: ${updatedReport.id}',
+          );
+
+          if (offlineFiles.isNotEmpty) {
+            // Update the report in the database with file paths
+            final reportWithFiles = updatedReport.copyWith(
+              screenshots: finalScreenshots,
+              documents: finalDocuments,
+              voiceMessages: finalVoiceMessages,
+              videofiles: finalVideofiles,
+            );
+
+            await ScamReportService.updateReport(reportWithFiles);
+            print('📁 Updated report in database with file paths');
+          }
+        } catch (e) {
+          print('❌ Error handling offline file uploads: $e');
+        }
       }
 
       // Additional verification - check if we can read the data back
@@ -647,6 +856,93 @@ class _ReportScam2State extends State<ReportScam2> {
     }
   }
 
+  // Method to get all files from FileUploadWidget (handles both online and offline)
+  Future<Map<String, dynamic>> _getAllFiles() async {
+    // Get files from FileUploadWidget - it handles both online and offline automatically
+    if (_fileUploadKey.currentState != null) {
+      final files = _fileUploadKey.currentState!.getCurrentUploadedFiles();
+      print('🚀 FileUploadWidget files: $files');
+
+      // If FileUploadWidget has no files, check offline storage
+      if ((files['screenshots'] as List).isEmpty &&
+          (files['documents'] as List).isEmpty &&
+          (files['voiceMessages'] as List).isEmpty &&
+          (files['videofiles'] as List).isEmpty) {
+        print('📦 FileUploadWidget has no files, checking offline storage...');
+        try {
+          final offlineReportId =
+              widget.report.id ??
+              DateTime.now().millisecondsSinceEpoch.toString();
+
+          final offlineFiles =
+              await custom.OfflineFileUploadService.getOfflineFilesByReportId(
+                offlineReportId,
+              );
+
+          if (offlineFiles.isNotEmpty) {
+            print('📦 Found ${offlineFiles.length} offline files');
+
+            // Convert offline files to the expected format
+            final offlineFilesFormatted = {
+              'screenshots': <dynamic>[],
+              'documents': <dynamic>[],
+              'voiceMessages': <dynamic>[],
+              'videofiles': <dynamic>[],
+            };
+
+            for (final f in offlineFiles) {
+              final category = (f['category'] ?? '').toString();
+              final payload = {
+                'fileName': (f['originalName'] ?? '').toString(),
+                'originalName': (f['originalName'] ?? '').toString(),
+                'mimeType': (f['mimeType'] ?? '').toString(),
+                'fileSize': f['fileSize'] ?? 0,
+                'offlineId': f['id'],
+                'offlinePath': f['offlinePath'],
+                'url': (f['offlinePath'] ?? '').toString(),
+                'status': (f['status'] ?? 'offline_pending').toString(),
+                'createdAt': f['createdAt'],
+                'isOffline': true,
+              };
+
+              switch (category) {
+                case 'screenshots':
+                  offlineFilesFormatted['screenshots']!.add(payload);
+                  break;
+                case 'documents':
+                  offlineFilesFormatted['documents']!.add(payload);
+                  break;
+                case 'voiceMessages':
+                  offlineFilesFormatted['voiceMessages']!.add(payload);
+                  break;
+                case 'videofiles':
+                  offlineFilesFormatted['videofiles']!.add(payload);
+                  break;
+                default:
+                  offlineFilesFormatted['documents']!.add(payload);
+              }
+            }
+
+            print('📦 Returning offline files: $offlineFilesFormatted');
+            return offlineFilesFormatted;
+          }
+        } catch (e) {
+          print('❌ Error checking offline files: $e');
+        }
+      }
+
+      return files;
+    }
+
+    // Return empty structure if no files
+    return {
+      'screenshots': [],
+      'documents': [],
+      'voiceMessages': [],
+      'videofiles': [],
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -666,7 +962,8 @@ class _ReportScam2State extends State<ReportScam2> {
                 config: FileUploadConfig(
                   reportType: 'scam',
                   reportId:
-                      widget.report.id ?? FileUploadService.generateObjectId(),
+                      widget.report.id ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
                   autoUpload: true, // Enable auto-upload
                   showProgress: true,
                   allowMultipleFiles: true,
@@ -692,6 +989,8 @@ class _ReportScam2State extends State<ReportScam2> {
                   );
                 },
               ),
+              const SizedBox(height: 20),
+
               const SizedBox(height: 20),
               CustomDropdown(
                 label: 'Alert Severity *',
@@ -728,6 +1027,12 @@ class _ReportScam2State extends State<ReportScam2> {
                         print('❌ Error finding alert level ID: $e');
                         alertLevelId = null;
                       }
+                    } else if (val != null) {
+                      // Handle hardcoded alert levels when API is not available (offline mode)
+                      alertLevelId = _getAlertLevelObjectId(val);
+                      print(
+                        '✅ Selected hardcoded alert level: $val with ID: $alertLevelId',
+                      );
                     } else {
                       alertLevelId = null;
                       print('🔍 Alert level cleared');

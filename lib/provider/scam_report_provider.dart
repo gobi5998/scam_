@@ -16,11 +16,42 @@ class ScamReportProvider with ChangeNotifier {
     // Fetch both local and remote, merge, and remove duplicates
     List<ScamReportModel> local = await _localService.getAllReports();
     List<ScamReportModel> remote = await _remoteService.fetchReports();
-    // Merge: keep all unsynced local, and all remote (by id)
-    Map<String, ScamReportModel> merged = {
-      for (var r in remote) (r.id ?? ''): r,
-      for (var r in local.where((e) => e.isSynced != true)) (r.id ?? ''): r,
-    };
+
+    // Merge: keep all unsynced local, and merge remote with local file paths
+    Map<String, ScamReportModel> merged = {};
+
+    // First, add all remote reports
+    for (var remoteReport in remote) {
+      merged[remoteReport.id ?? ''] = remoteReport;
+    }
+
+    // Then, merge local reports (preserving file paths for synced reports)
+    for (var localReport in local) {
+      final localId = localReport.id ?? '';
+      if (merged.containsKey(localId)) {
+        // Report exists remotely - merge file paths from local
+        final remoteReport = merged[localId]!;
+        final mergedReport = remoteReport.copyWith(
+          screenshots: localReport.screenshots.isNotEmpty
+              ? localReport.screenshots
+              : remoteReport.screenshots,
+          documents: localReport.documents.isNotEmpty
+              ? localReport.documents
+              : remoteReport.documents,
+          voiceMessages: localReport.voiceMessages.isNotEmpty
+              ? localReport.voiceMessages
+              : remoteReport.voiceMessages,
+          videofiles: localReport.videofiles.isNotEmpty
+              ? localReport.videofiles
+              : remoteReport.videofiles,
+        );
+        merged[localId] = mergedReport;
+      } else {
+        // Report only exists locally
+        merged[localId] = localReport;
+      }
+    }
+
     _reports = merged.values.toList();
     notifyListeners();
   }

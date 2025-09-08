@@ -7,6 +7,7 @@ class ReportsFilter {
   final String? detectTypeId;
   final String? operatingSystemName;
   final String? search;
+  final bool? hasEvidence; // NEW: Filter for reports with evidence files
 
   ReportsFilter({
     this.page,
@@ -17,6 +18,7 @@ class ReportsFilter {
     this.detectTypeId,
     this.operatingSystemName,
     this.search,
+    this.hasEvidence, // NEW: Filter for reports with evidence files
   });
 
   Map<String, dynamic> toQueryParameters() {
@@ -32,6 +34,9 @@ class ReportsFilter {
       params['operatingSystemName'] = operatingSystemName;
     if (search != null && search!.isNotEmpty) {
       params['search'] = search;
+    }
+    if (hasEvidence != null) {
+      params['hasEvidence'] = hasEvidence.toString();
     }
     return params;
   }

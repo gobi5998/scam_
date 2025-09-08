@@ -117,38 +117,47 @@ class FraudReportModel extends HiveObject implements SyncableReport {
   bool get isInBox =>
       Hive.box<FraudReportModel>('fraud_reports').containsKey(id);
 
-  Map<String, dynamic> toJson() => {
-    '_id': id,
-    'reportCategoryId': reportCategoryId,
-    'reportTypeId': reportTypeId,
-    'alertLevels': alertLevels,
-    'keycloackUserId': keycloackUserId,
-    'location': {
-      'type': 'Point',
-      'coordinates': [
-        79.8114,
-        11.9416,
-      ], // Default coordinates, should be updated with actual location
-    },
-    'phoneNumbers': phoneNumbers,
-    'emails': emails,
-    'mediaHandles': mediaHandles,
-    'website': website,
-    'currency': currency ?? 'INR', // Use currency from model or default to INR
-    'moneyLost': moneyLost?.toString(),
-    'reportOutcome': true, // Default value, should be made configurable
-    'description': description,
-    'incidentDate': incidentDate?.toIso8601String(),
-    'fraudsterName': fraudsterName,
-    'companyName': companyName,
-    'createdBy': name, // Using name as createdBy for now
+  Map<String, dynamic> toJson() {
+    final json = {
+      '_id': id,
+      'reportCategoryId': reportCategoryId,
+      'reportTypeId': reportTypeId,
+      'keycloackUserId': keycloackUserId,
+      'location': {
+        'type': 'Point',
+        'coordinates': [
+          79.8114,
+          11.9416,
+        ], // Default coordinates, should be updated with actual location
+        'address': 'Default Location', // Required by backend
+      },
+      'phoneNumbers': phoneNumbers,
+      'emails': emails,
+      'mediaHandles': mediaHandles,
+      'website': website,
+      'currency':
+          currency ?? 'INR', // Use currency from model or default to INR
+      'moneyLost': moneyLost?.toString(),
+      'reportOutcome': true, // Default value, should be made configurable
+      'description': description,
+      'incidentDate': incidentDate?.toIso8601String(),
+      'fraudsterName': fraudsterName,
+      'companyName': companyName,
+      'createdBy': name, // Using name as createdBy for now
+      'screenshots': screenshots,
+      'voiceMessages': voiceMessages,
+      'documents': documents,
+      'videofiles': videofiles,
+      'age': {'min': minAge, 'max': maxAge},
+    };
 
-    'screenshots': screenshots,
-    'voiceMessages': voiceMessages,
-    'documents': documents,
-    'videofiles': videofiles,
-    'age': {'min': minAge, 'max': maxAge},
-  };
+    // Only add alertLevels if it's not null
+    if (alertLevels != null && alertLevels!.isNotEmpty) {
+      json['alertLevels'] = alertLevels;
+    }
+
+    return json;
+  }
 
   factory FraudReportModel.fromJson(
     Map<String, dynamic> json,

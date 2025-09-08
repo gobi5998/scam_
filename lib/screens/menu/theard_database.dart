@@ -57,6 +57,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   List<Map<String, dynamic>> _localCategories = [];
   List<Map<String, dynamic>> _localTypes = [];
   List<Map<String, dynamic>> _localReports = [];
+  List<Map<String, dynamic>> _filteredLocalReports = [];
+  List<Map<String, dynamic>> _localDeviceTypes = [];
+  List<Map<String, dynamic>> _localDetectTypes = [];
+  List<Map<String, dynamic>> _localOperatingSystems = [];
 
   @override
   void initState() {
@@ -93,15 +97,23 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       await _loadLocalCategories();
       await _loadLocalTypes();
       await _loadLocalAlertLevels();
+      await _loadLocalDeviceTypes();
+      await _loadLocalDetectTypes();
+      await _loadLocalOperatingSystems();
       await _loadLocalReports();
 
       setState(() {
         _isLoadingCategories = false;
         _isLoadingTypes = false;
         _hasLocalData = true;
+        _filteredLocalReports =
+            _localReports; // Initialize with all local reports
       });
 
       print('✅ Local data loaded successfully');
+
+      // Test offline filtering functionality
+      _testOfflineFiltering();
     } catch (e) {
       print('❌ Error loading local data: $e');
       setState(() {
@@ -118,6 +130,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       _loadCategories(),
       _loadAllReportTypes(),
       _loadAlertLevels(),
+      _loadDeviceFilters(),
     ]);
   }
 
@@ -165,6 +178,20 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _detectTypes = _capitalize(List<Map<String, dynamic>>.from(detectRaw));
         _operatingSystems = _capitalize(List<Map<String, dynamic>>.from(osRaw));
       });
+
+      // Save device filters locally for offline use
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('local_device_types', jsonEncode(_deviceTypes));
+        await prefs.setString('local_detect_types', jsonEncode(_detectTypes));
+        await prefs.setString(
+          'local_operating_systems',
+          jsonEncode(_operatingSystems),
+        );
+        print('✅ Device filters saved locally for offline use');
+      } catch (e) {
+        print('⚠️ Failed to save device filters locally: $e');
+      }
 
       print('🔍 Device filters loaded successfully:');
       print('🔍   - Device types: ${_deviceTypes.length}');
@@ -298,7 +325,150 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       });
       print('⚠️ Using fallback alert levels due to error');
     }
-  } // Load local reports with proper filtering support
+  }
+
+  // Load local device types
+  Future<void> _loadLocalDeviceTypes() async {
+    try {
+      // Try to get device types from local storage or use fallback
+      final prefs = await SharedPreferences.getInstance();
+      final deviceTypesJson = prefs.getString('local_device_types');
+
+      if (deviceTypesJson != null) {
+        final deviceTypes = List<Map<String, dynamic>>.from(
+          jsonDecode(deviceTypesJson).map((x) => Map<String, dynamic>.from(x)),
+        );
+        _localDeviceTypes = deviceTypes;
+        if (_isOffline) {
+          _deviceTypes = deviceTypes;
+        }
+        print('✅ Loaded ${deviceTypes.length} device types from local storage');
+      } else {
+        // Use fallback device types
+        _localDeviceTypes = [
+          {'_id': 'mobile_device', 'name': 'Mobile'},
+          {'_id': 'desktop_device', 'name': 'Desktop'},
+          {'_id': 'laptop_device', 'name': 'Laptop'},
+          {'_id': 'tablet_device', 'name': 'Tablet'},
+        ];
+        if (_isOffline) {
+          _deviceTypes = _localDeviceTypes;
+        }
+        print('⚠️ No local device types found, using fallback data');
+      }
+    } catch (e) {
+      print('❌ Error loading local device types: $e');
+      // Use fallback device types
+      _localDeviceTypes = [
+        {'_id': 'mobile_device', 'name': 'Mobile'},
+        {'_id': 'desktop_device', 'name': 'Desktop'},
+        {'_id': 'laptop_device', 'name': 'Laptop'},
+        {'_id': 'tablet_device', 'name': 'Tablet'},
+      ];
+      if (_isOffline) {
+        _deviceTypes = _localDeviceTypes;
+      }
+      print('⚠️ Using fallback device types due to error');
+    }
+  }
+
+  // Load local detect types
+  Future<void> _loadLocalDetectTypes() async {
+    try {
+      // Try to get detect types from local storage or use fallback
+      final prefs = await SharedPreferences.getInstance();
+      final detectTypesJson = prefs.getString('local_detect_types');
+
+      if (detectTypesJson != null) {
+        final detectTypes = List<Map<String, dynamic>>.from(
+          jsonDecode(detectTypesJson).map((x) => Map<String, dynamic>.from(x)),
+        );
+        _localDetectTypes = detectTypes;
+        if (_isOffline) {
+          _detectTypes = detectTypes;
+        }
+        print('✅ Loaded ${detectTypes.length} detect types from local storage');
+      } else {
+        // Use fallback detect types
+        _localDetectTypes = [
+          {'_id': 'manual_detect', 'name': 'Manual Detection'},
+          {'_id': 'automatic_detect', 'name': 'Automatic Detection'},
+          {'_id': 'user_report', 'name': 'User Report'},
+          {'_id': 'system_scan', 'name': 'System Scan'},
+        ];
+        if (_isOffline) {
+          _detectTypes = _localDetectTypes;
+        }
+        print('⚠️ No local detect types found, using fallback data');
+      }
+    } catch (e) {
+      print('❌ Error loading local detect types: $e');
+      // Use fallback detect types
+      _localDetectTypes = [
+        {'_id': 'manual_detect', 'name': 'Manual Detection'},
+        {'_id': 'automatic_detect', 'name': 'Automatic Detection'},
+        {'_id': 'user_report', 'name': 'User Report'},
+        {'_id': 'system_scan', 'name': 'System Scan'},
+      ];
+      if (_isOffline) {
+        _detectTypes = _localDetectTypes;
+      }
+      print('⚠️ Using fallback detect types due to error');
+    }
+  }
+
+  // Load local operating systems
+  Future<void> _loadLocalOperatingSystems() async {
+    try {
+      // Try to get operating systems from local storage or use fallback
+      final prefs = await SharedPreferences.getInstance();
+      final operatingSystemsJson = prefs.getString('local_operating_systems');
+
+      if (operatingSystemsJson != null) {
+        final operatingSystems = List<Map<String, dynamic>>.from(
+          jsonDecode(
+            operatingSystemsJson,
+          ).map((x) => Map<String, dynamic>.from(x)),
+        );
+        _localOperatingSystems = operatingSystems;
+        if (_isOffline) {
+          _operatingSystems = operatingSystems;
+        }
+        print(
+          '✅ Loaded ${operatingSystems.length} operating systems from local storage',
+        );
+      } else {
+        // Use fallback operating systems
+        _localOperatingSystems = [
+          {'_id': 'android_os', 'name': 'Android'},
+          {'_id': 'ios_os', 'name': 'iOS'},
+          {'_id': 'windows_os', 'name': 'Windows'},
+          {'_id': 'macos_os', 'name': 'macOS'},
+          {'_id': 'linux_os', 'name': 'Linux'},
+        ];
+        if (_isOffline) {
+          _operatingSystems = _localOperatingSystems;
+        }
+        print('⚠️ No local operating systems found, using fallback data');
+      }
+    } catch (e) {
+      print('❌ Error loading local operating systems: $e');
+      // Use fallback operating systems
+      _localOperatingSystems = [
+        {'_id': 'android_os', 'name': 'Android'},
+        {'_id': 'ios_os', 'name': 'iOS'},
+        {'_id': 'windows_os', 'name': 'Windows'},
+        {'_id': 'macos_os', 'name': 'macOS'},
+        {'_id': 'linux_os', 'name': 'Linux'},
+      ];
+      if (_isOffline) {
+        _operatingSystems = _localOperatingSystems;
+      }
+      print('⚠️ Using fallback operating systems due to error');
+    }
+  }
+
+  // Load local reports with proper filtering support
 
   Future<void> _loadLocalReports() async {
     try {
@@ -919,24 +1089,27 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       reportTypeId = [];
     });
 
-    // Fetch detailed data for selected categories
-    _fetchSelectedCategoryData(categoryIds);
-
-    if (categoryIds.isNotEmpty) {
-      _loadTypesByCategory(categoryIds);
-      _loadDeviceFilters();
+    // Apply offline filtering if in offline mode
+    if (_isOffline) {
+      _applyOfflineFilters();
     } else {
-      // If no categories selected, load all types
+      // Fetch detailed data for selected categories
+      _fetchSelectedCategoryData(categoryIds);
 
-      _loadAllReportTypes();
+      if (categoryIds.isNotEmpty) {
+        _loadTypesByCategory(categoryIds);
+        _loadDeviceFilters();
+      } else {
+        // If no categories selected, load all types
+        _loadAllReportTypes();
 
-      setState(() {
-        _deviceTypes = [];
-        _detectTypes = [];
-        _operatingSystems = [];
-      });
+        setState(() {
+          _deviceTypes = [];
+          _detectTypes = [];
+          _operatingSystems = [];
+        });
+      }
     }
-    ;
   }
 
   Future<void> _fetchSelectedCategoryData(List<String> categoryIds) async {
@@ -1003,6 +1176,531 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       print('Error fetching type by ID $typeId: $e');
       return null;
     }
+  }
+
+  // CRITICAL FIX: Apply offline filters to local reports
+  void _applyOfflineFilters() {
+    print('🔍 OFFLINE: Applying filters to local reports...');
+    print('🔍 OFFLINE: Search query: "$searchQuery"');
+    print('🔍 OFFLINE: Selected categories: $selectedCategoryIds');
+    print('🔍 OFFLINE: Selected types: $selectedTypeIds');
+    print('🔍 OFFLINE: Selected alert levels: $selectedAlertLevels');
+    print('🔍 OFFLINE: Selected device type: $_selectedDeviceTypeId');
+    print('🔍 OFFLINE: Selected detect type: $_selectedDetectTypeId');
+    print('🔍 OFFLINE: Selected operating system: $_selectedOperatingSystemId');
+    print('🔍 OFFLINE: Total local reports: ${_localReports.length}');
+
+    // Debug: Show available local categories and types
+    print(
+      '🔍 OFFLINE: Available local categories: ${_localCategories.map((c) => '${c['_id']}: ${c['name']}').toList()}',
+    );
+    print(
+      '🔍 OFFLINE: Available local types: ${_localTypes.map((t) => '${t['_id']}: ${t['name']}').toList()}',
+    );
+    print(
+      '🔍 OFFLINE: Available local alert levels: ${alertLevels.map((a) => '${a['_id']}: ${a['name']}').toList()}',
+    );
+
+    // Debug: Show sample local report structure
+    if (_localReports.isNotEmpty) {
+      print('🔍 OFFLINE: Sample local report structure:');
+      final sampleReport = _localReports.first;
+      sampleReport.forEach((key, value) {
+        print('🔍 OFFLINE:   $key: $value');
+      });
+    }
+
+    List<Map<String, dynamic>> filtered = List.from(_localReports);
+
+    // Apply search query filter
+    if (searchQuery.isNotEmpty) {
+      final query = searchQuery.toLowerCase();
+      filtered = filtered.where((report) {
+        final description = (report['description'] ?? '')
+            .toString()
+            .toLowerCase();
+        final name = (report['name'] ?? '').toString().toLowerCase();
+        final type = (report['type'] ?? '').toString().toLowerCase();
+        final categoryName = (report['categoryName'] ?? '')
+            .toString()
+            .toLowerCase();
+        final typeName = (report['typeName'] ?? '').toString().toLowerCase();
+
+        return description.contains(query) ||
+            name.contains(query) ||
+            type.contains(query) ||
+            categoryName.contains(query) ||
+            typeName.contains(query);
+      }).toList();
+      print('🔍 OFFLINE: After search filter: ${filtered.length} reports');
+    }
+
+    // Apply category filter
+    if (selectedCategoryIds.isNotEmpty) {
+      print(
+        '🔍 OFFLINE: Applying category filter with selected IDs: $selectedCategoryIds',
+      );
+      filtered = filtered.where((report) {
+        final reportCategoryId = report['reportCategoryId']?.toString() ?? '';
+        final categoryName = (report['categoryName'] ?? '')
+            .toString()
+            .toLowerCase();
+
+        print(
+          '🔍 OFFLINE: Checking report - Category ID: $reportCategoryId, Category Name: $categoryName',
+        );
+
+        // Check if category ID matches or category name matches
+        final categoryMatches = selectedCategoryIds.any((selectedId) {
+          print('🔍 OFFLINE: Comparing with selected ID: $selectedId');
+
+          // Direct ID match
+          if (selectedId == reportCategoryId) {
+            print('🔍 OFFLINE: Direct ID match found!');
+            return true;
+          }
+
+          // Check by category name mapping
+          final selectedCategory = _localCategories.firstWhere(
+            (cat) => (cat['_id'] ?? cat['id']) == selectedId,
+            orElse: () => {'name': ''},
+          );
+          final selectedCategoryName = (selectedCategory['name'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          print('🔍 OFFLINE: Selected category name: $selectedCategoryName');
+
+          final nameMatch =
+              categoryName.contains(selectedCategoryName) ||
+              selectedCategoryName.contains(categoryName);
+
+          if (nameMatch) {
+            print('🔍 OFFLINE: Name match found!');
+          }
+
+          return nameMatch;
+        });
+
+        if (categoryMatches) {
+          print('🔍 OFFLINE: Report matches category filter');
+        }
+
+        return categoryMatches;
+      }).toList();
+      print('🔍 OFFLINE: After category filter: ${filtered.length} reports');
+    }
+
+    // Apply type filter
+    if (selectedTypeIds.isNotEmpty) {
+      print(
+        '🔍 OFFLINE: Applying type filter with selected IDs: $selectedTypeIds',
+      );
+      filtered = filtered.where((report) {
+        final reportTypeId = report['reportTypeId']?.toString() ?? '';
+        final typeName = (report['typeName'] ?? '').toString().toLowerCase();
+
+        print(
+          '🔍 OFFLINE: Checking report - Type ID: $reportTypeId, Type Name: $typeName',
+        );
+
+        // Check if type ID matches or type name matches
+        final typeMatches = selectedTypeIds.any((selectedId) {
+          print('🔍 OFFLINE: Comparing with selected type ID: $selectedId');
+
+          // Direct ID match
+          if (selectedId == reportTypeId) {
+            print('🔍 OFFLINE: Direct type ID match found!');
+            return true;
+          }
+
+          // Check by type name mapping
+          final selectedType = _localTypes.firstWhere(
+            (type) => (type['_id'] ?? type['id']) == selectedId,
+            orElse: () => {'name': ''},
+          );
+          final selectedTypeName = (selectedType['name'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          print('🔍 OFFLINE: Selected type name: $selectedTypeName');
+
+          final nameMatch =
+              typeName.contains(selectedTypeName) ||
+              selectedTypeName.contains(typeName);
+
+          if (nameMatch) {
+            print('🔍 OFFLINE: Type name match found!');
+          }
+
+          return nameMatch;
+        });
+
+        if (typeMatches) {
+          print('🔍 OFFLINE: Report matches type filter');
+        }
+
+        return typeMatches;
+      }).toList();
+      print('🔍 OFFLINE: After type filter: ${filtered.length} reports');
+    }
+
+    // Apply alert level filter
+    if (selectedAlertLevels.isNotEmpty) {
+      print(
+        '🔍 OFFLINE: Applying alert level filter with selected IDs: $selectedAlertLevels',
+      );
+      filtered = filtered.where((report) {
+        final reportAlertLevel = report['alertLevels']?.toString() ?? '';
+
+        print('🔍 OFFLINE: Checking report - Alert Level: $reportAlertLevel');
+
+        // Check if alert level matches
+        final alertLevelMatches = selectedAlertLevels.any((selectedId) {
+          print(
+            '🔍 OFFLINE: Comparing with selected alert level ID: $selectedId',
+          );
+
+          // Direct ID match
+          if (selectedId == reportAlertLevel) {
+            print('🔍 OFFLINE: Direct alert level ID match found!');
+            return true;
+          }
+
+          // Check by alert level name mapping
+          final selectedAlertLevel = alertLevels.firstWhere(
+            (level) => (level['_id'] ?? level['id']) == selectedId,
+            orElse: () => {'name': ''},
+          );
+          final selectedAlertLevelName = (selectedAlertLevel['name'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          print(
+            '🔍 OFFLINE: Selected alert level name: $selectedAlertLevelName',
+          );
+
+          final nameMatch =
+              reportAlertLevel.toLowerCase().contains(selectedAlertLevelName) ||
+              selectedAlertLevelName.contains(reportAlertLevel.toLowerCase());
+
+          if (nameMatch) {
+            print('🔍 OFFLINE: Alert level name match found!');
+          }
+
+          return nameMatch;
+        });
+
+        if (alertLevelMatches) {
+          print('🔍 OFFLINE: Report matches alert level filter');
+        }
+
+        return alertLevelMatches;
+      }).toList();
+      print('🔍 OFFLINE: After alert level filter: ${filtered.length} reports');
+    }
+
+    // Apply device type filter
+    if (_selectedDeviceTypeId != null) {
+      filtered = filtered.where((report) {
+        final reportDeviceType =
+            report['infectedDeviceType']?.toString() ??
+            report['deviceType']?.toString() ??
+            '';
+
+        // Check if device type matches
+        final deviceTypeMatches = _selectedDeviceTypeId == reportDeviceType;
+
+        if (!deviceTypeMatches) {
+          // Check by device type name mapping
+          final selectedDeviceType = _localDeviceTypes.firstWhere(
+            (deviceType) =>
+                (deviceType['_id'] ?? deviceType['id']) ==
+                _selectedDeviceTypeId,
+            orElse: () => {'name': ''},
+          );
+          final selectedDeviceTypeName = (selectedDeviceType['name'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          return reportDeviceType.toLowerCase().contains(
+                selectedDeviceTypeName,
+              ) ||
+              selectedDeviceTypeName.contains(reportDeviceType.toLowerCase());
+        }
+
+        return deviceTypeMatches;
+      }).toList();
+      print('🔍 OFFLINE: After device type filter: ${filtered.length} reports');
+    }
+
+    // Apply detect type filter
+    if (_selectedDetectTypeId != null) {
+      filtered = filtered.where((report) {
+        final reportDetectType =
+            report['detectionMethod']?.toString() ??
+            report['detectType']?.toString() ??
+            '';
+
+        // Check if detect type matches
+        final detectTypeMatches = _selectedDetectTypeId == reportDetectType;
+
+        if (!detectTypeMatches) {
+          // Check by detect type name mapping
+          final selectedDetectType = _localDetectTypes.firstWhere(
+            (detectType) =>
+                (detectType['_id'] ?? detectType['id']) ==
+                _selectedDetectTypeId,
+            orElse: () => {'name': ''},
+          );
+          final selectedDetectTypeName = (selectedDetectType['name'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          return reportDetectType.toLowerCase().contains(
+                selectedDetectTypeName,
+              ) ||
+              selectedDetectTypeName.contains(reportDetectType.toLowerCase());
+        }
+
+        return detectTypeMatches;
+      }).toList();
+      print('🔍 OFFLINE: After detect type filter: ${filtered.length} reports');
+    }
+
+    // Apply operating system filter
+    if (_selectedOperatingSystemId != null) {
+      filtered = filtered.where((report) {
+        final reportOperatingSystem =
+            report['operatingSystem']?.toString() ??
+            report['os']?.toString() ??
+            '';
+
+        // Check if operating system matches
+        final operatingSystemMatches =
+            _selectedOperatingSystemId == reportOperatingSystem;
+
+        if (!operatingSystemMatches) {
+          // Check by operating system name mapping
+          final selectedOperatingSystem = _localOperatingSystems.firstWhere(
+            (os) => (os['_id'] ?? os['id']) == _selectedOperatingSystemId,
+            orElse: () => {'name': ''},
+          );
+          final selectedOperatingSystemName =
+              (selectedOperatingSystem['name'] ?? '').toString().toLowerCase();
+
+          return reportOperatingSystem.toLowerCase().contains(
+                selectedOperatingSystemName,
+              ) ||
+              selectedOperatingSystemName.contains(
+                reportOperatingSystem.toLowerCase(),
+              );
+        }
+
+        return operatingSystemMatches;
+      }).toList();
+      print(
+        '🔍 OFFLINE: After operating system filter: ${filtered.length} reports',
+      );
+    }
+
+    // Apply date range filter
+    if (_startDate != null || _endDate != null) {
+      filtered = filtered.where((report) {
+        final reportDate = _parseReportDate(report);
+        if (reportDate == null) return false;
+
+        if (_startDate != null && reportDate.isBefore(_startDate!))
+          return false;
+        if (_endDate != null && reportDate.isAfter(_endDate!)) return false;
+
+        return true;
+      }).toList();
+      print('🔍 OFFLINE: After date filter: ${filtered.length} reports');
+    }
+
+    setState(() {
+      _filteredLocalReports = filtered;
+    });
+
+    print(
+      '✅ OFFLINE: Filtering completed. ${filtered.length} reports match criteria',
+    );
+  }
+
+  // CRITICAL FIX: Test offline filtering functionality
+  void _testOfflineFiltering() {
+    print('🧪 === TESTING OFFLINE FILTERING ===');
+
+    if (_localReports.isEmpty) {
+      print('❌ No local reports available for testing');
+      return;
+    }
+
+    print('🧪 Total local reports: ${_localReports.length}');
+    print('🧪 Available categories: ${_localCategories.length}');
+    print('🧪 Available types: ${_localTypes.length}');
+    print('🧪 Available alert levels: ${alertLevels.length}');
+
+    // Test 1: Filter by category
+    if (_localCategories.isNotEmpty) {
+      final testCategoryId =
+          _localCategories.first['_id'] ?? _localCategories.first['id'];
+      print('🧪 Testing category filter with ID: $testCategoryId');
+
+      setState(() {
+        selectedCategoryIds = [testCategoryId.toString()];
+      });
+      _applyOfflineFilters();
+
+      print('🧪 Category filter test completed');
+    }
+
+    // Test 2: Filter by type
+    if (_localTypes.isNotEmpty) {
+      final testTypeId = _localTypes.first['_id'] ?? _localTypes.first['id'];
+      print('🧪 Testing type filter with ID: $testTypeId');
+
+      setState(() {
+        selectedTypeIds = [testTypeId.toString()];
+      });
+      _applyOfflineFilters();
+
+      print('🧪 Type filter test completed');
+    }
+
+    // Test 3: Filter by alert level
+    if (alertLevels.isNotEmpty) {
+      final testAlertLevelId =
+          alertLevels.first['_id'] ?? alertLevels.first['id'];
+      print('🧪 Testing alert level filter with ID: $testAlertLevelId');
+
+      setState(() {
+        selectedAlertLevels = [testAlertLevelId.toString()];
+      });
+      _applyOfflineFilters();
+
+      print('🧪 Alert level filter test completed');
+    }
+
+    // Reset filters
+    _clearAllFilters();
+    print('🧪 === END TESTING OFFLINE FILTERING ===');
+  }
+
+  // Helper method to parse report date
+  DateTime? _parseReportDate(Map<String, dynamic> report) {
+    try {
+      final dateString =
+          report['createdAt']?.toString() ?? report['date']?.toString();
+      if (dateString == null) return null;
+
+      return DateTime.tryParse(dateString);
+    } catch (e) {
+      print('❌ OFFLINE: Error parsing date: $e');
+      return null;
+    }
+  }
+
+  // CRITICAL FIX: Update search query with offline filtering
+  void _onSearchChanged(String query) {
+    setState(() {
+      searchQuery = query;
+    });
+
+    if (_isOffline) {
+      print('🔍 OFFLINE: Search query changed - applying filters');
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Force apply offline filters (for manual triggering)
+  void _forceApplyOfflineFilters() {
+    if (_isOffline) {
+      print('🔍 OFFLINE: Force applying offline filters');
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Update alert level selection with offline filtering
+  void _onAlertLevelChanged(List<String> alertLevelIds) {
+    setState(() {
+      selectedAlertLevels = alertLevelIds;
+    });
+
+    if (_isOffline) {
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Update type selection with offline filtering
+  void _onTypeChanged(List<String> typeIds) {
+    setState(() {
+      selectedTypeIds = typeIds;
+    });
+
+    if (_isOffline) {
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Update device type selection with offline filtering
+  void _onDeviceTypeChanged(List<String> deviceTypeIds) {
+    setState(() {
+      _selectedDeviceTypeId = deviceTypeIds.isNotEmpty
+          ? deviceTypeIds.first
+          : null;
+    });
+
+    if (_isOffline) {
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Update detect type selection with offline filtering
+  void _onDetectTypeChanged(List<String> detectTypeIds) {
+    setState(() {
+      _selectedDetectTypeId = detectTypeIds.isNotEmpty
+          ? detectTypeIds.first
+          : null;
+    });
+
+    if (_isOffline) {
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Update operating system selection with offline filtering
+  void _onOperatingSystemChanged(List<String> operatingSystemIds) {
+    setState(() {
+      _selectedOperatingSystemId = operatingSystemIds.isNotEmpty
+          ? operatingSystemIds.first
+          : null;
+    });
+
+    if (_isOffline) {
+      _applyOfflineFilters();
+    }
+  }
+
+  // CRITICAL FIX: Clear all filters in offline mode
+  void _clearAllFilters() {
+    setState(() {
+      searchQuery = '';
+      selectedCategoryIds = [];
+      selectedTypeIds = [];
+      selectedAlertLevels = [];
+      _selectedDeviceTypeId = null;
+      _selectedDetectTypeId = null;
+      _selectedOperatingSystemId = null;
+      _startDate = null;
+      _endDate = null;
+      _filteredLocalReports = _localReports;
+    });
+
+    print(
+      '🧹 OFFLINE: All filters cleared, showing all ${_localReports.length} local reports',
+    );
   }
 
   // New method to test the dynamic API call
@@ -1119,56 +1817,37 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
               ),
               const SizedBox(height: 16),
 
-              // Offline Status Indicator
-              if (_isOffline)
-                Container(
-                  padding: EdgeInsets.all(12),
-                  margin: EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    border: Border.all(color: Colors.orange.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.wifi_off,
-                        color: Colors.orange.shade600,
-                        size: 20,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Offline Mode - Showing local data',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      if (_hasLocalData)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${_localReports.length} reports available',
-                            style: TextStyle(
-                              color: Colors.green.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
+              // // Offline Status Indicator
+              // if (_isOffline)
+              //   Container(
+              //     padding: EdgeInsets.all(12),
+              //     margin: EdgeInsets.only(bottom: 16),
+              //     decoration: BoxDecoration(
+              //       color: Colors.orange.shade50,
+              //       border: Border.all(color: Colors.orange.shade200),
+              //       borderRadius: BorderRadius.circular(8),
+              //     ),
+              //     child: Row(
+              //       children: [
+              //         Icon(
+              //           Icons.wifi_off,
+              //           color: Colors.orange.shade600,
+              //           size: 20,
+              //         ),
+              //         if (_hasLocalData)
+              //           Container(
+              //             padding: EdgeInsets.symmetric(
+              //               horizontal: 8,
+              //               vertical: 4,
+              //             ),
+              //             decoration: BoxDecoration(
+              //               color: Colors.green.shade100,
+              //               borderRadius: BorderRadius.circular(12),
+              //             ),
+              //           ),
+              //       ],
+              //     ),
+              //   ),
               const SizedBox(height: 8),
 
               // Scrollable Content
@@ -1181,11 +1860,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       TextFormField(
                         decoration: InputDecoration(
                           labelText: 'Search',
-
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (val) => setState(() => searchQuery = val),
+                        onChanged: _onSearchChanged,
                       ),
                       const SizedBox(height: 16),
 
@@ -1308,11 +1986,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                   'Type',
                                   reportTypeId,
                                   selectedTypeIds,
-                                  (values) {
-                                    setState(() => selectedTypeIds = values);
-                                    // Fetch detailed data for selected types
-                                    _fetchSelectedTypeData(values);
-                                  },
+                                  _onTypeChanged,
                                   (item) {
                                     final id =
                                         item['_id']?.toString() ??
@@ -1363,12 +2037,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                   .toList()
                             : [],
                         selectedAlertLevels,
-                        (values) {
-                          print(
-                            '🔍 UI Debug - Alert level selection changed: $values',
-                          );
-                          setState(() => selectedAlertLevels = values);
-                        },
+                        _onAlertLevelChanged,
                         (item) => item['id']?.toString(),
                         (item) => item['name']?.toString() ?? 'Unknown',
                       ),
@@ -1380,11 +2049,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedDeviceTypeId == null
                             ? <String>[]
                             : <String>[_selectedDeviceTypeId!],
-                        (values) => setState(
-                          () => _selectedDeviceTypeId = values.isNotEmpty
-                              ? values.first
-                              : null,
-                        ),
+                        _onDeviceTypeChanged,
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ?? item['deviceTypeName'] ?? 'Device')
@@ -1397,11 +2062,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedDetectTypeId == null
                             ? <String>[]
                             : <String>[_selectedDetectTypeId!],
-                        (values) => setState(
-                          () => _selectedDetectTypeId = values.isNotEmpty
-                              ? values.first
-                              : null,
-                        ),
+                        _onDetectTypeChanged,
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ?? item['detectTypeName'] ?? 'Detect')
@@ -1414,11 +2075,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedOperatingSystemId == null
                             ? <String>[]
                             : <String>[_selectedOperatingSystemId!],
-                        (values) => setState(
-                          () => _selectedOperatingSystemId = values.isNotEmpty
-                              ? values.first
-                              : null,
-                        ),
+                        _onOperatingSystemChanged,
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ??
@@ -1453,10 +2110,15 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                 const Spacer(),
                                 if (_startDate != null || _endDate != null)
                                   TextButton.icon(
-                                    onPressed: () => setState(() {
-                                      _startDate = null;
-                                      _endDate = null;
-                                    }),
+                                    onPressed: () {
+                                      setState(() {
+                                        _startDate = null;
+                                        _endDate = null;
+                                      });
+                                      if (_isOffline) {
+                                        _applyOfflineFilters();
+                                      }
+                                    },
                                     icon: const Icon(Icons.clear, size: 18),
                                     label: const Text('Clear'),
                                   ),
@@ -1487,6 +2149,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                             _endDate = null;
                                           }
                                         });
+                                        if (_isOffline) {
+                                          _applyOfflineFilters();
+                                        }
                                       }
                                     },
                                     child: Text(
@@ -1519,6 +2184,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                             59,
                                           );
                                         });
+                                        if (_isOffline) {
+                                          _applyOfflineFilters();
+                                        }
                                       }
                                     },
                                     child: Text(
@@ -1536,9 +2204,103 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
                       const SizedBox(height: 16),
 
+                      // Offline Filter Results Indicator
+                      if (_isOffline)
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          margin: EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            border: Border.all(color: Colors.blue.shade200),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.filter_list,
+                                    color: Colors.blue.shade600,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${_filteredLocalReports.length} reports match your filters (Total: ${_localReports.length})',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _clearAllFilters,
+                                    child: Text(
+                                      'Clear Filters',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _forceApplyOfflineFilters,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green.shade100,
+                                        foregroundColor: Colors.green.shade700,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Apply Filters',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _testOfflineFiltering,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange.shade100,
+                                        foregroundColor: Colors.orange.shade700,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Test Filters',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // View All Reports Link
                       GestureDetector(
                         onTap: () {
+                          // CRITICAL FIX: Apply offline filters before navigation
+                          if (_isOffline) {
+                            print(
+                              '🔍 OFFLINE: View All Reports pressed - applying filters before navigation',
+                            );
+                            _applyOfflineFilters();
+                            print(
+                              '🔍 OFFLINE: Filtered reports count: ${_filteredLocalReports.length}',
+                            );
+                          }
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -1552,7 +2314,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                 hasSelectedSeverity: false,
                                 hasSelectedCategory: false,
                                 isOffline: _isOffline,
-                                localReports: _localReports,
+                                localReports: _isOffline
+                                    ? _filteredLocalReports
+                                    : _localReports,
                               ),
                             ),
                           );
@@ -1586,18 +2350,44 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                     ),
                   ),
                   onPressed: () {
+                    // CRITICAL FIX: Apply offline filters before navigation
+                    if (_isOffline) {
+                      print(
+                        '🔍 OFFLINE: Filter button pressed - applying filters before navigation',
+                      );
+                      _applyOfflineFilters();
+                      print(
+                        '🔍 OFFLINE: Filtered reports count: ${_filteredLocalReports.length}',
+                      );
+                    }
+
                     // Check if we have any filters applied
                     final hasAnyFilters =
                         searchQuery.isNotEmpty ||
                         selectedCategoryIds.isNotEmpty ||
                         selectedTypeIds.isNotEmpty ||
-                        selectedAlertLevels.isNotEmpty;
+                        selectedAlertLevels.isNotEmpty ||
+                        _selectedDeviceTypeId != null ||
+                        _selectedDetectTypeId != null ||
+                        _selectedOperatingSystemId != null ||
+                        _startDate != null ||
+                        _endDate != null;
 
                     print('🔍 Next button pressed - Filters: $hasAnyFilters');
+                    print('🔍 Is Offline: $_isOffline');
+                    print('🔍 Total local reports: ${_localReports.length}');
+                    print(
+                      '🔍 Filtered local reports: ${_filteredLocalReports.length}',
+                    );
+
                     if (hasAnyFilters) {
                       print(
                         '🔍 Search: "${searchQuery}", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}',
                       );
+                      print('🔍 Device Type: $_selectedDeviceTypeId');
+                      print('🔍 Detect Type: $_selectedDetectTypeId');
+                      print('🔍 Operating System: $_selectedOperatingSystemId');
+                      print('🔍 Date Range: $_startDate to $_endDate');
                     } else {
                       print('🔍 No filters applied - will show all reports');
                     }
@@ -1615,7 +2405,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           hasSelectedSeverity: selectedAlertLevels.isNotEmpty,
                           hasSelectedCategory: selectedCategoryIds.isNotEmpty,
                           isOffline: _isOffline,
-                          localReports: _localReports,
+                          localReports: _isOffline
+                              ? _filteredLocalReports
+                              : _localReports,
                           severityLevels: alertLevels,
                         ),
                       ),

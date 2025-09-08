@@ -682,16 +682,18 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
         _isEmailValid &&
         _isDescriptionValid &&
         _isNameValid &&
-        fraudTypeId != null &&
-        selectedLocation != null;
+        fraudTypeId != null;
   }
 
   void _setupNetworkListener() {
     Connectivity().onConnectivityChanged.listen((result) {
       setState(() => isOnline = result != ConnectivityResult.none);
       if (isOnline) {
-        // Use the new comprehensive sync method
-        FraudReportService.syncOfflineReports().catchError((error) {});
+        print(
+          '🌐 Network connection restored - triggering comprehensive fraud sync...',
+        );
+        // Use the correct sync method like scam reports
+        FraudReportService.syncReports().catchError((error) {});
       }
     });
   }
@@ -763,17 +765,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
   }
 
   Future<void> _submitForm() async {
-    // Check if location is selected
-    if (selectedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select a location'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     if (_formKey.currentState!.validate()) {
       try {
         final id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -1727,17 +1718,6 @@ class _ReportFraudStep1State extends State<ReportFraudStep1> {
                   child: CustomButton(
                     text: 'Next',
                     onPressed: () async {
-                      // Check if location is selected
-                      if (selectedLocation == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Please select a location'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-
                       // Trigger validation manually to show errors
                       if (_formKey.currentState!.validate()) {
                         await _submitForm();

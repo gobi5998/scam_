@@ -1357,6 +1357,94 @@ class ApiService {
     } catch (e) {}
   }
 
+  // TARGETED DUPLICATE REMOVAL - Only for malware reports
+  Future<void> removeDuplicateMalwareReports() async {
+    try {
+      print('🔍 Starting targeted duplicate removal for malware reports...');
+
+      // Get all reports from backend
+      final response = await _dioService.reportsGet(
+        ApiConfig.reportSecurityIssueEndpoint,
+      );
+      if (response.statusCode != 200 || response.data == null) {
+        return;
+      }
+
+      final allReports = List<Map<String, dynamic>>.from(response.data);
+
+      // Filter malware reports
+      final malwareReports = allReports.where((report) {
+        final categoryId = report['reportCategoryId']?.toString() ?? '';
+        return categoryId.contains('malware');
+      }).toList();
+
+      // Group by unique identifiers to find duplicates
+      final Map<String, List<Map<String, dynamic>>> groupedReports = {};
+
+      for (var report in malwareReports) {
+        // Create unique key based on malware-specific fields
+        final name = report['attackName']?.toString() ?? '';
+        final malwareType = report['attackName']?.toString() ?? '';
+        final fileName = report['attackName']?.toString() ?? '';
+        final description = report['description']?.toString() ?? '';
+        final infectedDeviceType = report['deviceTypeId']?.toString() ?? '';
+        final operatingSystem = report['attackSystem']?.toString() ?? '';
+        final detectionMethod = report['detectTypeId']?.toString() ?? '';
+        final location = report['location']?.toString() ?? '';
+        final systemAffected = report['attackSystem']?.toString() ?? '';
+        final alertSeverityLevel = report['alertLevels']?.toString() ?? '';
+
+        final uniqueKey =
+            '${name}_${malwareType}_${fileName}_${description}_${infectedDeviceType}_${operatingSystem}_${detectionMethod}_${location}_${systemAffected}_${alertSeverityLevel}';
+
+        if (!groupedReports.containsKey(uniqueKey)) {
+          groupedReports[uniqueKey] = [];
+        }
+        groupedReports[uniqueKey]!.add(report);
+      }
+
+      // Find and remove duplicates (keep the oldest one)
+      int duplicatesRemoved = 0;
+      for (var entry in groupedReports.entries) {
+        final reports = entry.value;
+        if (reports.length > 1) {
+          // Sort by creation date (oldest first)
+          reports.sort((a, b) {
+            final aDate =
+                DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+                DateTime.now();
+            final bDate =
+                DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+                DateTime.now();
+            return aDate.compareTo(bDate);
+          });
+
+          // Keep the oldest, remove the rest
+          for (int i = 1; i < reports.length; i++) {
+            final reportId = reports[i]['_id'];
+            if (reportId != null) {
+              try {
+                await _dioService.reportsApi.delete(
+                  '${ApiConfig.reportSecurityIssueEndpoint}/$reportId',
+                );
+                duplicatesRemoved++;
+                print('🗑️ Removed duplicate malware report: $reportId');
+              } catch (e) {
+                print('❌ Error removing duplicate malware report: $e');
+              }
+            }
+          }
+        }
+      }
+
+      print(
+        '✅ Removed $duplicatesRemoved duplicate malware reports from backend',
+      );
+    } catch (e) {
+      print('❌ Error during malware duplicate removal: $e');
+    }
+  }
+
   // Add missing methods for thread database functionality
   Future<List<Map<String, dynamic>>> fetchReportsWithFilter(
     ReportsFilter filter,
@@ -1386,6 +1474,7 @@ class ApiService {
     List<String>? categoryIds,
     List<String>? typeIds,
     List<String>? severityLevels,
+    bool? hasEvidence, // NEW: Filter for reports with evidence files
     int page = ApiConfig.defaultPage,
     int limit = ApiConfig.defaultLimit, // Use default limit from config
   }) async {
@@ -1410,6 +1499,9 @@ class ApiService {
       }
       if (severityLevels != null && severityLevels.isNotEmpty) {
         queryParams['severityLevels'] = severityLevels;
+      }
+      if (hasEvidence != null) {
+        queryParams['hasEvidence'] = hasEvidence.toString();
       }
 
       final response = await _dioService.reportsGet(
@@ -1454,6 +1546,77 @@ class ApiService {
     } catch (e) {
       if (e is DioException) {}
       return [];
+    }
+  }
+
+  // CRITICAL FIX: Clean up duplicate reports in MongoDB
+  Future<void> cleanupDuplicateReports() async {
+    try {
+      print('🧹 Starting duplicate cleanup in MongoDB...');
+
+      final allReports = await fetchAllReports();
+      print('📊 Total reports in database: ${allReports.length}');
+
+      // Group reports by key identifying fields
+      final Map<String, List<Map<String, dynamic>>> groupedReports = {};
+
+      for (final report in allReports) {
+        final description = report['description']?.toString() ?? '';
+        final scammerName = report['scammerName']?.toString() ?? '';
+        final website = report['website']?.toString() ?? '';
+        final moneyLost = report['moneyLost']?.toString() ?? '';
+
+        // Create a unique key based on identifying fields
+        final key = '${description}_${scammerName}_${website}_${moneyLost}';
+
+        if (!groupedReports.containsKey(key)) {
+          groupedReports[key] = [];
+        }
+        groupedReports[key]!.add(report);
+      }
+
+      int duplicatesRemoved = 0;
+
+      // Process each group
+      for (final entry in groupedReports.entries) {
+        final reports = entry.value;
+        if (reports.length > 1) {
+          print('🔍 Found ${reports.length} duplicates for: ${entry.key}');
+
+          // Sort by creation date (keep the oldest one)
+          reports.sort((a, b) {
+            final aDate =
+                DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+                DateTime.now();
+            final bDate =
+                DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+                DateTime.now();
+            return aDate.compareTo(bDate);
+          });
+
+          // Keep the first (oldest) report, delete the rest
+          for (int i = 1; i < reports.length; i++) {
+            final reportId = reports[i]['_id'] ?? reports[i]['id'];
+            if (reportId != null) {
+              try {
+                await _dioService.reportsApi.delete(
+                  '${ApiConfig.reportSecurityIssueEndpoint}/$reportId',
+                );
+                duplicatesRemoved++;
+                print('🗑️ Removed duplicate report: $reportId');
+              } catch (e) {
+                print('❌ Error removing duplicate report $reportId: $e');
+              }
+            }
+          }
+        }
+      }
+
+      print(
+        '✅ Duplicate cleanup completed. Removed $duplicatesRemoved duplicate reports.',
+      );
+    } catch (e) {
+      print('❌ Error during duplicate cleanup: $e');
     }
   }
 

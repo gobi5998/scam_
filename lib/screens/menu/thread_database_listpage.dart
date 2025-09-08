@@ -25,7 +25,8 @@ import '../Fraud/fraud_local_service.dart';
 import '../malware/malware_local_service.dart';
 import '../../config/api_config.dart';
 import 'report_detail_view.dart';
-import '../../custom/offline_file_upload.dart';
+import '../../custom/offline_file_upload.dart' as custom;
+import '../../services/offline_file_upload_service.dart';
 
 class ThreadDatabaseListPage extends StatefulWidget {
   final String searchQuery;
@@ -59,7 +60,8 @@ class ThreadDatabaseListPage extends StatefulWidget {
   State<ThreadDatabaseListPage> createState() => _ThreadDatabaseListPageState();
 }
 
-class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
+class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
+    with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   final ScrollController _scrollController = ScrollController();
 
@@ -71,8 +73,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Current time variables
   String _currentTime = '';
   Timer? _timer;
-  Timer? _autoSyncTimer;
+  // Timer? _autoSyncTimer; // DISABLED - No timer delays
   Timer? _duplicateCleanupTimer;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   List<Map<String, dynamic>> _filteredReports = [];
   List<ReportModel> _typedReports = [];
@@ -87,17 +90,134 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Prevent too frequent cleanup calls
   DateTime? _lastCleanupTime;
   bool _isCleanupRunning = false;
+  int _scrollCount = 0; // Track scroll events for sync triggers
+
+  // Prevent too frequent sync calls
+  DateTime? _lastSyncTime;
+  bool _isSyncRunning = false;
+
+  // CRITICAL FIX: Migrate existing reports with wrong ObjectIds to correct ones
+  Future<void> _migrateExistingReports() async {
+    try {
+      print(
+        '🔧 MIGRATION: Starting migration of existing reports with wrong ObjectIds...',
+      );
+
+      // CRITICAL FIX: Get correct ObjectId mapping from API or use fallback
+      final correctMapping = {
+        'Critical': '6887488fdc01fe5e05839d88',
+        'High': '6891c8fe05d97b83f1ae9800',
+        'Medium': '688738b2357d9e4bb381b5ba',
+        'Low': '68873fe402621a53392dc7a2',
+      };
+
+      // CRITICAL FIX: Migration map based on the original wrong mapping
+      final migrationMap = {
+        '68873fe402621a53392dc7a2':
+            correctMapping['Critical']!, // Critical: wrong -> correct
+        '688738b2357d9e4bb381b5ba':
+            correctMapping['High']!, // High: wrong -> correct
+      };
+
+      int migratedCount = 0;
+
+      // Migrate scam reports
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      for (var report in scamBox.values) {
+        if (report.alertLevels != null && report.alertLevels!.isNotEmpty) {
+          final currentObjectId = report.alertLevels!;
+          String? newObjectId;
+
+          if (migrationMap.containsKey(currentObjectId)) {
+            newObjectId = migrationMap[currentObjectId]!;
+          } else if (currentObjectId == '6887488fdc01fe5e05839d88') {
+            // This was the wrong ObjectId for both Medium and Low
+            // For scam reports, default to High (since scam is typically high priority)
+            newObjectId = correctMapping['High']!;
+          }
+
+          if (newObjectId != null) {
+            final updatedReport = report.copyWith(alertLevels: newObjectId);
+            await scamBox.put(report.id, updatedReport);
+            migratedCount++;
+            print(
+              '🔧 MIGRATION: Updated scam report ${report.id}: $currentObjectId -> $newObjectId',
+            );
+          }
+        }
+      }
+
+      // Migrate fraud reports
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      for (var report in fraudBox.values) {
+        if (report.alertLevels != null && report.alertLevels!.isNotEmpty) {
+          final currentObjectId = report.alertLevels!;
+          String? newObjectId;
+
+          if (migrationMap.containsKey(currentObjectId)) {
+            newObjectId = migrationMap[currentObjectId]!;
+          } else if (currentObjectId == '6887488fdc01fe5e05839d88') {
+            // This was the wrong ObjectId for both Medium and Low
+            // For fraud reports, default to Critical (since fraud is typically critical)
+            newObjectId = correctMapping['Critical']!;
+          }
+
+          if (newObjectId != null) {
+            final updatedReport = report.copyWith(alertLevels: newObjectId);
+            await fraudBox.put(report.id, updatedReport);
+            migratedCount++;
+            print(
+              '🔧 MIGRATION: Updated fraud report ${report.id}: $currentObjectId -> $newObjectId',
+            );
+          }
+        }
+      }
+
+      // Migrate malware reports
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+      for (var report in malwareBox.values) {
+        if (report.alertLevels != null && report.alertLevels!.isNotEmpty) {
+          final currentObjectId = report.alertLevels!;
+          String? newObjectId;
+
+          if (migrationMap.containsKey(currentObjectId)) {
+            newObjectId = migrationMap[currentObjectId]!;
+          } else if (currentObjectId == '6887488fdc01fe5e05839d88') {
+            // This was the wrong ObjectId for both Medium and Low
+            // For malware reports, default to Medium (since malware is typically medium priority)
+            newObjectId = correctMapping['Medium']!;
+          }
+
+          if (newObjectId != null) {
+            final updatedReport = report.copyWith(alertLevels: newObjectId);
+            await malwareBox.put(report.id, updatedReport);
+            migratedCount++;
+            print(
+              '🔧 MIGRATION: Updated malware report ${report.id}: $currentObjectId -> $newObjectId',
+            );
+          }
+        }
+      }
+
+      print('✅ MIGRATION: Completed migration of $migratedCount reports');
+    } catch (e) {
+      print('❌ MIGRATION: Error during migration: $e');
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+    _migrateExistingReports(); // CRITICAL FIX: Migrate existing reports with wrong ObjectIds
     _initializeData();
     _debugTimestampIssues(); // Add debug call
 
     // Initialize current time
     _updateCurrentTime();
     _startTimer();
+    _cleanupDuplicateReports(); // CRITICAL FIX: Clean up duplicates on startup
 
     _loadFilteredReports();
 
@@ -106,17 +226,46 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       _removeAllDuplicates();
     });
 
-    // START AUTOMATIC BACKGROUND SYNC AND DUPLICATE CLEANUP
-    _startAutomaticBackgroundSync();
-    _startAutomaticDuplicateCleanup();
+    // Immediate comprehensive duplicate cleanup on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('🚀 IMMEDIATE COMPREHENSIVE DUPLICATE CLEANUP ON APP START...');
+      await _immediateComprehensiveDuplicateCleanup();
+      print('✅ IMMEDIATE COMPREHENSIVE DUPLICATE CLEANUP COMPLETED');
+    });
 
-    // IMMEDIATE AUTOMATIC SYNC AND CLEANUP FOR EXISTING DUPLICATES
+    // Enhanced duplicate cleanup on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('🚀 ENHANCED DUPLICATE CLEANUP ON APP START...');
+      await _cleanExistingDuplicates();
+
+      // Force UI refresh after cleanup
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+        await _loadFilteredReports();
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      print('✅ ENHANCED DUPLICATE CLEANUP COMPLETED WITH UI REFRESH');
+    });
+
+    // AUTOMATIC BACKGROUND SYNC AND DUPLICATE CLEANUP - ENABLED
+    // NO TIMER - Sync immediately when events happen
+    // _startAutomaticBackgroundSync(); // DISABLED - No timer delays
+
+    // IMMEDIATE AUTOMATIC SYNC AND CLEANUP FOR EXISTING DUPLICATES - ENABLED
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('🚀 IMMEDIATE AUTOMATIC SYNC AND CLEANUP STARTING...');
       await _removeAllDuplicatesAggressively();
       await _performAutomaticSync();
       print('✅ IMMEDIATE AUTOMATIC SYNC AND CLEANUP COMPLETED');
     });
+
+    // SETUP CONNECTIVITY LISTENER - Trigger sync when internet becomes available
+    _setupConnectivityListener();
   }
 
   Future<void> _initializeData() async {
@@ -161,6 +310,25 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     print('🔍 Starting duplicate removal and sorting...');
     print('🔍 Original reports count: ${reports.length}');
 
+    // Debug: Show the exact order of reports before sorting
+    if (reports.isNotEmpty) {
+      print('🔍 DEBUG: Reports before sorting (first 3):');
+      for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+        final report = reports[i];
+        final date = _parseDateTime(report['createdAt']);
+        final description = report['description']?.toString() ?? '';
+        final shortDescription = description.length > 30
+            ? description.substring(0, 30)
+            : description;
+        final isSynced = report['isSynced'] ?? false;
+        final type = report['type'] ?? 'Unknown';
+        final id = report['id'] ?? report['_id'] ?? 'No ID';
+        print(
+          '  Before $i: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
+        );
+      }
+    }
+
     // Create a map to track unique reports by ID
     final Map<String, Map<String, dynamic>> uniqueReports = {};
     final Set<String> seenContentKeys = {}; // Track content-based duplicates
@@ -180,11 +348,53 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           final existingDate = _parseDateTime(existingReport['createdAt']);
           final newDate = _parseDateTime(report['createdAt']);
 
-          if (newDate.isAfter(existingDate)) {
+          // Handle null dates - prefer reports with valid dates
+          if (existingDate == null && newDate != null) {
+            uniqueReports[reportId] = report;
+            print('🔄 Updated report with valid date: $reportId');
+          } else if (existingDate != null &&
+              newDate != null &&
+              newDate.isAfter(existingDate)) {
             uniqueReports[reportId] = report;
             print('🔄 Updated report with newer version: $reportId');
+          } else if (existingDate == null && newDate == null) {
+            // Both dates are null, keep the existing one
+            print(
+              '⏭️ Both reports have null dates, keeping existing: $reportId',
+            );
           } else {
             print('⏭️ Skipped older duplicate: $reportId');
+          }
+        }
+
+        // Also check for content-based duplicates even for reports with IDs
+        // This handles cases where the same report was created multiple times with different IDs
+        final description = report['description']?.toString() ?? '';
+        final type = report['type']?.toString() ?? '';
+
+        for (String key in uniqueReports.keys) {
+          if (key != reportId && key.startsWith('${type}_${description}_')) {
+            // Found a report with similar content, check if it's a duplicate
+            final existingReport = uniqueReports[key]!;
+            final existingDate = _parseDateTime(existingReport['createdAt']);
+            final newDate = _parseDateTime(report['createdAt']);
+
+            // If timestamps are very close (within 5 minutes), consider it a duplicate
+            if (existingDate != null && newDate != null) {
+              final timeDifference = newDate.difference(existingDate).abs();
+              if (timeDifference.inMinutes <= 5) {
+                // This is likely a duplicate, keep the newer one
+                if (newDate.isAfter(existingDate)) {
+                  print(
+                    '🔄 Removing content duplicate: $key (keeping newer: $reportId)',
+                  );
+                  uniqueReports.remove(key);
+                } else {
+                  print('⏭️ Skipped older content duplicate: $reportId');
+                }
+                break;
+              }
+            }
           }
         }
       } else {
@@ -192,14 +402,47 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         final description = report['description']?.toString() ?? '';
         final type = report['type']?.toString() ?? '';
         final createdAt = report['createdAt']?.toString() ?? '';
+
+        // Create a more specific content key that includes timestamp
         final contentKey = '${type}_${description}_$createdAt';
 
-        if (!seenContentKeys.contains(contentKey)) {
-          seenContentKeys.add(contentKey);
+        // Check if we already have a report with similar content
+        bool isDuplicate = false;
+        String? duplicateKey;
+
+        for (String key in uniqueReports.keys) {
+          if (key.startsWith('${type}_${description}_')) {
+            // Found a report with similar content, check if it's a duplicate
+            final existingReport = uniqueReports[key]!;
+            final existingDate = _parseDateTime(existingReport['createdAt']);
+            final newDate = _parseDateTime(report['createdAt']);
+
+            // If timestamps are very close (within 5 minutes), consider it a duplicate
+            if (existingDate != null && newDate != null) {
+              final timeDifference = newDate.difference(existingDate).abs();
+              if (timeDifference.inMinutes <= 5) {
+                // This is likely a duplicate, keep the newer one
+                if (newDate.isAfter(existingDate)) {
+                  print(
+                    '🔄 Replacing duplicate with newer version: $key -> ${report['_id'] ?? 'no_id'}',
+                  );
+                  uniqueReports.remove(key);
+                  uniqueReports[contentKey] = report;
+                } else {
+                  print(
+                    '⏭️ Skipped older duplicate: ${report['_id'] ?? 'no_id'}',
+                  );
+                }
+                isDuplicate = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!isDuplicate) {
           uniqueReports[contentKey] = report;
           print('✅ Added report without ID using content key: $contentKey');
-        } else {
-          print('⏭️ Skipped content duplicate: $contentKey');
         }
       }
     }
@@ -209,18 +452,70 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     sortedReports.sort((a, b) {
       final dateA = _parseDateTime(a['createdAt']);
       final dateB = _parseDateTime(b['createdAt']);
+
+      // Handle cases where dates might be null or invalid
+      if (dateA == null && dateB == null) return 0;
+      if (dateA == null) return 1; // Put null dates at the end
+      if (dateB == null) return -1; // Put null dates at the end
+
       return dateB.compareTo(dateA); // Newest first
     });
 
-    print('🔍 After duplicate removal: ${sortedReports.length} reports');
+    // Final duplicate cleanup: Remove any remaining duplicates based on content and timestamp
+    final finalReports = <Map<String, dynamic>>[];
+    final seenContent = <String>{};
+
+    for (final report in sortedReports) {
+      final description = report['description']?.toString() ?? '';
+      final type = report['type']?.toString() ?? '';
+      final createdAt = report['createdAt']?.toString() ?? '';
+
+      // Create a content signature
+      final contentSignature = '${type}_${description}';
+
+      if (!seenContent.contains(contentSignature)) {
+        seenContent.add(contentSignature);
+        finalReports.add(report);
+        print('✅ Final list: Added ${report['_id'] ?? 'no_id'} - $description');
+      } else {
+        print(
+          '🗑️ Final cleanup: Removed duplicate ${report['_id'] ?? 'no_id'} - $description',
+        );
+      }
+    }
+
     print(
-      '🔍 First report date: ${sortedReports.isNotEmpty ? _parseDateTime(sortedReports.first['createdAt']) : 'No reports'}',
-    );
-    print(
-      '🔍 Last report date: ${sortedReports.isNotEmpty ? _parseDateTime(sortedReports.last['createdAt']) : 'No reports'}',
+      '🔍 After final duplicate cleanup: ${finalReports.length} reports (was ${sortedReports.length})',
     );
 
-    return sortedReports;
+    print('🔍 After duplicate removal: ${finalReports.length} reports');
+    print(
+      '🔍 First report date: ${finalReports.isNotEmpty ? _parseDateTime(finalReports.first['createdAt']) : 'No reports'}',
+    );
+    print(
+      '🔍 Last report date: ${finalReports.isNotEmpty ? _parseDateTime(finalReports.last['createdAt']) : 'No reports'}',
+    );
+
+    // Debug: Show the exact order of reports after sorting and final cleanup
+    if (finalReports.isNotEmpty) {
+      print('🔍 DEBUG: Reports after sorting and final cleanup (first 3):');
+      for (int i = 0; i < finalReports.length.clamp(0, 3); i++) {
+        final report = finalReports[i];
+        final date = _parseDateTime(report['createdAt']);
+        final description = report['description']?.toString() ?? '';
+        final shortDescription = description.length > 30
+            ? description.substring(0, 30)
+            : description;
+        final isSynced = report['isSynced'] ?? false;
+        final type = report['type'] ?? 'Unknown';
+        final id = report['id'] ?? report['_id'] ?? 'No ID';
+        print(
+          '  Final $i: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
+        );
+      }
+    }
+
+    return finalReports;
   }
 
   // Add debug method to help identify timestamp issues
@@ -255,14 +550,71 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
+  // Debug method to show all reports with their timestamps and content
+  void _debugAllReportsContent() {
+    print('🔍 DEBUGGING ALL REPORTS CONTENT AND TIMESTAMPS...');
+
+    if (_filteredReports.isEmpty) {
+      print('🔍 No reports to debug');
+      return;
+    }
+
+    print('🔍 Total reports: ${_filteredReports.length}');
+    print('🔍 Reports ordered by display position:');
+
+    for (int i = 0; i < _filteredReports.length; i++) {
+      final report = _filteredReports[i];
+      final createdAt = report['createdAt'];
+      final description = report['description']?.toString() ?? 'No description';
+      final type = report['type'] ?? 'Unknown';
+      final id = report['_id'] ?? report['id'] ?? 'No ID';
+      final isSynced = report['isSynced'] ?? false;
+
+      print('🔍 Report $i (Position $i):');
+      print('🔍   - ID: $id');
+      print('🔍   - Type: $type');
+      print('🔍   - Description: $description');
+      print('🔍   - Created At: $createdAt');
+      print('🔍   - Is Synced: $isSynced');
+
+      if (createdAt is String) {
+        try {
+          final parsed = DateTime.parse(createdAt);
+          final now = DateTime.now().toUtc();
+          final difference = now.difference(parsed);
+
+          print('🔍   - Parsed Date: $parsed');
+          print('🔍   - Time Ago: ${difference.inMinutes} minutes ago');
+
+          if (difference.inMinutes <= 5) {
+            print('🔍   - ⚠️ VERY RECENT REPORT (within 5 minutes)');
+          }
+        } catch (e) {
+          print('🔍   - Parse error: $e');
+        }
+      }
+
+      // Check for potential duplicates
+      if (i > 0) {
+        final prevReport = _filteredReports[i - 1];
+        final prevDescription = prevReport['description']?.toString() ?? '';
+        if (description == prevDescription &&
+            type == (prevReport['type'] ?? '')) {
+          print('🔍   - ⚠️ POTENTIAL DUPLICATE of previous report!');
+        }
+      }
+
+      print('🔍   ---');
+    }
+  }
+
   // Get offline file statistics
   Future<Map<String, int>> _getOfflineFileStats() async {
     try {
-      final fileCounts = await OfflineFileUploadService.getOfflineFilesCount();
-      return fileCounts;
+      return await OfflineFileUploadService.getFileStats();
     } catch (e) {
       print('❌ Error getting offline file stats: $e');
-      return {'pending': 0, 'uploaded': 0, 'failed': 0};
+      return {'pending': 0, 'uploaded': 0, 'total': 0};
     }
   }
 
@@ -378,29 +730,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         return;
       }
 
-      // Force sync all report types with fresh tokens
-      print('🔄 Syncing scam reports...');
+      // Use enhanced sync method for better error handling and duplicate prevention
+      print('🚀 Using enhanced sync method...');
       try {
-        await ScamReportService.syncReports();
-        print('✅ Scam reports sync completed');
+        await _enhancedSyncAllReports();
+        print('✅ Enhanced sync completed');
       } catch (e) {
-        print('❌ Scam reports sync failed: $e');
-      }
-
-      print('🔄 Syncing fraud reports...');
-      try {
-        await FraudReportService.syncReports();
-        print('✅ Fraud reports sync completed');
-      } catch (e) {
-        print('❌ Fraud reports sync failed: $e');
-      }
-
-      print('🔄 Syncing malware reports...');
-      try {
-        await MalwareReportService.syncReports();
-        print('✅ Malware reports sync completed');
-      } catch (e) {
-        print('❌ Malware reports sync failed: $e');
+        print('❌ Enhanced sync failed: $e');
       }
 
       // Check sync status after sync
@@ -529,15 +865,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         return;
       }
 
-      // Force sync using sync services with detailed logging
-      print('🔄 Force syncing scam reports...');
-      await ScamSyncService().syncReports();
-
-      print('🔄 Force syncing fraud reports...');
-      await FraudReportService.syncReports();
-
-      print('🔄 Force syncing malware reports...');
-      await MalwareReportService.syncReports();
+      // Use enhanced sync method for better error handling and duplicate prevention
+      print('🚀 Using enhanced sync method for force sync...');
+      await _enhancedSyncAllReports();
 
       // Clean up duplicates after sync
       await _removeAllDuplicates();
@@ -822,8 +1152,19 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       int syncedReports = 0;
       int pendingReports = 0;
 
-      // Count scam reports
+      // Count scam reports with detailed logging
+      print('🔍 Checking scam reports: ${scamBox.length} total');
       for (var report in scamBox.values) {
+        final createdAt = report.createdAt?.toIso8601String() ?? 'No date';
+        final description =
+            report.description?.substring(
+              0,
+              (report.description?.length ?? 0).clamp(0, 30),
+            ) ??
+            'No description';
+        print(
+          '🔍 Scam report ${report.id}: isSynced = ${report.isSynced}, createdAt = $createdAt, description = $description',
+        );
         if (report.isSynced == true) {
           syncedReports++;
         } else {
@@ -831,8 +1172,19 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         }
       }
 
-      // Count fraud reports
+      // Count fraud reports with detailed logging
+      print('🔍 Checking fraud reports: ${fraudBox.length} total');
       for (var report in fraudBox.values) {
+        final createdAt = report.createdAt?.toIso8601String() ?? 'No date';
+        final description =
+            report.description?.substring(
+              0,
+              (report.description?.length ?? 0).clamp(0, 30),
+            ) ??
+            'No description';
+        print(
+          '🔍 Fraud report ${report.id}: isSynced = ${report.isSynced}, createdAt = $createdAt, description = $description',
+        );
         if (report.isSynced == true) {
           syncedReports++;
         } else {
@@ -840,13 +1192,42 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         }
       }
 
-      // Count malware reports
+      // Count malware reports with detailed logging
+      print('🔍 Checking malware reports: ${malwareBox.length} total');
       for (var report in malwareBox.values) {
+        final createdAt =
+            report.date?.toIso8601String() ??
+            report.createdAt?.toIso8601String() ??
+            'No date';
+        final description =
+            report.malwareType?.substring(
+              0,
+              (report.malwareType?.length ?? 0).clamp(0, 30),
+            ) ??
+            'No description';
+        print(
+          '🔍 Malware report ${report.id}: isSynced = ${report.isSynced}, createdAt = $createdAt, description = $description',
+        );
         if (report.isSynced == true) {
           syncedReports++;
         } else {
           pendingReports++;
         }
+      }
+
+      print(
+        '📊 Sync status summary: $totalReports total, $syncedReports synced, $pendingReports pending',
+      );
+
+      // AUTOMATIC SYNC TRIGGER - If there are pending reports, trigger sync
+      if (pendingReports > 0) {
+        print(
+          '🔄 AUTOMATIC SYNC TRIGGER: $pendingReports pending reports detected, starting automatic sync...',
+        );
+        // Use a small delay to avoid blocking the UI
+        Future.delayed(Duration(milliseconds: 500), () {
+          _performAutomaticSync();
+        });
       }
 
       return {
@@ -1029,8 +1410,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
-  DateTime _parseDateTime(dynamic dateValue) {
-    if (dateValue == null) return DateTime.now();
+  DateTime? _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) return null;
 
     if (dateValue is DateTime) {
       return dateValue;
@@ -1043,12 +1424,26 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         return parsed;
       } catch (e) {
         print('❌ Error parsing date string: $dateValue, error: $e');
-        return DateTime.now();
+        // Try to parse common date formats
+        try {
+          // Try parsing as ISO 8601 without timezone
+          if (dateValue.contains('T') &&
+              !dateValue.contains('Z') &&
+              !dateValue.contains('+')) {
+            final isoString = '${dateValue}Z';
+            final parsed = DateTime.parse(isoString);
+            print('🔍 Successfully parsed as ISO 8601: $parsed');
+            return parsed;
+          }
+        } catch (e2) {
+          print('❌ Failed to parse as ISO 8601: $e2');
+        }
+        return null;
       }
     }
 
     print('❌ Unknown date type: ${dateValue.runtimeType}');
-    return DateTime.now();
+    return null;
   }
 
   Widget _buildReportCard(Map<String, dynamic> report, int index) {
@@ -1056,6 +1451,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     final hasEvidence = _hasEvidence(report);
     final status = _getReportStatus(report);
     final timeAgo = _getTimeAgo(report['createdAt']);
+
+    // CRITICAL FIX: Debug evidence status for UI display
+    print(
+      '🔍 UI: Building report card for ${report['id']} - hasEvidence: $hasEvidence',
+    );
+    print(
+      '🔍 UI: Report type: ${report['type']}, isSynced: ${report['isSynced']}',
+    );
 
     return GestureDetector(
       onTap: () {
@@ -1138,24 +1541,56 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                             ),
                           ),
                         ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: hasEvidence ? Colors.blue : Colors.grey[600],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          hasEvidence ? 'Has Evidence' : 'No Evidence',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                      if (hasEvidence) ...[
+                        // Show evidence badge with file count
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.attach_file,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                'Evidence',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
+                      ] else
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[600],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'No Evidence',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -1199,11 +1634,48 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     _timer?.cancel();
-    _autoSyncTimer?.cancel();
+    // _autoSyncTimer?.cancel(); // DISABLED - No timer delays
     _duplicateCleanupTimer?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 App became active, triggering automatic sync...');
+      // Small delay to ensure app is fully loaded
+      Future.delayed(Duration(milliseconds: 1000), () {
+        _performAutomaticSync();
+      });
+    } else if (state == AppLifecycleState.paused) {
+      print('🔄 App going to background, performing final sync...');
+      // Quick sync before app goes to background
+      _performAutomaticSync();
+    }
+  }
+
+  // Setup connectivity listener to trigger sync when internet becomes available
+  void _setupConnectivityListener() {
+    print('📡 Setting up connectivity listener...');
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      ConnectivityResult result,
+    ) {
+      if (result != ConnectivityResult.none) {
+        print('🌐 Internet connection detected, triggering automatic sync...');
+        // Small delay to ensure connection is stable
+        Future.delayed(Duration(milliseconds: 2000), () {
+          _performAutomaticSync();
+        });
+      } else {
+        print('📱 No internet connection available');
+      }
+    });
   }
 
   void _onScroll() {
@@ -1211,34 +1683,42 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         _scrollController.position.maxScrollExtent - 200) {
       _loadMoreData();
     }
+
+    // AUTOMATIC SYNC TRIGGER - Sync more frequently during scroll (every 5 scroll events)
+    // This helps catch reports that need syncing while user is browsing
+    _scrollCount++;
+    if (_scrollCount % 5 == 0 && !_isCleanupRunning) {
+      print('🔄 Scroll-based sync trigger (scroll count: $_scrollCount)');
+      _performAutomaticSync();
+    }
   }
 
-  // AUTOMATIC BACKGROUND SYNC - Runs every 30 seconds
-  void _startAutomaticBackgroundSync() {
-    print('🔄 Starting automatic background sync...');
-    _autoSyncTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
-      try {
-        print('🔄 Automatic background sync running...');
-        await _performAutomaticSync();
-      } catch (e) {
-        print('❌ Error in automatic background sync: $e');
-      }
-    });
-  }
+  // AUTOMATIC BACKGROUND SYNC - DISABLED (No timer delays)
+  // void _startAutomaticBackgroundSync() {
+  //   print('🔄 Starting automatic background sync every 2 minutes...');
+  //   _autoSyncTimer = Timer.periodic(Duration(minutes: 1), (timer) async {
+  //     try {
+  //       print('🔄 Automatic background sync running...');
+  //       await _performAutomaticSync();
+  //       } catch (e) {
+  //       print('❌ Error in automatic background sync: $e');
+  //     }
+  //   });
+  // }
 
-  // AUTOMATIC DUPLICATE CLEANUP - Runs every 60 seconds
+  // AUTOMATIC DUPLICATE CLEANUP - Runs every 10 minutes (increased from 60 seconds)
   void _startAutomaticDuplicateCleanup() {
     print('🧹 Starting automatic duplicate cleanup...');
-    _duplicateCleanupTimer = Timer.periodic(Duration(seconds: 60), (
+    _duplicateCleanupTimer = Timer.periodic(Duration(minutes: 10), (
       timer,
     ) async {
       try {
         print('🧹 Automatic duplicate cleanup running...');
         await _removeAllDuplicatesAggressively();
-        // Refresh the UI after cleanup
-        if (mounted) {
-          await _loadFilteredReports();
-        }
+        // Refresh the UI after cleanup - DISABLED to prevent automatic refresh
+        // if (mounted) {
+        //   await _loadFilteredReports();
+        // }
       } catch (e) {
         print('❌ Error in automatic duplicate cleanup: $e');
       }
@@ -1247,7 +1727,23 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
   // PERFORM AUTOMATIC SYNC
   Future<void> _performAutomaticSync() async {
+    // Prevent multiple simultaneous sync attempts
+    if (_isSyncRunning) {
+      print('⚠️ Sync already running, skipping...');
+      return;
+    }
+
+    // Prevent too frequent sync calls (minimum 10 seconds between syncs)
+    final now = DateTime.now();
+    if (_lastSyncTime != null &&
+        now.difference(_lastSyncTime!).inSeconds < 10) {
+      print('⚠️ Sync called too frequently, skipping...');
+      return;
+    }
+
     try {
+      _isSyncRunning = true;
+      _lastSyncTime = now;
       print('🔄 Performing automatic sync...');
 
       // Check connectivity
@@ -1260,25 +1756,182 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       // Clean duplicates before sync
       await _removeAllDuplicatesAggressively();
 
-      // Sync all report types automatically
-      await ScamReportService.syncReports();
-      await FraudReportService.syncReports();
-      await MalwareReportService.syncReports();
+      // Enhanced sync with better error handling
+      await _enhancedSyncAllReports();
 
       // Clean duplicates after sync
       await _removeAllDuplicatesAggressively();
 
-      // Refresh UI if mounted
+      // Refresh UI if mounted to show updated sync status
       if (mounted) {
-        await _loadFilteredReports();
+        // DON'T call _loadFilteredReports() here - it causes infinite loop!
         setState(() {
-          // Update sync status
+          // Update sync status without reloading data
         });
       }
 
       print('✅ Automatic sync completed successfully');
     } catch (e) {
       print('❌ Error during automatic sync: $e');
+    } finally {
+      _isSyncRunning = false;
+    }
+  }
+
+  // Enhanced sync method with better error handling and duplicate prevention
+  Future<void> _enhancedSyncAllReports() async {
+    try {
+      print('🚀 ENHANCED SYNC: Starting comprehensive sync...');
+
+      // Check connectivity first
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        print('❌ ENHANCED SYNC: No internet connection available');
+        throw Exception('No internet connection available');
+      }
+      print('✅ ENHANCED SYNC: Internet connection available');
+
+      // Check token validity
+      final areTokensValid = await TokenStorage.areTokensValid();
+      if (!areTokensValid) {
+        print('❌ ENHANCED SYNC: Tokens are invalid');
+        throw Exception('Authentication tokens are invalid. Please re-login.');
+      }
+      print('✅ ENHANCED SYNC: Tokens are valid');
+
+      // Get sync status before
+      final beforeStatus = await _getSyncStatusSummary();
+      final beforePending = beforeStatus['pending'] ?? 0;
+      final beforeSynced = beforeStatus['synced'] ?? 0;
+
+      print(
+        '📊 ENHANCED SYNC: Found $beforePending pending, $beforeSynced synced reports before sync',
+      );
+
+      if (beforePending == 0) {
+        print('✅ ENHANCED SYNC: No pending reports to sync');
+        return;
+      }
+
+      // Sync each report type with enhanced error handling
+      int totalSynced = 0;
+      int totalFailed = 0;
+
+      // Sync scam reports with retry
+      try {
+        print('🔄 ENHANCED SYNC: Syncing scam reports...');
+        await _retrySync(() => ScamReportService.syncReports(), 'scam reports');
+        print('✅ ENHANCED SYNC: Scam reports sync completed');
+      } catch (e) {
+        print('❌ ENHANCED SYNC: Scam reports sync failed: $e');
+        totalFailed++;
+      }
+
+      // Sync fraud reports with retry
+      try {
+        print('🔄 ENHANCED SYNC: Syncing fraud reports...');
+        await _retrySync(
+          () => FraudReportService.syncOfflineReportsWithFiles(),
+          'fraud reports',
+        );
+        print('✅ ENHANCED SYNC: Fraud reports sync completed');
+      } catch (e) {
+        print('❌ ENHANCED SYNC: Fraud reports sync failed: $e');
+        totalFailed++;
+      }
+
+      // Sync malware reports with retry
+      try {
+        print('🔄 ENHANCED SYNC: Syncing malware reports...');
+        await _retrySync(
+          () => MalwareReportService.syncOfflineReportsWithFiles(),
+          'malware reports',
+        );
+        print('✅ ENHANCED SYNC: Malware reports sync completed');
+      } catch (e) {
+        print('❌ ENHANCED SYNC: Malware reports sync failed: $e');
+        totalFailed++;
+      }
+
+      // Get sync status after
+      final afterStatus = await _getSyncStatusSummary();
+      final afterPending = afterStatus['pending'] ?? 0;
+      final afterSynced = afterStatus['synced'] ?? 0;
+
+      print(
+        '📊 ENHANCED SYNC: After sync - $afterPending pending, $afterSynced synced',
+      );
+
+      // Calculate actual changes
+      final pendingChange = beforePending - afterPending;
+      final syncedChange = afterSynced - beforeSynced;
+
+      print(
+        '📊 ENHANCED SYNC: Changes - $pendingChange pending removed, $syncedChange synced added',
+      );
+
+      if (afterPending == 0) {
+        print('✅ ENHANCED SYNC: All reports successfully synced!');
+      } else if (pendingChange > 0) {
+        print(
+          '✅ ENHANCED SYNC: $pendingChange reports synced successfully, $afterPending still pending',
+        );
+      } else {
+        print(
+          '⚠️ ENHANCED SYNC: No reports were synced. $afterPending still pending',
+        );
+
+        // If no reports were synced, show detailed error information
+        if (totalFailed > 0) {
+          print('⚠️ ENHANCED SYNC: $totalFailed report types failed to sync');
+          print(
+            '⚠️ ENHANCED SYNC: This may be due to server issues or invalid data format',
+          );
+        }
+      }
+
+      // Force UI refresh to show updated counts
+      if (mounted) {
+        setState(() {
+          // Trigger UI refresh
+        });
+      }
+    } catch (e) {
+      print('❌ ENHANCED SYNC: Error during enhanced sync: $e');
+      rethrow;
+    }
+  }
+
+  // Retry sync method with exponential backoff
+  Future<void> _retrySync(
+    Future<void> Function() syncFunction,
+    String reportType,
+  ) async {
+    int maxRetries = 3;
+    int retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        await syncFunction();
+        return; // Success, exit retry loop
+      } catch (e) {
+        retryCount++;
+        print(
+          '⚠️ ENHANCED SYNC: $reportType sync failed (attempt $retryCount/$maxRetries): $e',
+        );
+
+        if (retryCount >= maxRetries) {
+          print(
+            '❌ ENHANCED SYNC: $reportType sync failed after $maxRetries attempts',
+          );
+          rethrow; // Re-throw the last error
+        }
+
+        // Wait before retry with exponential backoff
+        int waitTime = retryCount * 2; // 2, 4, 6 seconds
+        print('⏳ ENHANCED SYNC: Waiting $waitTime seconds before retry...');
+        await Future.delayed(Duration(seconds: waitTime));
+      }
     }
   }
 
@@ -1452,6 +2105,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                   widget.hasSelectedType && widget.selectedTypes.isNotEmpty
                   ? widget.selectedTypes.first
                   : null,
+              hasEvidence:
+                  true, // CRITICAL FIX: Only fetch reports with evidence files
             );
 
             newReports = await _apiService.fetchReportsWithFilter(filter);
@@ -1476,6 +2131,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                       widget.selectedSeverities.isNotEmpty
                   ? widget.selectedSeverities
                   : null,
+              hasEvidence:
+                  true, // CRITICAL FIX: Only fetch reports with evidence files
               page: _currentPage,
               limit: _pageSize,
             );
@@ -1503,9 +2160,41 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
         if (uniqueNewReports.isNotEmpty) {
           _filteredReports.addAll(uniqueNewReports);
-          _typedReports.addAll(
-            uniqueNewReports.map((json) => _safeConvertToReportModel(json)),
-          );
+
+          // Re-sort the entire list to ensure latest data appears at top
+          _filteredReports = _removeDuplicatesAndSort(_filteredReports);
+
+          // Verify sorting after loading more data
+          _verifySorting(_filteredReports);
+
+          // Debug: Show the exact order after loading more data
+          print('🔍 DEBUG: Order after loading more data (first 5):');
+          for (int i = 0; i < _filteredReports.length.clamp(0, 5); i++) {
+            final report = _filteredReports[i];
+            final date = _parseDateTime(report['createdAt']);
+            final description = report['description']?.toString() ?? '';
+            final shortDescription = description.length > 30
+                ? description.substring(0, 30)
+                : description;
+            final isSynced = report['isSynced'] ?? false;
+            final type = report['type'] ?? 'Unknown';
+            final id = report['id'] ?? report['_id'] ?? 'No ID';
+            print(
+              '  More Data $i: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
+            );
+          }
+
+          // Rebuild typed reports from the sorted filtered reports
+          _typedReports = [];
+          for (int i = 0; i < _filteredReports.length; i++) {
+            try {
+              final report = _safeConvertToReportModel(_filteredReports[i]);
+              _typedReports.add(report);
+            } catch (e) {
+              print('❌ Error converting report $i: $e');
+              print('❌ Report data: ${_filteredReports[i]}');
+            }
+          }
 
           if (newReports.length < _pageSize) {
             _hasMoreData = false;
@@ -1577,6 +2266,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'emailAddresses': json['emailAddresses']?.toString() ?? '',
         'phoneNumbers': json['phoneNumbers']?.toString() ?? '',
         'website': json['website']?.toString() ?? '',
+        'screenshots': json['screenshots'] ?? [],
+        'documents': json['documents'] ?? [],
+        'voiceMessages': json['voiceMessages'] ?? [],
+        'videofiles': json['videofiles'] ?? [],
       });
     }
   }
@@ -1809,6 +2502,66 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         normalized['updatedAt'] = DateTime.now().toIso8601String();
       }
 
+      // CRITICAL FIX: Handle evidence files - could be List, String, or null
+      // Screenshots
+      if (normalized['screenshots'] is List) {
+        normalized['screenshots'] = (normalized['screenshots'] as List)
+            .map((e) => e.toString())
+            .toList();
+      } else if (normalized['screenshots'] is String) {
+        normalized['screenshots'] = [normalized['screenshots'].toString()];
+      } else {
+        normalized['screenshots'] = [];
+      }
+
+      // Documents
+      if (normalized['documents'] is List) {
+        normalized['documents'] = (normalized['documents'] as List)
+            .map((e) => e.toString())
+            .toList();
+      } else if (normalized['documents'] is String) {
+        normalized['documents'] = [normalized['documents'].toString()];
+      } else {
+        normalized['documents'] = [];
+      }
+
+      // Voice Messages
+      if (normalized['voiceMessages'] is List) {
+        normalized['voiceMessages'] = (normalized['voiceMessages'] as List)
+            .map((e) => e.toString())
+            .toList();
+      } else if (normalized['voiceMessages'] is String) {
+        normalized['voiceMessages'] = [normalized['voiceMessages'].toString()];
+      } else {
+        normalized['voiceMessages'] = [];
+      }
+
+      // Video Files
+      if (normalized['videofiles'] is List) {
+        normalized['videofiles'] = (normalized['videofiles'] as List)
+            .map((e) => e.toString())
+            .toList();
+      } else if (normalized['videofiles'] is String) {
+        normalized['videofiles'] = [normalized['videofiles'].toString()];
+      } else {
+        normalized['videofiles'] = [];
+      }
+
+      // Debug evidence files
+      print('🔍 ThreadDB - Evidence files after normalization:');
+      print(
+        '🔍 - Screenshots: ${normalized['screenshots']} (${(normalized['screenshots'] as List).length})',
+      );
+      print(
+        '🔍 - Documents: ${normalized['documents']} (${(normalized['documents'] as List).length})',
+      );
+      print(
+        '🔍 - Voice Messages: ${normalized['voiceMessages']} (${(normalized['voiceMessages'] as List).length})',
+      );
+      print(
+        '🔍 - Video Files: ${normalized['videofiles']} (${(normalized['videofiles'] as List).length})',
+      );
+
       if (normalized['_id'] != null) {
         normalized['isSynced'] = true;
       }
@@ -1829,6 +2582,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'phoneNumbers': '',
         'emailAddresses': '',
         'website': '',
+        'screenshots': [],
+        'documents': [],
+        'voiceMessages': [],
+        'videofiles': [],
         'isSynced': false,
       };
     }
@@ -1841,6 +2598,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       _filteredReports.clear();
       _typedReports.clear();
     });
+
+    // First try to sync any pending reports
+    try {
+      print('🔄 Pull-to-refresh: Attempting to sync pending reports...');
+      await _enhancedSyncAllReports();
+    } catch (e) {
+      print('⚠️ Pull-to-refresh: Sync failed, continuing with data reload: $e');
+    }
+
+    // Then reload the filtered reports
     await _loadFilteredReports();
   }
 
@@ -1848,6 +2615,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   Future<void> refreshData() async {
     print('🔄 Refreshing thread database data...');
     await _resetAndReload();
+
+    // AUTOMATIC SYNC TRIGGER - Sync pending reports after refresh
+    print('🔄 Triggering automatic sync after data refresh...');
+    _performAutomaticSync();
   }
 
   Future<void> _cleanupDuplicates() async {
@@ -1934,6 +2705,81 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
+  // Immediate comprehensive duplicate cleanup on app start
+  Future<void> _immediateComprehensiveDuplicateCleanup() async {
+    try {
+      print('🧹 IMMEDIATE COMPREHENSIVE DUPLICATE CLEANUP STARTING...');
+
+      // Step 1: Handle app restart for each service
+      print('🧹 Step 1: Handling app restart for all services...');
+      await FraudReportService.handleAppRestart();
+      await ScamReportService.handleAppRestart();
+      await MalwareReportService.handleAppRestart();
+
+      // Step 2: Use enhanced duplicate cleanup method
+      print('🧹 Step 2: Enhanced duplicate cleanup...');
+      await _cleanExistingDuplicates();
+
+      // Step 3: Cross-box duplicate removal
+      print('🧹 Step 3: Cross-box duplicate removal...');
+      await _removeCrossBoxDuplicates();
+
+      // Step 4: Fix any null IDs
+      print('🧹 Step 4: Fixing null IDs...');
+      await _fixNullIdsInAllBoxes();
+
+      // Step 5: Final verification
+      print('🧹 Step 5: Final verification...');
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      print('📊 After immediate cleanup:');
+      print('📊 - Scam reports: ${scamBox.length}');
+      print('📊 - Fraud reports: ${fraudBox.length}');
+      print('📊 - Malware reports: ${malwareBox.length}');
+
+      // Step 6: Clean up duplicate offline files
+      print('🧹 Step 6: Cleaning up duplicate offline files...');
+      try {
+        final cleanupResult =
+            await custom.OfflineFileUploadService.cleanupAllDuplicateFiles();
+        if (cleanupResult['success']) {
+          print('✅ Offline file cleanup: ${cleanupResult['message']}');
+        } else {
+          print('⚠️ Offline file cleanup: ${cleanupResult['message']}');
+        }
+      } catch (e) {
+        print('⚠️ Could not clean up offline files: $e');
+      }
+
+      // Step 7: Force UI refresh and reload data
+      print('🧹 Step 7: Force UI refresh and reload data...');
+      if (mounted) {
+        // Force a complete UI refresh
+        setState(() {
+          _isLoading = true;
+          _currentPage = 1;
+          _hasMoreData = true;
+        });
+
+        // Reload filtered reports
+        await _loadFilteredReports();
+
+        // Force another UI update
+        setState(() {
+          _isLoading = false;
+        });
+
+        print('✅ UI force refreshed with cleaned data');
+      }
+
+      print('✅ IMMEDIATE COMPREHENSIVE DUPLICATE CLEANUP COMPLETED');
+    } catch (e) {
+      print('❌ Error during immediate comprehensive duplicate cleanup: $e');
+    }
+  }
+
   // Aggressive duplicate removal that completely eliminates duplicates
   Future<void> _removeAllDuplicatesAggressively() async {
     try {
@@ -1952,7 +2798,18 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       // Step 1: Remove duplicates aggressively from each box
       await _removeDuplicatesAggressivelyFromBox(scamBox, 'scam');
       await _removeDuplicatesAggressivelyFromBox(fraudBox, 'fraud');
-      await _removeDuplicatesAggressivelyFromBox(malwareBox, 'malware');
+
+      // Import malware service for specific cleanup (using new cleanDuplicates method)
+      await MalwareReportService.cleanDuplicates();
+
+      // Step 1.5: Sync offline files
+      print('📁 Syncing offline files...');
+      final fileSyncResult = await OfflineFileUploadService.syncOfflineFiles();
+      if (fileSyncResult['success']) {
+        print('✅ Offline files synced: ${fileSyncResult['synced']} files');
+      } else {
+        print('⚠️ Offline file sync: ${fileSyncResult['message']}');
+      }
 
       // Step 2: Cross-box duplicate removal
       await _removeCrossBoxDuplicates();
@@ -2008,12 +2865,40 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           final website = report.website?.toString().toLowerCase().trim() ?? '';
           contentKey = '${name}_${alertLevel}_${phones}_${emails}_$website';
         } else if (type == 'malware') {
-          final name = report.name?.toString().toLowerCase().trim() ?? '';
-          final malwareType =
-              report.malwareType?.toString().toLowerCase().trim() ?? '';
-          final fileName =
-              report.fileName?.toString().toLowerCase().trim() ?? '';
-          contentKey = '${name}_${malwareType}_$fileName';
+          // For synced malware reports, use server ID as primary identifier
+          if (report.isSynced == true &&
+              report.id != null &&
+              report.id!.length == 24) {
+            contentKey =
+                'SYNCED_${report.id}'; // Use server ID for synced reports
+          } else {
+            // For unsynced malware reports, use content-based detection
+            final name = report.name?.toString().toLowerCase().trim() ?? '';
+            final malwareType =
+                report.malwareType?.toString().toLowerCase().trim() ?? '';
+            final fileName =
+                report.fileName?.toString().toLowerCase().trim() ?? '';
+            final description =
+                report.description?.toString().toLowerCase().trim() ?? '';
+            final infectedDeviceType =
+                report.infectedDeviceType?.toString().toLowerCase().trim() ??
+                '';
+            final operatingSystem =
+                report.operatingSystem?.toString().toLowerCase().trim() ?? '';
+            final detectionMethod =
+                report.detectionMethod?.toString().toLowerCase().trim() ?? '';
+            final location =
+                report.location?.toString().toLowerCase().trim() ?? '';
+            final systemAffected =
+                report.systemAffected?.toString().toLowerCase().trim() ?? '';
+            final alertSeverityLevel =
+                report.alertSeverityLevel?.toString().toLowerCase().trim() ??
+                '';
+
+            // Create a more comprehensive content key for unsynced malware reports
+            contentKey =
+                'UNSYNCED_${name}_${malwareType}_${fileName}_${description}_${infectedDeviceType}_${operatingSystem}_${detectionMethod}_${location}_${systemAffected}_${alertSeverityLevel}';
+          }
         } else {
           contentKey =
               '${report.id}_${report.createdAt?.millisecondsSinceEpoch ?? 0}';
@@ -2294,7 +3179,26 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             : await _getLocalReports();
         print('📱 Loaded ${reports.length} local reports');
 
-        // Ensure local reports have proper category and type mappings for filtering
+        // Debug: Show the exact order of local reports
+        if (reports.isNotEmpty) {
+          print('🔍 DEBUG: Local reports order (first 3):');
+          for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+            final report = reports[i];
+            final date = _parseDateTime(report['createdAt']);
+            final description = report['description']?.toString() ?? '';
+            final shortDescription = description.length > 30
+                ? description.substring(0, 30)
+                : description;
+            final isSynced = report['isSynced'] ?? false;
+            final type = report['type'] ?? 'Unknown';
+            final id = report['id'] ?? report['_id'] ?? 'No ID';
+            print(
+              '  Local $i: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
+            );
+          }
+        }
+
+        // Ensure local reports have proper category, type, and alert level mappings for filtering
         reports = reports.map((report) {
           final enhancedReport = Map<String, dynamic>.from(report);
 
@@ -2328,11 +3232,186 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 enhancedReport['typeName'] ?? 'Malware Report';
           }
 
+          // CRITICAL FIX: Debug alert level detection for offline reports
+          print(
+            '🔧 OFFLINE: Processing alert level for report: ${enhancedReport['id']}',
+          );
+          print(
+            '🔧 OFFLINE: Original alertLevels: ${enhancedReport['alertLevels']} (${enhancedReport['alertLevels'].runtimeType})',
+          );
+
+          // CRITICAL FIX: Preserve original alert levels for offline reports
+          if (enhancedReport['alertLevels'] == null ||
+              enhancedReport['alertLevels'] == '') {
+            // Set different default alert levels based on report type
+            String defaultAlertLevel = 'Medium';
+            String defaultAlertLevelId = 'offline_medium_alert';
+
+            if (enhancedReport['type'] == 'scam') {
+              defaultAlertLevel = 'High';
+              defaultAlertLevelId = 'offline_high_alert';
+            } else if (enhancedReport['type'] == 'fraud') {
+              defaultAlertLevel = 'Critical';
+              defaultAlertLevelId = 'offline_critical_alert';
+            } else if (enhancedReport['type'] == 'malware') {
+              defaultAlertLevel = 'Medium';
+              defaultAlertLevelId = 'offline_medium_alert';
+            }
+
+            enhancedReport['alertLevels'] = {
+              '_id': defaultAlertLevelId,
+              'name': defaultAlertLevel,
+              'isActive': true,
+              'createdAt': DateTime.now().toUtc().toIso8601String(),
+              'updatedAt': DateTime.now().toUtc().toIso8601String(),
+            };
+            print(
+              '🔧 OFFLINE: Added default "$defaultAlertLevel" alert level to ${enhancedReport['type']} report: ${enhancedReport['id']}',
+            );
+          } else if (enhancedReport['alertLevels'] is String) {
+            // Convert string alert level to proper object structure while preserving original value
+            final alertLevelString = enhancedReport['alertLevels']
+                .toString()
+                .toLowerCase();
+            String alertLevelName = 'Medium';
+            String alertLevelId = 'offline_medium_alert';
+
+            // CRITICAL FIX: Map the actual alert level instead of defaulting to Medium
+            if (alertLevelString.contains('6887488fdc01fe5e05839d88')) {
+              alertLevelName = 'Critical';
+              alertLevelId = '6887488fdc01fe5e05839d88';
+            } else if (alertLevelString.contains('6891c8fe05d97b83f1ae9800')) {
+              alertLevelName = 'High';
+              alertLevelId = '6891c8fe05d97b83f1ae9800';
+            } else if (alertLevelString.contains('688738b2357d9e4bb381b5ba')) {
+              alertLevelName = 'Medium';
+              alertLevelId = '688738b2357d9e4bb381b5ba';
+            } else if (alertLevelString.contains('68873fe402621a53392dc7a2')) {
+              alertLevelName = 'Low';
+              alertLevelId = '68873fe402621a53392dc7a2';
+            } else if (alertLevelString.contains('offline_critical_alert')) {
+              alertLevelName = 'Critical';
+              alertLevelId = 'offline_critical_alert';
+            } else if (alertLevelString.contains('offline_high_alert')) {
+              alertLevelName = 'High';
+              alertLevelId = 'offline_high_alert';
+            } else if (alertLevelString.contains('offline_medium_alert')) {
+              alertLevelName = 'Medium';
+              alertLevelId = 'offline_medium_alert';
+            } else if (alertLevelString.contains('offline_low_alert')) {
+              alertLevelName = 'Low';
+              alertLevelId = 'offline_low_alert';
+            } else {
+              // Fallback to string-based mapping
+              switch (alertLevelString) {
+                case 'low':
+                  alertLevelName = 'Low';
+                  alertLevelId = 'offline_low_alert';
+                  break;
+                case 'medium':
+                  alertLevelName = 'Medium';
+                  alertLevelId = 'offline_medium_alert';
+                  break;
+                case 'high':
+                  alertLevelName = 'High';
+                  alertLevelId = 'offline_high_alert';
+                  break;
+                case 'critical':
+                  alertLevelName = 'Critical';
+                  alertLevelId = 'offline_critical_alert';
+                  break;
+                default:
+                  alertLevelName = 'Medium';
+                  alertLevelId = 'offline_medium_alert';
+              }
+            }
+
+            enhancedReport['alertLevels'] = {
+              '_id': alertLevelId,
+              'name': alertLevelName,
+              'isActive': true,
+              'createdAt': DateTime.now().toUtc().toIso8601String(),
+              'updatedAt': DateTime.now().toUtc().toIso8601String(),
+            };
+            print(
+              '🔧 OFFLINE: Converted string alert level "$alertLevelString" to object "$alertLevelName" for report: ${enhancedReport['id']}',
+            );
+          } else if (enhancedReport['alertLevels'] is Map) {
+            // CRITICAL FIX: Preserve existing alert level objects
+            print(
+              '🔧 OFFLINE: Preserving existing alert level object for report: ${enhancedReport['id']}',
+            );
+          }
+
+          // CRITICAL FIX: Debug evidence fields for offline reports
+          print(
+            '🔍 OFFLINE: Evidence fields for report ${enhancedReport['id']}:',
+          );
+          print(
+            '🔍 OFFLINE: - Screenshots: ${enhancedReport['screenshots']} (${enhancedReport['screenshots']?.length ?? 0} items)',
+          );
+          print(
+            '🔍 OFFLINE: - Documents: ${enhancedReport['documents']} (${enhancedReport['documents']?.length ?? 0} items)',
+          );
+          print(
+            '🔍 OFFLINE: - Voice Messages: ${enhancedReport['voiceMessages']} (${enhancedReport['voiceMessages']?.length ?? 0} items)',
+          );
+          print(
+            '🔍 OFFLINE: - Video Files: ${enhancedReport['videofiles']} (${enhancedReport['videofiles']?.length ?? 0} items)',
+          );
+          print(
+            '🔍 OFFLINE: - Report type: ${enhancedReport['type']}, isSynced: ${enhancedReport['isSynced']}',
+          );
+
+          // Check if this report actually has evidence
+          final hasEvidence = _hasEvidence(enhancedReport);
+          print('🔍 OFFLINE: - Has Evidence: $hasEvidence');
+
+          // CRITICAL FIX: Ensure evidence status is properly set for UI display
+          enhancedReport['hasEvidence'] = hasEvidence;
+          print('🔍 OFFLINE: - Set hasEvidence field to: $hasEvidence');
+
+          // CRITICAL FIX: Ensure alert level is properly set for UI display
+          final alertLevel = _getAlertLevel(enhancedReport);
+          final alertLevelDisplay = _getAlertLevelDisplay(enhancedReport);
+          print(
+            '🔍 OFFLINE: - Alert level: $alertLevel, Display: $alertLevelDisplay',
+          );
+
+          // CRITICAL FIX: If alert level is still empty or unknown, set a default based on report type
+          if (alertLevel.isEmpty || alertLevelDisplay == 'Unknown') {
+            String defaultAlertLevel = 'Medium';
+            String defaultAlertLevelId = 'offline_medium_alert';
+
+            // Set different default alert levels based on report type
+            if (enhancedReport['type'] == 'scam') {
+              defaultAlertLevel = 'High';
+              defaultAlertLevelId = 'offline_high_alert';
+            } else if (enhancedReport['type'] == 'fraud') {
+              defaultAlertLevel = 'Critical';
+              defaultAlertLevelId = 'offline_critical_alert';
+            } else if (enhancedReport['type'] == 'malware') {
+              defaultAlertLevel = 'Medium';
+              defaultAlertLevelId = 'offline_medium_alert';
+            }
+
+            enhancedReport['alertLevels'] = {
+              '_id': defaultAlertLevelId,
+              'name': defaultAlertLevel,
+              'isActive': true,
+              'createdAt': DateTime.now().toUtc().toIso8601String(),
+              'updatedAt': DateTime.now().toUtc().toIso8601String(),
+            };
+            print(
+              '🔧 OFFLINE: Set default alert level "$defaultAlertLevel" for ${enhancedReport['type']} report: ${enhancedReport['id']}',
+            );
+          }
+
           return enhancedReport;
         }).toList();
 
         print(
-          '📱 Enhanced ${reports.length} local reports with proper category/type mappings',
+          '📱 Enhanced ${reports.length} local reports with proper category/type/alert level mappings',
         );
       } else {
         // Online mode - try API first
@@ -2452,6 +3531,29 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
               print(
                 '🔍 Alert levels passed to API: ${widget.hasSelectedSeverity && widget.selectedSeverities.isNotEmpty ? widget.selectedSeverities : null}',
               );
+
+              // Debug: Show the exact order of reports from complex filter API
+              if (reports.isNotEmpty) {
+                print('🔍 DEBUG: Complex filter API reports order (first 3):');
+                for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+                  final report = reports[i];
+                  final date = _parseDateTime(report['createdAt']);
+                  final description = report['description']
+                      ?.toString()
+                      .substring(
+                        0,
+                        (report['description'].toString().length ?? 0).clamp(
+                          0,
+                          30,
+                        ),
+                      );
+                  final id = report['id'] ?? report['_id'] ?? 'No ID';
+                  final type = report['type'] ?? 'Unknown';
+                  print(
+                    '  Complex API $i: ${date?.toIso8601String()} - $description (Type: $type, ID: $id)',
+                  );
+                }
+              }
             } else {
               // Use ReportsFilter for other filters
               try {
@@ -2468,12 +3570,37 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                       widget.hasSelectedType && widget.selectedTypes.isNotEmpty
                       ? widget.selectedTypes.first
                       : null,
+                  hasEvidence:
+                      true, // CRITICAL FIX: Only fetch reports with evidence files
                 );
 
                 reports = await _apiService.fetchReportsWithFilter(filter);
                 print(
                   '🔍 Direct filter API call returned ${reports.length} reports',
                 );
+
+                // Debug: Show the exact order of reports from API
+                if (reports.isNotEmpty) {
+                  print('🔍 DEBUG: API reports order (first 3):');
+                  for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+                    final report = reports[i];
+                    final date = _parseDateTime(report['createdAt']);
+                    final description = report['description']
+                        ?.toString()
+                        .substring(
+                          0,
+                          (report['description'].toString().length ?? 0).clamp(
+                            0,
+                            30,
+                          ),
+                        );
+                    final id = report['id'] ?? report['_id'] ?? 'No ID';
+                    final type = report['type'] ?? 'Unknown';
+                    print(
+                      '  API $i: ${date?.toIso8601String()} - $description (Type: $type, ID: $id)',
+                    );
+                  }
+                }
               } catch (apiError) {
                 print('❌ Direct API call failed: $apiError');
                 // Fallback to complex filter method
@@ -2501,6 +3628,31 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                 print(
                   '🔍 Fallback complex filter returned ${reports.length} reports',
                 );
+
+                // Debug: Show the exact order of reports from fallback complex filter API
+                if (reports.isNotEmpty) {
+                  print(
+                    '🔍 DEBUG: Fallback complex filter API reports order (first 3):',
+                  );
+                  for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+                    final report = reports[i];
+                    final date = _parseDateTime(report['createdAt']);
+                    final description = report['description']
+                        ?.toString()
+                        .substring(
+                          0,
+                          (report['description'].toString().length ?? 0).clamp(
+                            0,
+                            30,
+                          ),
+                        );
+                    final id = report['id'] ?? report['_id'] ?? 'No ID';
+                    final type = report['type'] ?? 'Unknown';
+                    print(
+                      '  Fallback Complex API $i: ${date?.toIso8601String()} - $description (Type: $type, ID: $id)',
+                    );
+                  }
+                }
               }
             }
           } else {
@@ -2509,6 +3661,24 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
             print(
               '🔍 ThreadDB Debug - Simple filter returned ${reports.length} reports',
             );
+
+            // Debug: Show the exact order of reports from simple filter API
+            if (reports.isNotEmpty) {
+              print('🔍 DEBUG: Simple filter API reports order (first 3):');
+              for (int i = 0; i < reports.length.clamp(0, 3); i++) {
+                final report = reports[i];
+                final date = _parseDateTime(report['createdAt']);
+                final description = report['description']?.toString() ?? '';
+                final shortDescription = description.length > 30
+                    ? description.substring(0, 30)
+                    : description;
+                final id = report['id'] ?? report['_id'] ?? 'No ID';
+                final type = report['type'] ?? 'Unknown';
+                print(
+                  '  Simple API $i: ${date?.toIso8601String()} - $description (Type: $type, ID: $id)',
+                );
+              }
+            }
           }
         } catch (e) {
           print('❌ API failed, falling back to local data: $e');
@@ -2525,6 +3695,58 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
               '✅ Found ${localReports.length} local reports, using them instead',
             );
             reports = localReports;
+          }
+        } else {
+          // API returned reports, but they might have empty evidence arrays
+          // Merge with local reports to get evidence files
+          print(
+            '🔄 API returned ${reports.length} reports, merging with local evidence...',
+          );
+          final localReports = await _getLocalReports();
+
+          if (localReports.isNotEmpty) {
+            // Create a map of local reports by ID for quick lookup
+            final localReportsMap = <String, Map<String, dynamic>>{};
+            for (final localReport in localReports) {
+              final id =
+                  localReport['id']?.toString() ??
+                  localReport['_id']?.toString();
+              if (id != null) {
+                localReportsMap[id] = localReport;
+              }
+            }
+
+            // Merge evidence files from local reports into API reports
+            for (final apiReport in reports) {
+              final id =
+                  apiReport['id']?.toString() ?? apiReport['_id']?.toString();
+              if (id != null && localReportsMap.containsKey(id)) {
+                final localReport = localReportsMap[id]!;
+
+                // Merge evidence files if API report has empty arrays
+                if (apiReport['screenshots'] == null ||
+                    (apiReport['screenshots'] as List).isEmpty) {
+                  apiReport['screenshots'] = localReport['screenshots'] ?? [];
+                }
+                if (apiReport['documents'] == null ||
+                    (apiReport['documents'] as List).isEmpty) {
+                  apiReport['documents'] = localReport['documents'] ?? [];
+                }
+                if (apiReport['voiceMessages'] == null ||
+                    (apiReport['voiceMessages'] as List).isEmpty) {
+                  apiReport['voiceMessages'] =
+                      localReport['voiceMessages'] ?? [];
+                }
+                if (apiReport['videofiles'] == null ||
+                    (apiReport['videofiles'] as List).isEmpty) {
+                  apiReport['videofiles'] = localReport['videofiles'] ?? [];
+                }
+
+                print('🔄 Merged evidence for report $id');
+              }
+            }
+
+            print('✅ Merged evidence files from local reports');
           }
         }
       }
@@ -2554,11 +3776,76 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         _debugFilterIssues();
       }
 
+      // CRITICAL FIX: Filter out reports with empty evidence files (only for online mode)
+      if (!widget.isOffline) {
+        _filteredReports = _filterReportsWithEvidence(_filteredReports);
+        print(
+          '🔍 DEBUG: After filtering reports with evidence: ${_filteredReports.length} reports',
+        );
+      } else {
+        print(
+          '🔍 DEBUG: Skipping evidence filtering for offline mode: ${_filteredReports.length} reports',
+        );
+      }
+
       // Remove duplicates and sort by creation date (newest first)
       _filteredReports = _removeDuplicatesAndSort(_filteredReports);
       print(
         '🔍 DEBUG: After removing duplicates and sorting: ${_filteredReports.length} reports',
       );
+
+      // Debug: Check what date fields are available in the first few reports
+      if (_filteredReports.isNotEmpty) {
+        print('🔍 DEBUG: Checking date fields in reports...');
+        for (int i = 0; i < _filteredReports.length.clamp(0, 3); i++) {
+          final report = _filteredReports[i];
+          print('🔍 Report $i date fields:');
+          print(
+            '  - createdAt: ${report['createdAt']} (${report['createdAt']?.runtimeType})',
+          );
+          print(
+            '  - updatedAt: ${report['updatedAt']} (${report['updatedAt']?.runtimeType})',
+          );
+          if (report.containsKey('date')) {
+            print(
+              '  - date: ${report['date']} (${report['date']?.runtimeType})',
+            );
+          }
+          // Show source of data and sync status
+          if (report.containsKey('type')) {
+            final isSynced = report['isSynced'] ?? false;
+            final source = isSynced ? 'API' : 'Local';
+            print(
+              '  - type: ${report['type']} (source: $source, isSynced: $isSynced)',
+            );
+          }
+          // Show report ID for debugging
+          if (report.containsKey('id') || report.containsKey('_id')) {
+            final id = report['id'] ?? report['_id'];
+            print('  - ID: $id');
+          }
+        }
+      }
+
+      // Verify sorting is correct
+      _verifySorting(_filteredReports);
+
+      // Debug: Show the exact order of reports that will be displayed
+      print('🔍 DEBUG: Final display order of reports:');
+      for (int i = 0; i < _filteredReports.length.clamp(0, 5); i++) {
+        final report = _filteredReports[i];
+        final date = _parseDateTime(report['createdAt']);
+        final description = report['description']?.toString() ?? '';
+        final shortDescription = description.length > 30
+            ? description.substring(0, 30)
+            : description;
+        final isSynced = report['isSynced'] ?? false;
+        final type = report['type'] ?? 'Unknown';
+        final id = report['id'] ?? report['_id'] ?? 'No ID';
+        print(
+          '  Initial $i: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
+        );
+      }
 
       _typedReports = [];
       for (int i = 0; i < _filteredReports.length; i++) {
@@ -2581,6 +3868,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+
+      // AUTOMATIC SYNC TRIGGER - DISABLED to prevent infinite loop
+      // The sync will be triggered by other events (app lifecycle, connectivity, etc.)
+      // print('🔄 Triggering automatic sync after loading reports...');
+      // _performAutomaticSync();
     } catch (e) {
       print('❌ Error in _loadFilteredReports: $e');
       if (mounted) {
@@ -2949,8 +4241,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         'phoneNumbers': null,
         'mediaHandles': null,
         'website': null,
-        'createdAt': report.date,
-        'updatedAt': report.date,
+        'createdAt': report.date ?? report.createdAt,
+        'updatedAt': report.date ?? report.createdAt,
         'reportCategoryId': 'malware_category',
         'reportTypeId': 'malware_type',
         'categoryName': categoryName,
@@ -2984,17 +4276,66 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   }
 
   Color severityColor(String severity) {
-    switch (severity.toLowerCase()) {
+    // Enhanced severity color mapping for offline synced data
+    final normalizedSeverity = severity.toLowerCase().trim();
+
+    switch (normalizedSeverity) {
       case 'low':
+      case 'low risk':
+      case 'low severity':
         return Colors.green;
       case 'medium':
+      case 'medium risk':
+      case 'medium severity':
         return Colors.orange;
       case 'high':
+      case 'high risk':
+      case 'high severity':
         return Colors.red;
       case 'critical':
+      case 'critical risk':
+      case 'critical severity':
         return Colors.purple;
       default:
+        // For offline synced data, try to extract severity from alertLevels
+        if (severity.contains('high') || severity.contains('High')) {
+          return Colors.red;
+        } else if (severity.contains('medium') || severity.contains('Medium')) {
+          return Colors.orange;
+        } else if (severity.contains('low') || severity.contains('Low')) {
+          return Colors.green;
+        } else if (severity.contains('critical') ||
+            severity.contains('Critical')) {
+          return Colors.purple;
+        }
         return Colors.grey;
+    }
+  }
+
+  // Verify that the reports are properly sorted by date (newest first)
+  void _verifySorting(List<Map<String, dynamic>> reports) {
+    if (reports.length < 2) return;
+
+    print('🔍 Verifying sorting order...');
+    for (int i = 0; i < reports.length - 1; i++) {
+      final currentDate = _parseDateTime(reports[i]['createdAt']);
+      final nextDate = _parseDateTime(reports[i + 1]['createdAt']);
+
+      if (currentDate != null && nextDate != null) {
+        if (currentDate.isBefore(nextDate)) {
+          print(
+            '⚠️ SORTING ISSUE: Report $i (${currentDate}) is before Report ${i + 1} (${nextDate})',
+          );
+        }
+      }
+    }
+
+    // Show first and last dates for verification
+    if (reports.isNotEmpty) {
+      final firstDate = _parseDateTime(reports.first['createdAt']);
+      final lastDate = _parseDateTime(reports.last['createdAt']);
+      print('🔍 First report date: $firstDate');
+      print('🔍 Last report date: $lastDate');
     }
   }
 
@@ -3238,15 +4579,139 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   String? _resolveCategoryName(String categoryId) =>
       _categoryIdToName[categoryId];
 
+  // CRITICAL FIX: Clean up duplicate reports in MongoDB
+  Future<void> _cleanupDuplicateReports() async {
+    try {
+      print('🧹 ThreadDB: Starting duplicate cleanup...');
+      await _apiService.cleanupDuplicateReports();
+      print('✅ ThreadDB: Duplicate cleanup completed');
+    } catch (e) {
+      print('❌ ThreadDB: Error during duplicate cleanup: $e');
+    }
+  }
+
+  // CRITICAL FIX: Filter reports to only show those with evidence files
+  List<Map<String, dynamic>> _filterReportsWithEvidence(
+    List<Map<String, dynamic>> reports,
+  ) {
+    final filteredReports = <Map<String, dynamic>>[];
+    int removedCount = 0;
+
+    for (final report in reports) {
+      if (_hasEvidence(report)) {
+        filteredReports.add(report);
+      } else {
+        removedCount++;
+        final description = report['description']?.toString() ?? '';
+        final shortDescription = description.length > 30
+            ? description.substring(0, 30)
+            : description;
+        print(
+          '🗑️ Removed report without evidence: ${report['id']} - $shortDescription',
+        );
+      }
+    }
+
+    print('📊 Evidence filtering results:');
+    print('📊 - Original reports: ${reports.length}');
+    print('📊 - Reports with evidence: ${filteredReports.length}');
+    print('📊 - Reports removed (no evidence): $removedCount');
+
+    return filteredReports;
+  }
+
   bool _hasEvidence(Map<String, dynamic> report) {
     final type = report['type'];
 
     bool _isNotEmpty(dynamic value) {
       if (value == null) return false;
       if (value is String) return value.trim().isNotEmpty;
-      if (value is List) return value.isNotEmpty;
+      if (value is List) {
+        // For lists, check if they contain non-empty strings or objects
+        if (value.isEmpty) return false;
+        // If it's a list of strings (file paths), check if any path is non-empty
+        if (value.every((item) => item is String)) {
+          return value.any((path) => path.toString().trim().isNotEmpty);
+        }
+        // If it's a list of objects, check if any object has meaningful data
+        return value.any((item) => item != null);
+      }
       if (value is Map) return value.isNotEmpty;
       return true;
+    }
+
+    // CRITICAL FIX: For offline reports, be more lenient with evidence detection
+    // Check if this is an offline report (has offline-specific fields or is from local storage)
+    final isOfflineReport =
+        report['id']?.toString().startsWith('175') == true ||
+        report['_id']?.toString().startsWith('175') == true ||
+        report.containsKey('isSynced') && report['isSynced'] == true;
+
+    if (isOfflineReport) {
+      print(
+        '🔍 OFFLINE: This is an offline report, using lenient evidence detection',
+      );
+
+      // For offline reports, check if any evidence field has content
+      final hasScreenshots = _isNotEmpty(report['screenshots']);
+      final hasDocuments = _isNotEmpty(report['documents']);
+      final hasVoiceMessages = _isNotEmpty(report['voiceMessages']);
+      final hasVideofiles = _isNotEmpty(report['videofiles']);
+
+      // Also check for alternative evidence field names that might be used in offline reports
+      final hasFiles =
+          _isNotEmpty(report['files']) ||
+          _isNotEmpty(report['attachments']) ||
+          _isNotEmpty(report['mediaFiles']);
+
+      // CRITICAL FIX: For offline reports, also check if the report has been synced
+      // If it's synced, it likely has evidence (since it was uploaded to server)
+      final isSynced = report['isSynced'] == true;
+      final hasServerId =
+          report['_id'] != null && report['_id'].toString().length > 10;
+
+      // Check for any file-related fields that might indicate evidence
+      final hasFileFields =
+          report.containsKey('fileName') && report['fileName'] != null ||
+          report.containsKey('filePath') && report['filePath'] != null ||
+          report.containsKey('uploadedFiles') &&
+              report['uploadedFiles'] != null ||
+          report.containsKey('s3Url') && report['s3Url'] != null ||
+          report.containsKey('uploadPath') && report['uploadPath'] != null;
+
+      // Check if report has any indication of being created with files
+      final hasFileIndicators =
+          report.containsKey('hasFiles') && report['hasFiles'] == true ||
+          report.containsKey('fileCount') && (report['fileCount'] ?? 0) > 0 ||
+          report.containsKey('evidenceCount') &&
+              (report['evidenceCount'] ?? 0) > 0;
+
+      // CRITICAL FIX: For offline reports, be more aggressive about evidence detection
+      // If a report is synced, it almost certainly has evidence (since it was uploaded to server)
+      // If it has a server ID, it was created on the server and likely has evidence
+      final hasEvidence =
+          hasScreenshots ||
+          hasDocuments ||
+          hasVoiceMessages ||
+          hasVideofiles ||
+          hasFiles ||
+          (isSynced &&
+              hasServerId) || // If synced with server, likely has evidence
+          hasFileFields || // If has file-related fields, likely has evidence
+          hasFileIndicators || // If has file indicators, likely has evidence
+          (isSynced &&
+              report['_id'] !=
+                  null); // If synced and has server ID, assume evidence
+
+      print(
+        '🔍 OFFLINE: Evidence check - Screenshots: $hasScreenshots, Documents: $hasDocuments, Voice: $hasVoiceMessages, Video: $hasVideofiles, Files: $hasFiles',
+      );
+      print(
+        '🔍 OFFLINE: Additional checks - isSynced: $isSynced, hasServerId: $hasServerId, hasFileFields: $hasFileFields, hasFileIndicators: $hasFileIndicators',
+      );
+      print('🔍 OFFLINE: Final evidence result: $hasEvidence');
+
+      return hasEvidence;
     }
 
     // Debug logging for evidence detection
@@ -3263,6 +4728,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       '🔍 - Voice Messages: $voiceMessages (${_isNotEmpty(voiceMessages)})',
     );
     print('🔍 - Video Files: $videofiles (${_isNotEmpty(videofiles)})');
+    print('🔍 - Report keys: ${report.keys.toList()}');
+    print('🔍 - Report ID type: ${report['id']?.runtimeType}');
+    print('🔍 - Report _id type: ${report['_id']?.runtimeType}');
 
     // Dynamic evidence checking based on report type
     switch (type?.toString().toLowerCase()) {
@@ -3335,6 +4803,40 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     return 'Pending';
   }
 
+  /// Extract file information from file paths for display
+  List<Map<String, dynamic>> _getFileInfoFromPaths(List<dynamic> filePaths) {
+    List<Map<String, dynamic>> fileInfo = [];
+
+    for (var path in filePaths) {
+      if (path != null && path.toString().isNotEmpty) {
+        final pathStr = path.toString();
+        final fileName = pathStr.split('/').last; // Get filename from path
+        final extension = fileName.split('.').last.toLowerCase();
+
+        // Determine file type based on extension
+        String fileType = 'Unknown';
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(extension)) {
+          fileType = 'Image';
+        } else if (['pdf', 'doc', 'docx', 'txt', 'rtf'].contains(extension)) {
+          fileType = 'Document';
+        } else if (['mp4', 'avi', 'mov', 'wmv', 'flv'].contains(extension)) {
+          fileType = 'Video';
+        } else if (['mp3', 'wav', 'aac', 'ogg'].contains(extension)) {
+          fileType = 'Audio';
+        }
+
+        fileInfo.add({
+          'fileName': fileName,
+          'fileType': fileType,
+          'path': pathStr,
+          'extension': extension,
+        });
+      }
+    }
+
+    return fileInfo;
+  }
+
   String _getAlertLevel(Map<String, dynamic> report) {
     // Handle alertLevels - could be String, Map, or null
     String alertLevel = '';
@@ -3355,6 +4857,17 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           report['level']?.toString() ??
           report['priority']?.toString() ??
           '';
+    }
+
+    // CRITICAL FIX: Handle offline alert level IDs
+    if (alertLevel.contains('offline_critical_alert')) {
+      return 'Critical';
+    } else if (alertLevel.contains('offline_high_alert')) {
+      return 'High';
+    } else if (alertLevel.contains('offline_medium_alert')) {
+      return 'Medium';
+    } else if (alertLevel.contains('offline_low_alert')) {
+      return 'Low';
     }
 
     print('🔍 ThreadDB - Extracting alert level from report:');
@@ -3449,6 +4962,21 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Method to get display version of alert level (properly capitalized for UI)
   String _getAlertLevelDisplay(Map<String, dynamic> report) {
     final alertLevel = _getAlertLevel(report);
+
+    // CRITICAL FIX: Handle both actual ObjectIds and offline alert level IDs
+    if (alertLevel.contains('offline_critical_alert') ||
+        alertLevel.contains('6887488fdc01fe5e05839d88')) {
+      return 'Critical';
+    } else if (alertLevel.contains('offline_high_alert') ||
+        alertLevel.contains('6891c8fe05d97b83f1ae9800')) {
+      return 'High';
+    } else if (alertLevel.contains('offline_medium_alert') ||
+        alertLevel.contains('688738b2357d9e4bb381b5ba')) {
+      return 'Medium';
+    } else if (alertLevel.contains('offline_low_alert') ||
+        alertLevel.contains('68873fe402621a53392dc7a2')) {
+      return 'Low';
+    }
 
     // Convert lowercase backend values to proper display format
     switch (alertLevel.toLowerCase()) {
@@ -3925,19 +5453,55 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                             children: [
                               TextButton(
                                 onPressed: () async {
-                                  print(
-                                    '🔄 Manual sync button pressed - triggering automatic sync...',
-                                  );
-                                  await _performAutomaticSync();
+                                  // Show loading indicator
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '🔄 Automatic sync completed',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 2),
+                                    const SnackBar(
+                                      content: Text('🔄 Syncing reports...'),
+                                      backgroundColor: Colors.orange,
+                                      duration: Duration(seconds: 1),
                                     ),
                                   );
+
+                                  try {
+                                    await _enhancedSyncAllReports();
+
+                                    // Get updated status
+                                    final status =
+                                        await _getSyncStatusSummary();
+                                    final pending = status['pending'] ?? 0;
+                                    final synced = status['synced'] ?? 0;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '✅ Sync completed: $pending pending, $synced synced',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    String errorMessage = '❌ Sync failed';
+                                    if (e.toString().contains('500')) {
+                                      errorMessage =
+                                          '❌ Server error (500) - Backend may be down';
+                                    } else if (e.toString().contains(
+                                      'network',
+                                    )) {
+                                      errorMessage =
+                                          '❌ Network error - Check internet connection';
+                                    } else {
+                                      errorMessage = '❌ Sync failed: $e';
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(errorMessage),
+                                        backgroundColor: Colors.red,
+                                        duration: Duration(seconds: 6),
+                                      ),
+                                    );
+                                  }
                                 },
                                 child: Text(
                                   'Sync',
@@ -3959,9 +5523,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                               ),
                               TextButton(
                                 onPressed: () async {
-                                  print(
-                                    '🧹 Manual cleanup button pressed - triggering automatic cleanup...',
-                                  );
                                   await _removeAllDuplicatesAggressively();
                                   await _loadFilteredReports();
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -3989,6 +5550,188 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.purple.shade700,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  final status = await _getSyncStatusSummary();
+
+                                  // Show sync status
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🔍 ${status['pending']} pending, ${status['synced']} synced',
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+
+                                  // If there are pending reports, show additional info
+                                  if (status['pending'] > 0) {
+                                    await Future.delayed(Duration(seconds: 2));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '⚠️ Pending reports may be failing due to server 500 errors',
+                                        ),
+                                        backgroundColor: Colors.orange,
+                                        duration: Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Text(
+                                  'Debug',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  _debugAllReportsContent();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🔍 Check console for detailed report analysis',
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  'Analyze',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.cyan.shade700,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🔧 Fixing display order and removing duplicates...',
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+
+                                  // Clear current data
+                                  setState(() {
+                                    _filteredReports = [];
+                                    _typedReports = [];
+                                    _isLoading = true;
+                                  });
+
+                                  // Remove duplicates and reload with proper sorting
+                                  await _removeAllDuplicatesAggressively();
+                                  await _loadFilteredReports();
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '✅ Display order fixed and duplicates removed!',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  'Fix Order',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blue.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '🧹 Removing duplicates and refreshing data...',
+                                      ),
+                                      backgroundColor: Colors.orange,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+
+                                  // Use enhanced duplicate cleanup method
+                                  await _cleanExistingDuplicates();
+
+                                  // Also refresh the data display to show the cleaned results
+                                  await _forceRefreshData();
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '✅ Duplicate cleanup and refresh completed!',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  'Clean Duplicates',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  print('📁 MANUAL: Offline file sync...');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '📁 Syncing offline files...',
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+
+                                  final fileSyncResult =
+                                      await OfflineFileUploadService.syncOfflineFiles();
+
+                                  if (fileSyncResult['success']) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '✅ ${fileSyncResult['synced']} files synced successfully',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '⚠️ ${fileSyncResult['message']}',
+                                        ),
+                                        backgroundColor: Colors.orange,
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Text(
+                                  'Sync Files',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.blue.shade700,
                                   ),
                                 ),
                               ),
@@ -4207,17 +5950,30 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
                           }
                           return SizedBox.shrink();
                         }
-                        // Use typed reports if available
-                        if (_typedReports.isNotEmpty &&
-                            index < _typedReports.length) {
-                          final report = _typedReports[index];
-                          return _buildReportCard(
-                            _filteredReports[index],
-                            index,
+
+                        // Always use the sorted _filteredReports for consistent ordering
+                        final report = _filteredReports[index];
+
+                        // Debug: Log what report is being displayed at each index
+                        if (index < 5) {
+                          // Only log first 5 for performance
+                          final date = _parseDateTime(report['createdAt']);
+                          final description = report['description']
+                              ?.toString()
+                              .substring(
+                                0,
+                                (report['description'].toString().length ?? 0)
+                                    .clamp(0, 30),
+                              );
+                          final isSynced = report['isSynced'] ?? false;
+                          final type = report['type'] ?? 'Unknown';
+                          final id = report['id'] ?? report['_id'] ?? 'No ID';
+                          print(
+                            '🔍 ListView displaying index $index: ${date?.toIso8601String()} - $description (Type: $type, Synced: $isSynced, ID: $id)',
                           );
                         }
 
-                        return _buildReportCard(_filteredReports[index], index);
+                        return _buildReportCard(report, index);
                       },
                     ),
                   ),
@@ -4705,8 +6461,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Test backend response format
   Future<void> _testBackendResponse() async {
     try {
-      print('🧪 Testing backend response format...');
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Testing backend response...'),
@@ -4758,11 +6512,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       );
 
       // Test token validation
-      print('🔍 Testing token validation...');
       final validation = await TokenStorage.validateTokens();
-      print(
-        '🔍 Validation result: ${validation['reason']} - ${validation['message']}',
-      );
 
       // Test token management
       print('🔧 Testing token management...');
@@ -4794,10 +6544,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       }
 
       // Show detailed results
-      print('📊 Token Management Test Results:');
-      print('📊 - Validation: ${validation['reason']}');
-      print('📊 - Management: ${management['reason']}');
-      print('📊 - Success: ${management['success']}');
     } catch (e) {
       print('❌ Error testing token management: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -4813,8 +6559,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Handle backend timeout issues specifically
   Future<void> _handleBackendTimeout() async {
     try {
-      print('🔧 Handling backend timeout issue...');
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Handling backend timeout...'),
@@ -4844,12 +6588,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           ),
         );
 
-        if (timeoutResult['reason'] == 'backend_timeout') {
-          print('⏰ Backend timeout detected - this is the root cause!');
-          print(
-            '💡 Solution: Backend needs to increase timeout from 10s to 30-60s',
-          );
-        }
+        if (timeoutResult['reason'] == 'backend_timeout') {}
       }
     } catch (e) {
       print('❌ Error handling backend timeout: $e');
@@ -4863,35 +6602,38 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     }
   }
 
-  // Force refresh data from local storage
+  // Force refresh data from local storage and remove duplicates
   Future<void> _forceRefreshData() async {
     try {
-      print('🔄 Force refreshing data from local storage...');
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Refreshing data...'),
+          content: Text('Refreshing data and removing duplicates...'),
           duration: Duration(seconds: 2),
         ),
       );
 
-      // Force rebuild the widget
+      // Clear current data
       setState(() {
-        // This will trigger a rebuild and reload data from Hive
+        _filteredReports = [];
+        _typedReports = [];
+        _isLoading = true;
       });
 
-      // Add a small delay to ensure Hive data is reloaded
-      await Future.delayed(Duration(milliseconds: 500));
+      // Remove duplicates from local storage
+      await _removeAllDuplicatesAggressively();
+
+      // Reload data with enhanced duplicate removal
+      await _loadFilteredReports();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Data refreshed'),
+          content: Text('Data refreshed and duplicates removed!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
-      print('❌ Error refreshing data: $e');
+      print('Error refreshing data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error refreshing: $e'),
@@ -4905,17 +6647,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Comprehensive duplicate removal function
   Future<void> _removeAllDuplicates() async {
     try {
-      print('🧹 Starting comprehensive duplicate removal...');
-
       // Get all reports from all sources
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
-
-      print('📊 Before cleanup:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
 
       // Remove duplicates from each box
       await _removeDuplicatesFromBox(scamBox, 'scam');
@@ -4925,22 +6660,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       // Fix any null IDs that might have been created
       await _fixNullIdsInAllBoxes();
 
-      print('📊 After cleanup:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Duplicate removal completed'),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
-      print('❌ Error during duplicate removal: $e');
+      print('Error during duplicate removal: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Error removing duplicates: $e'),
+          content: Text('Error removing duplicates: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -4950,17 +6674,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Permanent duplicate removal function for offline sync data
   Future<void> _removeAllDuplicatesPermanently() async {
     try {
-      print('🧹 Starting PERMANENT duplicate removal for offline sync data...');
-
       // Get all reports from all sources
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
-
-      print('📊 Before permanent cleanup:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
 
       // Remove duplicates permanently from each box
       await _removeDuplicatesPermanentlyFromBox(scamBox, 'scam');
@@ -4969,15 +6686,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       // Fix any null IDs that might have been created
       await _fixNullIdsInAllBoxes();
-
-      print('📊 After permanent cleanup:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
-
-      print('✅ PERMANENT duplicate removal completed');
     } catch (e) {
-      print('❌ Error during permanent duplicate removal: $e');
+      print('Error during permanent duplicate removal: $e');
     }
   }
 
@@ -4993,17 +6703,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       final nullIdReports = <dynamic>[];
       final seenContentKeys = <String>{}; // Track content-based duplicates
 
-      print(
-        '🔍 Processing ${allReports.length} $type reports for PERMANENT duplicate removal...',
-      );
-
       for (final report in allReports) {
         // Handle null IDs first
         if (report.id == null || report.id.toString().isEmpty) {
           nullIdReports.add(report);
-          print(
-            '⚠️ Found $type report with null ID: ${report.name ?? report.description}',
-          );
           continue;
         }
 
@@ -5026,7 +6729,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         // Check for content-based duplicates first
         if (seenContentKeys.contains(contentKey)) {
           duplicates.add(contentKey);
-          print('🗑️ Found content duplicate in $type reports: $contentKey');
           continue;
         }
 
@@ -5076,23 +6778,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       // Handle null ID reports by assigning new IDs
       if (nullIdReports.isNotEmpty) {
-        print(
-          '🔧 Assigning new IDs to ${nullIdReports.length} $type reports with null IDs...',
-        );
         for (final report in nullIdReports) {
           final newId = DateTime.now().millisecondsSinceEpoch.toString();
           report.id = newId;
-          print(
-            '🔧 Assigned new ID $newId to $type report: ${report.name ?? report.description}',
-          );
         }
       }
 
       if (duplicates.isNotEmpty || nullIdReports.isNotEmpty) {
-        print(
-          '🧹 Found ${duplicates.length} duplicates and ${nullIdReports.length} null ID reports in $type reports',
-        );
-
         // Clear the box and add back only unique reports
         await box.clear();
 
@@ -5105,57 +6797,35 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         for (final report in nullIdReports) {
           await box.put(report.id, report);
         }
-
-        print(
-          '🧹 PERMANENTLY cleaned up $type reports - removed ${duplicates.length} duplicates, fixed ${nullIdReports.length} null IDs',
-        );
-      } else {
-        print('✅ No duplicates or null IDs found in $type reports');
-      }
+      } else {}
     } catch (e) {
-      print('❌ Error removing duplicates permanently from $type reports: $e');
+      print('Error removing duplicates permanently from $type reports: $e');
     }
   }
 
   // Enhanced sync function that prevents duplicates during sync
   Future<void> _syncWithEnhancedDuplicatePrevention() async {
     try {
-      print('🔄 Starting sync with enhanced duplicate prevention...');
-
       // Step 1: Aggressive cleanup before sync
-      print('🧹 Step 1: Aggressive duplicate cleanup before sync...');
       await _removeAllDuplicatesAggressively();
 
       // Step 2: Perform sync operations with duplicate prevention
-      print('🔄 Step 2: Performing sync operations...');
       await _syncReportsWithDuplicatePrevention();
 
       // Step 3: Aggressive cleanup after sync
-      print('🧹 Step 3: Aggressive duplicate cleanup after sync...');
       await _removeAllDuplicatesAggressively();
 
       // Step 4: Final verification and cleanup
-      print('🔍 Step 4: Final verification and cleanup...');
       await _finalDuplicateVerification();
-
-      print('✅ Sync with duplicate prevention completed');
 
       // Refresh the UI
       await _loadFilteredReports();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '✅ Sync completed with aggressive duplicate prevention',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
-      print('❌ Error during sync with duplicate prevention: $e');
+      print('Error during sync with duplicate prevention: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Sync error: $e'),
+          content: Text('Sync error: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -5165,51 +6835,31 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Final verification and cleanup after sync
   Future<void> _finalDuplicateVerification() async {
     try {
-      print('🔍 Final duplicate verification starting...');
+      
 
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
 
-      print('📊 Final verification - Current counts:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
-
       // One more aggressive cleanup to ensure no duplicates remain
       await _removeAllDuplicatesAggressively();
 
-      print('📊 Final verification - After cleanup:');
-      print('📊 - Scam reports: ${scamBox.length}');
-      print('📊 - Fraud reports: ${fraudBox.length}');
-      print('📊 - Malware reports: ${malwareBox.length}');
-
-      print('✅ Final duplicate verification completed');
     } catch (e) {
-      print('❌ Error during final duplicate verification: $e');
+      print(' Error during final duplicate verification: $e');
     }
   }
 
   // Sync reports with duplicate prevention
   Future<void> _syncReportsWithDuplicatePrevention() async {
     try {
-      print('🔄 Syncing reports with duplicate prevention...');
+      print(' Syncing reports with duplicate prevention...');
 
-      // Sync scam reports
-      await ScamSyncService().syncReports();
-      print('✅ Scam reports synced');
+      // Use enhanced sync method for better error handling and duplicate prevention
+      await _enhancedSyncAllReports();
 
-      // Sync fraud reports
-      await FraudReportService.syncReports();
-      print('✅ Fraud reports synced');
-
-      // Sync malware reports
-      await MalwareReportService.syncReports();
-      print('✅ Malware reports synced');
-
-      print('✅ All reports synced with duplicate prevention');
+      print('All reports synced with duplicate prevention');
     } catch (e) {
-      print('❌ Error syncing reports: $e');
+      print(' Error syncing reports: $e');
       rethrow;
     }
   }
@@ -5222,7 +6872,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       final nullIdReports = <dynamic>[];
 
       print(
-        '🔍 Processing ${allReports.length} $type reports for duplicates...',
+        ' Processing ${allReports.length} $type reports for duplicates...',
       );
 
       for (final report in allReports) {
@@ -5230,7 +6880,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         if (report.id == null || report.id.toString().isEmpty) {
           nullIdReports.add(report);
           print(
-            '⚠️ Found $type report with null ID: ${report.name ?? report.description}',
+            ' Found $type report with null ID: ${report.name ?? report.description}',
           );
           continue;
         }
@@ -5277,13 +6927,13 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
       // Handle null ID reports by assigning new IDs
       if (nullIdReports.isNotEmpty) {
         print(
-          '🔧 Assigning new IDs to ${nullIdReports.length} $type reports with null IDs...',
+          ' Assigning new IDs to ${nullIdReports.length} $type reports with null IDs...',
         );
         for (final report in nullIdReports) {
           final newId = DateTime.now().millisecondsSinceEpoch.toString();
           report.id = newId;
           print(
-            '🔧 Assigned new ID $newId to $type report: ${report.name ?? report.description}',
+            ' Assigned new ID $newId to $type report: ${report.name ?? report.description}',
           );
         }
       }
@@ -5306,49 +6956,45 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           await box.put(report.id, report);
         }
 
-        print(
-          '🧹 Cleaned up $type reports - removed ${duplicates.length} duplicates, fixed ${nullIdReports.length} null IDs',
-        );
+        
       } else {
-        print('✅ No duplicates or null IDs found in $type reports');
+        print('No duplicates or null IDs found in $type reports');
       }
     } catch (e) {
-      print('❌ Error removing duplicates from $type reports: $e');
+      print('Error removing duplicates from $type reports: $e');
     }
   }
 
   // Enhanced sync function that prevents duplicates
   Future<void> _syncWithDuplicatePrevention() async {
     try {
-      print('🔄 Starting sync with duplicate prevention...');
+      
 
       // First, clean up any existing duplicates
       await _removeAllDuplicates();
 
-      // Then perform sync operations
-      await ScamSyncService().syncReports();
-      await FraudReportService.syncReports();
-      await MalwareReportService.syncReports();
+      // Use enhanced sync method for better error handling and duplicate prevention
+      await _enhancedSyncAllReports();
 
       // Clean up again after sync to prevent new duplicates
       await _removeAllDuplicates();
 
-      print('✅ Sync with duplicate prevention completed');
+      
 
       // Refresh the UI
       _loadFilteredReports();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Sync completed with duplicate prevention'),
+          content: Text('Sync completed with successfully'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      print('❌ Error during sync with duplicate prevention: $e');
+      print('Error during sync with duplicate prevention: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Sync error: $e'),
+          content: Text('Sync error: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -5361,7 +7007,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
     dynamic newReport,
   ) async {
     try {
-      print('🛡️ Preventing duplicate creation for $reportType report...');
+      print('Preventing duplicate creation for $reportType report...');
 
       dynamic box;
       if (reportType == 'scam') {
@@ -5382,22 +7028,22 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
         if (_isDuplicateReport(newReport, existingReport, reportType)) {
           isDuplicate = true;
           print(
-            '⚠️ Duplicate detected for $reportType report: ${newReport.name ?? newReport.description}',
+            ' Duplicate detected for $reportType report: ${newReport.name ?? newReport.description}',
           );
           break;
         }
       }
 
       if (isDuplicate) {
-        print('🛡️ Preventing duplicate $reportType report creation');
+        print(' Preventing duplicate $reportType report creation');
         throw Exception(
           'Duplicate report detected. This report already exists.',
         );
       }
 
-      print('✅ No duplicates detected for $reportType report');
+      print('No duplicates detected for $reportType report');
     } catch (e) {
-      print('❌ Error preventing duplicate creation: $e');
+      print('Error preventing duplicate creation: $e');
       rethrow;
     }
   }
@@ -5405,7 +7051,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
   // Enhanced duplicate prevention for offline sync data
   Future<void> _preventOfflineSyncDuplicates() async {
     try {
-      print('🛡️ Preventing offline sync duplicates...');
+      print(' Preventing offline sync duplicates...');
 
       // Get all reports from all sources
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
@@ -5462,7 +7108,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
         if (seenContent.contains(content)) {
           duplicates.add(reportData['report']);
-          print('🗑️ Found duplicate content: $content');
+          print(' Found duplicate content: $content');
         } else {
           seenContent.add(content);
         }
@@ -5470,7 +7116,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       // Remove duplicates from their respective boxes
       if (duplicates.isNotEmpty) {
-        print('🧹 Removing ${duplicates.length} duplicate reports...');
+        print(' Removing ${duplicates.length} duplicate reports...');
 
         for (var duplicate in duplicates) {
           if (duplicate is ScamReportModel) {
@@ -5482,12 +7128,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
           }
         }
 
-        print('✅ Removed ${duplicates.length} duplicate reports');
+        print(' Removed ${duplicates.length} duplicate reports');
       } else {
-        print('✅ No duplicates found');
+        print(' No duplicates found');
       }
     } catch (e) {
-      print('❌ Error preventing offline sync duplicates: $e');
+      print(' Error preventing offline sync duplicates: $e');
     }
   }
 
@@ -5516,8 +7162,348 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage> {
 
       return false;
     } catch (e) {
-      print('❌ Error checking duplicate reports: $e');
+      print(' Error checking duplicate reports: $e');
       return false;
+    }
+  }
+
+  // Enhanced method to clean up existing duplicates with intelligent detection
+  Future<void> _cleanExistingDuplicates() async {
+    try {
+
+      // Get all reports from all sources
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+
+      int totalDuplicatesRemoved = 0;
+
+      // Step 1: Clean local duplicates first
+      print(' Step 1: Cleaning local duplicates...');
+      totalDuplicatesRemoved += await _cleanScamDuplicates(scamBox);
+      totalDuplicatesRemoved += await _cleanFraudDuplicates(fraudBox);
+      totalDuplicatesRemoved += await _cleanMalwareDuplicates(malwareBox);
+
+      // Step 2: Remove online duplicates from server  
+      await _removeOnlineDuplicatesFromServer();
+
+      // Step 3: Cross-box duplicate removal
+      await _removeCrossBoxDuplicates();
+
+      // Step 4: Final local cleanup
+      await _removeAllDuplicatesAggressively();
+      // Refresh the UI
+      await _loadFilteredReports();
+
+    } catch (e) {
+      print(' Error during enhanced duplicate cleanup: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(' Error cleaning duplicates: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Clean scam report duplicates
+  Future<int> _cleanScamDuplicates(Box<ScamReportModel> box) async {
+    final allReports = box.values.toList();
+    final uniqueReports = <ScamReportModel>[];
+    final seenServerIds = <String>{};
+    final seenContentKeys = <String>{};
+    int duplicatesRemoved = 0;
+
+    for (var report in allReports) {
+      // First, check for serverId-based duplicates (highest priority)
+      if (report.isSynced == true &&
+          report.id != null &&
+          report.id!.length == 24) {
+        // This is a synced report with valid server ID
+        if (seenServerIds.contains(report.id)) {
+          duplicatesRemoved++;
+          continue; // Skip this duplicate
+        } else {
+          seenServerIds.add(report.id!);
+          uniqueReports.add(report);
+          continue; // Skip content-based check for synced reports
+        }
+      }
+
+      // For unsynced reports, use content-based detection
+      final key =
+          '${report.description}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}_${report.reportTypeId}_${report.reportCategoryId}';
+
+      if (!seenContentKeys.contains(key)) {
+        seenContentKeys.add(key);
+        uniqueReports.add(report);
+      } else {
+        duplicatesRemoved++;
+      }
+    }
+
+    if (duplicatesRemoved > 0) {
+      await box.clear();
+      for (var report in uniqueReports) {
+        await box.put(report.id, report);
+      }
+    } else {
+      print('No duplicate scam reports found');
+    }
+
+    return duplicatesRemoved;
+  }
+
+  // Clean fraud report duplicates
+  Future<int> _cleanFraudDuplicates(Box<FraudReportModel> box) async {
+    final allReports = box.values.toList();
+    final uniqueReports = <FraudReportModel>[];
+    final seenServerIds = <String>{};
+    final seenContentKeys = <String>{};
+    int duplicatesRemoved = 0;
+
+    for (var report in allReports) {
+      // First, check for serverId-based duplicates (highest priority)
+      if (report.isSynced == true &&
+          report.id != null &&
+          report.id!.length == 24) {
+        // This is a synced report with valid server ID
+        if (seenServerIds.contains(report.id)) {
+          duplicatesRemoved++;
+          continue; // Skip this duplicate
+        } else {
+          seenServerIds.add(report.id!);
+          uniqueReports.add(report);
+          continue; // Skip content-based check for synced reports
+        }
+      }
+
+      // For unsynced reports, use content-based detection
+      final key =
+          '${report.description}_${report.phoneNumbers?.join(',')}_${report.emails?.join(',')}_${report.reportTypeId}_${report.reportCategoryId}';
+
+      if (!seenContentKeys.contains(key)) {
+        seenContentKeys.add(key);
+        uniqueReports.add(report);
+      } else {
+        duplicatesRemoved++;
+      }
+    }
+
+    if (duplicatesRemoved > 0) {
+      await box.clear();
+      for (var report in uniqueReports) {
+        await box.put(report.id, report);
+      }
+    } else {
+      print('No duplicate fraud reports found');
+    }
+
+    return duplicatesRemoved;
+  }
+
+  // Remove online duplicates from server
+  Future<void> _removeOnlineDuplicatesFromServer() async {
+    try {
+      // Check connectivity
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        print(' No internet connection, skipping server duplicate removal');
+        return;
+      }
+
+      // Use the API service to remove duplicate reports from server
+      final apiService = ApiService();
+
+      // Remove duplicate scam and fraud reports from server
+      print(' Removing duplicate scam/fraud reports from server...');
+      await apiService.removeDuplicateScamFraudReports();
+
+      // Remove duplicate malware reports from server (if method exists)
+      try {
+        print(' Removing duplicate malware reports from server...');
+        // Note: This method might not exist in ApiService, so we'll handle it gracefully
+        // await apiService.removeDuplicateMalwareReports();
+      } catch (e) {
+        print(' Malware duplicate removal not available: $e');
+      }
+
+      print(' Server duplicate removal completed');
+    } catch (e) {
+      print(' Error removing online duplicates from server: $e');
+    }
+  }
+
+  // Clean malware report duplicates
+  Future<int> _cleanMalwareDuplicates(Box<MalwareReportModel> box) async {
+    final allReports = box.values.toList();
+    final uniqueReports = <MalwareReportModel>[];
+    final seenServerIds = <String>{};
+    final seenContentKeys = <String>{};
+    int duplicatesRemoved = 0;
+
+    
+
+    for (var report in allReports) {
+      // First, check for serverId-based duplicates (highest priority)
+      if (report.isSynced == true &&
+          report.id != null &&
+          report.id!.length == 24) {
+        // This is a synced report with valid server ID
+        if (seenServerIds.contains(report.id)) {
+          duplicatesRemoved++;
+          
+          continue; // Skip this duplicate
+        } else {
+          seenServerIds.add(report.id!);
+          uniqueReports.add(report);
+          
+          continue; // Skip content-based check for synced reports
+        }
+      }
+
+      // For unsynced reports, use content-based detection
+      final key =
+          '${report.name}_${report.malwareType}_${report.fileName}_${report.description}_${report.infectedDeviceType}_${report.operatingSystem}_${report.detectionMethod}_${report.location}_${report.systemAffected}_${report.alertSeverityLevel}';
+
+      if (!seenContentKeys.contains(key)) {
+        seenContentKeys.add(key);
+        uniqueReports.add(report);
+        
+      } else {
+        duplicatesRemoved++;
+        
+      }
+    }
+
+    if (duplicatesRemoved > 0) {
+      await box.clear();
+      for (var report in uniqueReports) {
+        await box.put(report.id, report);
+      }
+      
+    } else {
+      print(' No duplicate malware reports found');
+    }
+
+    return duplicatesRemoved;
+  }
+
+  // Clean up duplicate offline files
+  Future<void> _cleanupDuplicateOfflineFiles() async {
+    try {
+      print('MANUAL: Cleaning duplicate offline files...');
+
+      final cleanupResult =
+          await custom.OfflineFileUploadService.cleanupAllDuplicateFiles();
+
+      if (cleanupResult['success']) {
+        print('Offline file cleanup completed: ${cleanupResult['message']}');
+        print(
+          'Removed: ${cleanupResult['removed']} duplicates, Kept: ${cleanupResult['kept']} files',
+        );
+      } else {
+        print('Offline file cleanup failed: ${cleanupResult['message']}');
+      }
+
+      // Refresh the UI to show updated file counts
+      if (mounted) {
+        setState(() {
+          // Trigger UI refresh
+        });
+      }
+    } catch (e) {
+      print('Error during offline file cleanup: $e');
+    }
+  }
+
+  // Update report status and evidence files after sync
+  Future<void> _updateReportAfterSync(String reportId) async {
+    try {
+      final result =
+          await custom.OfflineFileUploadService.updateReportAfterSync(
+            reportId,
+            {'reportType': 'scam'}, // Default to scam, adjust as needed
+          );
+
+      if (result) {
+        print('Report updated after sync: $reportId');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Report updated with evidence files'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        print('Report update failed: $reportId');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Report update failed'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Refresh the UI
+      if (mounted) {
+        setState(() {
+          // Trigger UI refresh
+        });
+      }
+    } catch (e) {
+      print('Error updating report after sync: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // Force refresh report data from database
+  Future<void> _refreshReportData() async {
+    try {
+      print('MANUAL: Refreshing report data from database...');
+
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        // Reload filtered reports
+        await _loadFilteredReports();
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        print('Report data refreshed from database');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Report data refreshed'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error refreshing report data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error refreshing data: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 }

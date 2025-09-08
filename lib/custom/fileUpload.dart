@@ -2260,26 +2260,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
                       width: 40,
                       height: 40,
                     ),
-                    if (selectedImages.isNotEmpty)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${selectedImages.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
                 title: Text(
@@ -2455,26 +2435,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
             leading: Stack(
               children: [
                 Image.asset('assets/image/doc.png', width: 40, height: 40),
-                if (selectedDocuments.isNotEmpty)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${selectedDocuments.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
             title: Text(

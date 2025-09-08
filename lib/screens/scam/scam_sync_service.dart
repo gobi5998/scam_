@@ -75,6 +75,44 @@ class ScamSyncService {
         print('  - isSynced: ${report.isSynced}');
         print('  - Description: ${report.description}');
         print('  - Created: ${report.createdAt}');
+        print('🔍 File paths before sync:');
+        print(
+          '  - Screenshots: ${report.screenshots.length} - ${report.screenshots}',
+        );
+        print(
+          '  - Documents: ${report.documents.length} - ${report.documents}',
+        );
+        print('  - Videos: ${report.videofiles.length} - ${report.videofiles}');
+        print(
+          '  - Voice Messages: ${report.voiceMessages.length} - ${report.voiceMessages}',
+        );
+
+        // Check for potential duplicates before syncing
+        final existingReports = await _localService.getAllReports();
+        final potentialDuplicates = existingReports
+            .where(
+              (r) =>
+                  r.id != report.id &&
+                  r.description == report.description &&
+                  r.phoneNumbers?.isNotEmpty == true &&
+                  report.phoneNumbers?.isNotEmpty == true &&
+                  r.phoneNumbers?.first == report.phoneNumbers?.first,
+            )
+            .toList();
+
+        if (potentialDuplicates.isNotEmpty) {
+          print(
+            '⚠️ WARNING: Found ${potentialDuplicates.length} potential duplicates before sync!',
+          );
+          print(
+            '⚠️ - Current report: ${report.description} - ${report.phoneNumbers}',
+          );
+          for (var dup in potentialDuplicates) {
+            print(
+              '⚠️ - Duplicate: ${dup.description} - ${dup.phoneNumbers} (ID: ${dup.id})',
+            );
+          }
+        }
 
         bool success = await ScamReportService.sendToBackend(report);
 
@@ -82,7 +120,15 @@ class ScamSyncService {
           print('✅ Report synced successfully, updating local status...');
           report.isSynced = true;
 
-          // Update the report in local storage
+          // IMPORTANT: Preserve local file paths after syncing
+          // The server response has empty file arrays, but we need to keep the local file paths
+          print('📁 Preserving local file paths after sync:');
+          print('📁 - Screenshots: ${report.screenshots.length}');
+          print('📁 - Documents: ${report.documents.length}');
+          print('📁 - Videos: ${report.videofiles.length}');
+          print('📁 - Voice Messages: ${report.voiceMessages.length}');
+
+          // Update the report in local storage (preserving file paths)
           await _localService.updateReport(report);
 
           // Verify the update
@@ -91,10 +137,15 @@ class ScamSyncService {
             print(
               '🔍 Verification - Updated report isSynced: ${updatedReport?.isSynced}',
             );
+            print(
+              '🔍 Verification - File paths preserved: ${updatedReport?.screenshots.length} screenshots, ${updatedReport?.documents.length} documents',
+            );
           }
 
           syncedCount++;
-          print('✅ Report ${report.id} marked as synced');
+          print(
+            '✅ Report ${report.id} marked as synced with file paths preserved',
+          );
         } else {
           print('❌ Failed to sync report ${report.id}');
           print('❌ Report sync returned false - check sendToBackend method');

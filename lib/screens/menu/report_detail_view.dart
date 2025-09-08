@@ -577,7 +577,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     );
   }
 
-  // New method to dynamically extract all S3 URLs from report data
+  // Enhanced method to extract all file URLs (both online and offline) from report data
   List<Map<String, dynamic>> _extractAllS3UrlsFromReport(
     Map<String, dynamic> report,
     ReportModel? typedReport,
@@ -585,86 +585,159 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     List<Map<String, dynamic>> allFiles = [];
     Set<String> seenUrls = {}; // To prevent duplicates
 
-    // Extract from screenshots array
+    // Extract from screenshots array - handle both online and offline files
     if (report['screenshots'] != null && report['screenshots'] is List) {
       for (var screenshot in report['screenshots']) {
         if (screenshot is Map<String, dynamic>) {
-          final url = screenshot['s3Url'] ?? screenshot['uploadPath'];
-          if (url != null && !seenUrls.contains(url)) {
-            seenUrls.add(url);
+          // Try multiple possible field names for online files
+          final url =
+              screenshot['s3Url'] ??
+              screenshot['uploadPath'] ??
+              screenshot['url'];
+
+          if (url != null &&
+              url.toString().isNotEmpty &&
+              !seenUrls.contains(url.toString())) {
+            seenUrls.add(url.toString());
             allFiles.add({
-              'url': url,
+              'url': url.toString(),
               'filename':
                   screenshot['originalName'] ??
                   screenshot['fileName'] ??
-                  url.split('/').last,
+                  url.toString().split('/').last,
               'type': 'screenshot',
               'source': 'screenshots',
+              'isOffline': false,
             });
           }
+        } else if (screenshot is String &&
+            screenshot.isNotEmpty &&
+            !seenUrls.contains(screenshot)) {
+          // Handle offline file paths (direct file paths)
+          seenUrls.add(screenshot);
+          allFiles.add({
+            'url': screenshot,
+            'filename': screenshot.split('/').last,
+            'type': 'screenshot',
+            'source': 'screenshots',
+            'isOffline': true,
+          });
         }
       }
     }
 
-    // Extract from voiceMessages array
+    // Extract from voiceMessages array - handle both online and offline files
     if (report['voiceMessages'] != null && report['voiceMessages'] is List) {
       for (var voiceMessage in report['voiceMessages']) {
         if (voiceMessage is Map<String, dynamic>) {
-          final url = voiceMessage['s3Url'] ?? voiceMessage['uploadPath'];
-          if (url != null && !seenUrls.contains(url)) {
-            seenUrls.add(url);
+          final url =
+              voiceMessage['s3Url'] ??
+              voiceMessage['uploadPath'] ??
+              voiceMessage['url'];
+
+          if (url != null &&
+              url.toString().isNotEmpty &&
+              !seenUrls.contains(url.toString())) {
+            seenUrls.add(url.toString());
             allFiles.add({
-              'url': url,
+              'url': url.toString(),
               'filename':
                   voiceMessage['originalName'] ??
                   voiceMessage['fileName'] ??
-                  url.split('/').last,
+                  url.toString().split('/').last,
               'type': 'voice',
               'source': 'voiceMessages',
+              'isOffline': false,
             });
           }
+        } else if (voiceMessage is String &&
+            voiceMessage.isNotEmpty &&
+            !seenUrls.contains(voiceMessage)) {
+          // Handle offline file paths (direct file paths)
+          seenUrls.add(voiceMessage);
+          allFiles.add({
+            'url': voiceMessage,
+            'filename': voiceMessage.split('/').last,
+            'type': 'voice',
+            'source': 'voiceMessages',
+            'isOffline': true,
+          });
         }
       }
     }
 
-    // Extract from documents array
+    // Extract from documents array - handle both online and offline files
     if (report['documents'] != null && report['documents'] is List) {
       for (var document in report['documents']) {
         if (document is Map<String, dynamic>) {
-          final url = document['s3Url'] ?? document['uploadPath'];
-          if (url != null && !seenUrls.contains(url)) {
-            seenUrls.add(url);
+          final url =
+              document['s3Url'] ?? document['uploadPath'] ?? document['url'];
+
+          if (url != null &&
+              url.toString().isNotEmpty &&
+              !seenUrls.contains(url.toString())) {
+            seenUrls.add(url.toString());
             allFiles.add({
-              'url': url,
+              'url': url.toString(),
               'filename':
                   document['originalName'] ??
                   document['fileName'] ??
-                  url.split('/').last,
+                  url.toString().split('/').last,
               'type': 'document',
               'source': 'documents',
+              'isOffline': false,
             });
           }
+        } else if (document is String &&
+            document.isNotEmpty &&
+            !seenUrls.contains(document)) {
+          // Handle offline file paths (direct file paths)
+          seenUrls.add(document);
+          allFiles.add({
+            'url': document,
+            'filename': document.split('/').last,
+            'type': 'document',
+            'source': 'documents',
+            'isOffline': true,
+          });
         }
       }
     }
 
-    // Extract from videofiles array
+    // Extract from videofiles array - handle both online and offline files
     if (report['videofiles'] != null && report['videofiles'] is List) {
       for (var videoFile in report['videofiles']) {
         if (videoFile is Map<String, dynamic>) {
-          final url = videoFile['s3Url'] ?? videoFile['uploadPath'];
-          if (url != null && !seenUrls.contains(url)) {
-            seenUrls.add(url);
+          final url =
+              videoFile['s3Url'] ?? videoFile['uploadPath'] ?? videoFile['url'];
+
+          if (url != null &&
+              url.toString().isNotEmpty &&
+              !seenUrls.contains(url.toString())) {
+            seenUrls.add(url.toString());
             allFiles.add({
-              'url': url,
+              'url': url.toString(),
               'filename':
                   videoFile['originalName'] ??
                   videoFile['fileName'] ??
-                  url.split('/').last,
+                  url.toString().split('/').last,
               'type': 'video',
               'source': 'videofiles',
+              'isOffline': false,
             });
           }
+        } else if (videoFile is String &&
+            videoFile.isNotEmpty &&
+            !seenUrls.contains(videoFile)) {
+          // Handle offline file paths (direct file paths)
+          seenUrls.add(videoFile);
+          allFiles.add({
+            'url': videoFile,
+            'filename': videoFile.split('/').last,
+            'type': 'video',
+            'source': 'videofiles',
+            'isOffline': true,
+          });
         }
       }
     }
@@ -680,6 +753,7 @@ class _ReportDetailViewState extends State<ReportDetailView> {
               'filename': path.split('/').last,
               'type': 'screenshot',
               'source': 'typedReport.screenshotPaths',
+              'isOffline': true,
             });
           }
         }
@@ -694,8 +768,71 @@ class _ReportDetailViewState extends State<ReportDetailView> {
               'filename': path.split('/').last,
               'type': 'document',
               'source': 'typedReport.documentPaths',
+              'isOffline': true,
             });
           }
+        }
+      }
+    }
+
+    // Additional fallback: Check for specific report model fields
+    // This handles cases where the report might be a ScamReportModel, FraudReportModel, etc.
+    if (report['screenshots'] != null && report['screenshots'] is List) {
+      for (var item in report['screenshots']) {
+        if (item is String && item.isNotEmpty && !seenUrls.contains(item)) {
+          seenUrls.add(item);
+          allFiles.add({
+            'url': item,
+            'filename': item.split('/').last,
+            'type': 'screenshot',
+            'source': 'report.screenshots',
+            'isOffline': true,
+          });
+        }
+      }
+    }
+
+    if (report['documents'] != null && report['documents'] is List) {
+      for (var item in report['documents']) {
+        if (item is String && item.isNotEmpty && !seenUrls.contains(item)) {
+          seenUrls.add(item);
+          allFiles.add({
+            'url': item,
+            'filename': item.split('/').last,
+            'type': 'document',
+            'source': 'report.documents',
+            'isOffline': true,
+          });
+        }
+      }
+    }
+
+    if (report['voiceMessages'] != null && report['voiceMessages'] is List) {
+      for (var item in report['voiceMessages']) {
+        if (item is String && item.isNotEmpty && !seenUrls.contains(item)) {
+          seenUrls.add(item);
+          allFiles.add({
+            'url': item,
+            'filename': item.split('/').last,
+            'type': 'voice',
+            'source': 'report.voiceMessages',
+            'isOffline': true,
+          });
+        }
+      }
+    }
+
+    if (report['videofiles'] != null && report['videofiles'] is List) {
+      for (var item in report['videofiles']) {
+        if (item is String && item.isNotEmpty && !seenUrls.contains(item)) {
+          seenUrls.add(item);
+          allFiles.add({
+            'url': item,
+            'filename': item.split('/').last,
+            'type': 'video',
+            'source': 'report.videofiles',
+            'isOffline': true,
+          });
         }
       }
     }
@@ -1676,6 +1813,18 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   }
 
   String _extractUrlFromFile(Map<String, dynamic> file) {
+    // Check if this is an offline file (has isOffline flag or is a local file path)
+    final isOffline = file['isOffline'] == true;
+
+    // For offline files, return the local file path directly
+    if (isOffline) {
+      final offlinePath = file['url']?.toString() ?? '';
+      if (offlinePath.isNotEmpty) {
+        print('Using offline file path: $offlinePath');
+        return offlinePath;
+      }
+    }
+
     // Try different possible URL fields - return the first valid S3 URL found
     String url = file['url']?.toString() ?? '';
     if (url.isNotEmpty && _isValidS3Url(url)) return url;
@@ -1753,6 +1902,93 @@ class _ReportDetailViewState extends State<ReportDetailView> {
     return cleanedUrl;
   }
 
+  // Get offline image file from local path
+  Future<File?> _getOfflineImageFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        print('Offline image file found: $filePath');
+        return file;
+      } else {
+        print('Offline image file not found: $filePath');
+        return null;
+      }
+    } catch (e) {
+      print('Error accessing offline image file: $e');
+      return null;
+    }
+  }
+
+  // Get offline file from local path (general purpose)
+  Future<File?> _getOfflineFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        print('Offline file found: $filePath');
+        return file;
+      } else {
+        print('Offline file not found: $filePath');
+        return null;
+      }
+    } catch (e) {
+      print('Error accessing offline file: $e');
+      return null;
+    }
+  }
+
+  // Fetch content from offline text file
+  Future<String> _fetchOfflineFileContent(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        print('Offline text file content loaded: $filePath');
+        return content;
+      } else {
+        print('Offline text file not found: $filePath');
+        return '';
+      }
+    } catch (e) {
+      print('Error reading offline text file: $e');
+      return '';
+    }
+  }
+
+  // Open offline file using system default app
+  Future<void> _openOfflineFile(String filePath, String filename) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        print('Opening offline file: $filePath');
+        final result = await OpenFilex.open(file.path);
+        if (result.type != ResultType.done) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error opening file: ${result.message}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        print('Offline file not found: $filePath');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File not found: $filename'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error opening offline file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening file: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   // Download file from S3 URL and save to local storage
   Future<File?> _downloadFile(String url, String filename) async {
     try {
@@ -1810,9 +2046,16 @@ class _ReportDetailViewState extends State<ReportDetailView> {
         });
       });
 
-      // Set audio source
-      await _audioPlayer!.setUrl(url);
-      print('Audio player initialized for: $url');
+      // Set audio source based on file type
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        // Online file - use URL
+        await _audioPlayer!.setUrl(url);
+        print('Audio player initialized for online file: $url');
+      } else {
+        // Offline file - use file path
+        await _audioPlayer!.setFilePath(url);
+        print('Audio player initialized for offline file: $url');
+      }
     } catch (e) {
       print('Error initializing audio player: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2301,26 +2544,38 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   }
 
   Widget _buildVoiceMessagePlayer(String url, String filename) {
+    // Check if this is an offline file
+    final isOfflineFile =
+        !url.startsWith('http://') && !url.startsWith('https://');
+
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: isOfflineFile ? Colors.green[50] : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(
+          color: isOfflineFile ? Colors.green[300]! : Colors.grey[300]!,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.audiotrack, color: Colors.orange.shade600, size: 32),
+              Icon(
+                isOfflineFile ? Icons.offline_pin : Icons.audiotrack,
+                color: isOfflineFile
+                    ? Colors.green[600]
+                    : Colors.orange.shade600,
+                size: 32,
+              ),
               SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Voice Message',
+                      isOfflineFile ? 'Offline Voice Message' : 'Voice Message',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -2332,6 +2587,16 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                       filename,
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
+                    if (isOfflineFile) ...[
+                      SizedBox(height: 4),
+                      Text(
+                        'Path: $url',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[600],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2508,6 +2773,10 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   Widget _buildFileContent(String url, String filename, String type) {
     final fileName = filename.toLowerCase();
 
+    // Check if this is an offline file (local file path)
+    final isOfflineFile =
+        !url.startsWith('http://') && !url.startsWith('https://');
+
     // For images, show image preview using both Image.network and our custom loader
     if (fileName.contains('.jpg') ||
         fileName.contains('.jpeg') ||
@@ -2515,6 +2784,102 @@ class _ReportDetailViewState extends State<ReportDetailView> {
         fileName.contains('.gif') ||
         fileName.contains('.webp') ||
         fileName.contains('.svg')) {
+      // Handle offline image files
+      if (isOfflineFile) {
+        return Container(
+          width: double.infinity,
+          height: 400,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: FutureBuilder<File?>(
+              future: _getOfflineImageFile(url),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading offline image...'),
+                        SizedBox(height: 8),
+                        Text(
+                          'Path: $url',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, size: 48, color: Colors.red),
+                        SizedBox(height: 8),
+                        Text('Failed to load offline image'),
+                        SizedBox(height: 8),
+                        Text('Error: ${snapshot.error}'),
+                        SizedBox(height: 8),
+                        Text(
+                          'Path: $url',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (snapshot.data != null) {
+                  return Image.file(
+                    snapshot.data!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error, size: 48, color: Colors.red),
+                            SizedBox(height: 8),
+                            Text('Failed to display offline image'),
+                            SizedBox(height: 8),
+                            Text('Error: $error'),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }
+
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.image_not_supported,
+                        size: 48,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 8),
+                      Text('Offline image not found'),
+                      SizedBox(height: 8),
+                      Text('Path: $url'),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+
+      // Handle online images (existing logic)
       return Container(
         width: double.infinity,
         height: 400,
@@ -2664,6 +3029,84 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
     // For PDF files, show in-app PDF viewer
     if (fileName.contains('.pdf')) {
+      // Handle offline PDF files
+      if (isOfflineFile) {
+        return FutureBuilder<File?>(
+          future: _getOfflineFile(url),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading offline PDF...'),
+                  ],
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Failed to load offline PDF'),
+                    SizedBox(height: 8),
+                    Text('Error: ${snapshot.error}'),
+                  ],
+                ),
+              );
+            }
+
+            final file = snapshot.data;
+            if (file != null && file.existsSync()) {
+              return Container(
+                width: double.infinity,
+                height: 600,
+                child: PDFView(
+                  filePath: file.path,
+                  enableSwipe: true,
+                  swipeHorizontal: false,
+                  autoSpacing: true,
+                  pageFling: true,
+                  pageSnap: true,
+                  defaultPage: 0,
+                  fitPolicy: FitPolicy.BOTH,
+                  preventLinkNavigation: false,
+                  onError: (error) {
+                    print('PDF Error: $error');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('PDF Error: $error')),
+                    );
+                  },
+                  onPageError: (page, error) {
+                    print('PDF Page Error: $error');
+                  },
+                ),
+              );
+            } else {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Offline PDF not found'),
+                    SizedBox(height: 8),
+                    Text('Path: $url'),
+                  ],
+                ),
+              );
+            }
+          },
+        );
+      }
+
+      // Handle online PDF files (existing logic)
       return FutureBuilder<File?>(
         future: _downloadFile(url, filename),
         builder: (context, snapshot) {
@@ -2739,6 +3182,103 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 
     // For DOCX files, show download and open option
     if (fileName.contains('.docx') || fileName.contains('.doc')) {
+      // Handle offline document files
+      if (isOfflineFile) {
+        return FutureBuilder<File?>(
+          future: _getOfflineFile(url),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading offline document...'),
+                  ],
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Failed to load offline document'),
+                    SizedBox(height: 8),
+                    Text('Error: ${snapshot.error}'),
+                  ],
+                ),
+              );
+            }
+
+            final file = snapshot.data;
+            if (file != null && file.existsSync()) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.description, size: 64, color: Colors.blue),
+                    SizedBox(height: 16),
+                    Text(
+                      'Offline Document Ready',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(filename),
+                    SizedBox(height: 8),
+                    Text('Path: $url'),
+                    SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final result = await OpenFilex.open(file.path);
+                          if (result.type != ResultType.done) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Error opening file: ${result.message}',
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error opening file: $e')),
+                          );
+                        }
+                      },
+                      icon: Icon(Icons.open_in_new),
+                      label: Text('Open Document'),
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Offline document not found'),
+                    SizedBox(height: 8),
+                    Text('Path: $url'),
+                  ],
+                ),
+              );
+            }
+          },
+        );
+      }
+
+      // Handle online document files (existing logic)
       return FutureBuilder<File?>(
         future: _downloadFile(url, filename),
         builder: (context, snapshot) {
@@ -2835,6 +3375,93 @@ class _ReportDetailViewState extends State<ReportDetailView> {
         fileName.contains('.csv') ||
         fileName.contains('.log') ||
         fileName.contains('.md')) {
+      // Handle offline text files
+      if (isOfflineFile) {
+        return FutureBuilder<String>(
+          future: _fetchOfflineFileContent(url),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading offline text file...'),
+                  ],
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Failed to load offline text file'),
+                    SizedBox(height: 8),
+                    Text('Error: ${snapshot.error}'),
+                    SizedBox(height: 8),
+                    Text('Path: $url'),
+                  ],
+                ),
+              );
+            }
+
+            final content = snapshot.data;
+            if (content != null && content.isNotEmpty) {
+              return Container(
+                width: double.infinity,
+                height: 400,
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Offline Text File: $filename',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Path: $url',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      SizedBox(height: 16),
+                      Text(content, style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                ),
+              );
+            } else {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, size: 48, color: Colors.red),
+                    SizedBox(height: 8),
+                    Text('Offline text file is empty'),
+                    SizedBox(height: 8),
+                    Text('Path: $url'),
+                  ],
+                ),
+              );
+            }
+          },
+        );
+      }
+
+      // Handle online text files (existing logic)
       return FutureBuilder<String>(
         future: _fetchFileContent(url),
         builder: (context, snapshot) {
@@ -2961,39 +3588,73 @@ class _ReportDetailViewState extends State<ReportDetailView> {
                 Text('Type: ${_getFileTypeFromPath(filename)}'),
                 Text('Category: ${type.toUpperCase()}'),
                 SizedBox(height: 8),
-                Text(
-                  'S3 URL:',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 4),
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: SelectableText(
-                    url,
+                if (isOfflineFile) ...[
+                  Text(
+                    'Offline File Path:',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: Colors.blue[600],
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
                     ),
                   ),
-                ),
+                  SizedBox(height: 4),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.green[300]!),
+                    ),
+                    child: SelectableText(
+                      url,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _openOfflineFile(url, filename),
+                    icon: Icon(Icons.open_in_new),
+                    label: Text('Open Offline File'),
+                  ),
+                ] else ...[
+                  Text(
+                    'S3 URL:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: SelectableText(
+                      url,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: Colors.blue[600],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Preview not available for this file type.',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Click "Open in Browser" to view the file content.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ],
               ],
             ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Preview not available for this file type.',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Click "Open in Browser" to view the file content.',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -3049,10 +3710,18 @@ class _ReportDetailViewState extends State<ReportDetailView> {
   }
 
   void _showVideoPlayer(BuildContext context, String url, String filename) {
+    // Check if this is an offline file
+    final isOfflineFile =
+        !url.startsWith('http://') && !url.startsWith('https://');
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return VideoPlayerDialog(videoUrl: url, title: filename);
+        return VideoPlayerDialog(
+          videoUrl: url,
+          title: filename,
+          isOffline: isOfflineFile,
+        );
       },
     );
   }
@@ -3061,11 +3730,13 @@ class _ReportDetailViewState extends State<ReportDetailView> {
 class VideoPlayerDialog extends StatefulWidget {
   final String videoUrl;
   final String title;
+  final bool isOffline;
 
   const VideoPlayerDialog({
     Key? key,
     required this.videoUrl,
     required this.title,
+    this.isOffline = false,
   }) : super(key: key);
 
   @override
@@ -3091,10 +3762,18 @@ class _VideoPlayerDialogState extends State<VideoPlayerDialog> {
         _errorMessage = '';
       });
 
-      // Initialize video player controller
-      _videoPlayerController = VideoPlayerController.networkUrl(
-        Uri.parse(widget.videoUrl),
-      );
+      // Initialize video player controller based on file type
+      if (widget.isOffline) {
+        // For offline files, use file path
+        _videoPlayerController = VideoPlayerController.file(
+          File(widget.videoUrl),
+        );
+      } else {
+        // For online files, use network URL
+        _videoPlayerController = VideoPlayerController.networkUrl(
+          Uri.parse(widget.videoUrl),
+        );
+      }
 
       // Wait for the controller to initialize
       await _videoPlayerController!.initialize();

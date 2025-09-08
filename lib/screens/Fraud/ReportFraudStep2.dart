@@ -18,6 +18,7 @@ import '../../custom/customDropdown.dart';
 import '../../custom/Success_page.dart';
 import '../../services/api_service.dart';
 import '../../config/api_config.dart';
+import '../../custom/offline_file_upload.dart' as custom;
 import '../../custom/fileUpload.dart';
 
 class ReportFraudStep2 extends StatefulWidget {
@@ -39,10 +40,7 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
   String? selectedAddress; // Add selected address variable
 
   final GlobalKey<FileUploadWidgetState> _fileUploadKey =
-      GlobalKey<FileUploadWidgetState>(
-        debugLabel:
-            'fraud_file_upload_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      GlobalKey<FileUploadWidgetState>();
 
   @override
   void initState() {
@@ -272,19 +270,32 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       final videofiles = (uploadedFiles['videofiles'] as List)
           .cast<Map<String, dynamic>>();
 
-      // Extract URLs for local model storage
+      // Extract URLs for local model storage - FIXED LOGIC
       final screenshotUrls = screenshots
-          .map((f) => f['url']?.toString() ?? '')
+          .map(
+            (f) => f['offlinePath']?.toString() ?? f['url']?.toString() ?? '',
+          )
           .where((url) => url.isNotEmpty)
           .toList();
 
       final documentUrls = documents
-          .map((f) => f['url']?.toString() ?? '')
+          .map(
+            (f) => f['offlinePath']?.toString() ?? f['url']?.toString() ?? '',
+          )
           .where((url) => url.isNotEmpty)
           .toList();
 
       final voiceMessageUrls = voiceMessages
-          .map((f) => f['url']?.toString() ?? '')
+          .map(
+            (f) => f['offlinePath']?.toString() ?? f['url']?.toString() ?? '',
+          )
+          .where((url) => url.isNotEmpty)
+          .toList();
+
+      final videoUrls = videofiles
+          .map(
+            (f) => f['offlinePath']?.toString() ?? f['url']?.toString() ?? '',
+          )
           .where((url) => url.isNotEmpty)
           .toList();
 
@@ -292,6 +303,38 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       print('🚀 - Screenshots: ${screenshots.length}');
       print('🚀 - Documents: ${documents.length}');
       print('🚀 - Voice messages: ${voiceMessages.length}');
+      print('🚀 - Video files: ${videofiles.length}');
+
+      print('📁 Extracted file paths for report model:');
+      print('📁 - Screenshots: ${screenshotUrls.length} - $screenshotUrls');
+      print('📁 - Documents: ${documentUrls.length} - $documentUrls');
+      print(
+        '📁 - Voice Messages: ${voiceMessageUrls.length} - $voiceMessageUrls',
+      );
+      print('📁 - Video Files: ${videoUrls.length} - $videoUrls');
+
+      // Debug: Check if we have offline paths
+      print('🔍 Debug: Checking offline paths in uploaded files:');
+      for (var screenshot in screenshots) {
+        print(
+          '🔍 Screenshot: offlinePath=${screenshot['offlinePath']}, url=${screenshot['url']}',
+        );
+      }
+      for (var document in documents) {
+        print(
+          '🔍 Document: offlinePath=${document['offlinePath']}, url=${document['url']}',
+        );
+      }
+      for (var voiceMessage in voiceMessages) {
+        print(
+          '🔍 Voice Message: offlinePath=${voiceMessage['offlinePath']}, url=${voiceMessage['url']}',
+        );
+      }
+      for (var videoFile in videofiles) {
+        print(
+          '🔍 Video File: offlinePath=${videoFile['offlinePath']}, url=${videoFile['url']}',
+        );
+      }
 
       // Check connectivity
       final connectivity = await Connectivity().checkConnectivity();
@@ -327,7 +370,6 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
             widget.report.keycloackUserId ??
             '',
         'createdBy':
-            await JwtService.getCurrentUserEmail() ??
             await JwtService.getCurrentUserId() ??
             widget.report.keycloackUserId ??
             '',
@@ -420,15 +462,127 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       }
 
       // Create updated report model with all data including uploaded files
-      final updatedReport = widget.report.copyWith(
+      // Ensure we have the latest file paths after fallback
+      final finalScreenshots = screenshotUrls.isNotEmpty
+          ? screenshotUrls.cast<String>()
+          : <String>[];
+      final finalDocuments = documentUrls.isNotEmpty
+          ? documentUrls.cast<String>()
+          : <String>[];
+      final finalVoiceMessages = voiceMessageUrls.isNotEmpty
+          ? voiceMessageUrls.cast<String>()
+          : <String>[];
+      final finalVideofiles = videoUrls.isNotEmpty
+          ? videoUrls.cast<String>()
+          : <String>[]; // Video files not implemented yet
+
+      var updatedReport = widget.report.copyWith(
         alertLevels: alertLevel,
-        screenshots: screenshotUrls,
-        documents: documentUrls,
-        voiceMessages: voiceMessageUrls,
-        // videofiles : videofiles,
+        screenshots: finalScreenshots,
+        documents: finalDocuments,
+        voiceMessages: finalVoiceMessages,
+        videofiles: finalVideofiles,
         updatedAt: DateTime.now(),
         isSynced: isOnline, // Mark as synced if online
       );
+
+      print('🚀 Updated report model created');
+      print('📁 File paths in updated report:');
+      print('📁 - Screenshots: ${updatedReport.screenshots}');
+      print('📁 - Documents: ${updatedReport.documents}');
+      print('📁 - Voice Messages: ${updatedReport.voiceMessages}');
+      print('📁 - Video Files: ${updatedReport.videofiles}');
+
+      // Always attempt fallback to ensure we have the most up-to-date file information
+      print(
+        '🔄 ALWAYS attempting fallback: Loading files from offline storage to ensure completeness',
+      );
+
+      // Try to get files from offline storage as a fallback
+      try {
+        final offlineReportId =
+            widget.report.id ??
+            DateTime.now().millisecondsSinceEpoch.toString();
+        print(
+          '🔄 Attempting fallback: Loading files from offline storage for ID: $offlineReportId',
+        );
+
+        // Force fallback even if we think we have files
+        print(
+          '🔄 Force fallback: Checking offline storage for any missing files',
+        );
+
+        final offlineFiles =
+            await custom.OfflineFileUploadService.getOfflineFilesByReportId(
+              offlineReportId,
+            );
+        print(
+          '🔄 Found ${offlineFiles.length} offline files in fallback attempt',
+        );
+
+        if (offlineFiles.isNotEmpty) {
+          print('🔄 Offline files found:');
+          for (var file in offlineFiles) {
+            print(
+              '🔄 - ${file['originalName']}: ${file['offlinePath']} (${file['category']})',
+            );
+          }
+
+          // Update the report model with offline file paths
+          print(
+            '📁 Found ${offlineFiles.length} offline files, updating report model',
+          );
+
+          // Categorize offline files and update the arrays
+          final offlineScreenshots = <String>[];
+          final offlineDocuments = <String>[];
+          final offlineVoiceMessages = <String>[];
+          final offlineVideofiles = <String>[];
+
+          for (var file in offlineFiles) {
+            final category = file['category']?.toString().toLowerCase();
+            final offlinePath = file['offlinePath']?.toString();
+
+            if (offlinePath != null && offlinePath.isNotEmpty) {
+              switch (category) {
+                case 'screenshots':
+                  offlineScreenshots.add(offlinePath);
+                  break;
+                case 'documents':
+                  offlineDocuments.add(offlinePath);
+                  break;
+                case 'voicemessages':
+                  offlineVoiceMessages.add(offlinePath);
+                  break;
+                case 'videofiles':
+                  offlineVideofiles.add(offlinePath);
+                  break;
+              }
+            }
+          }
+
+          // Update the report model with offline file paths
+          final updatedReportWithOfflineFiles = updatedReport.copyWith(
+            screenshots: offlineScreenshots,
+            documents: offlineDocuments,
+            voiceMessages: offlineVoiceMessages,
+            videofiles: offlineVideofiles,
+          );
+
+          print('📁 Updated report with offline files:');
+          print('📁 - Screenshots: ${offlineScreenshots.length}');
+          print('📁 - Documents: ${offlineDocuments.length}');
+          print('📁 - Voice Messages: ${offlineVoiceMessages.length}');
+          print('📁 - Video Files: ${offlineVideofiles.length}');
+
+          // Use the updated report with offline files
+          updatedReport = updatedReportWithOfflineFiles;
+        } else {
+          print('⚠️ No offline files found in fallback attempt');
+        }
+      } catch (e) {
+        print('❌ Error in fallback file loading: $e');
+      }
 
       print('🚀 Updated report model created');
 
@@ -451,6 +605,125 @@ class _ReportFraudStep2State extends State<ReportFraudStep2> {
       }
 
       print('💾 Box length after save: ${box.length}');
+
+      // Store files offline for offline-first functionality
+      try {
+        print('📁 Storing files offline for fraud report...');
+
+        // Convert file objects to File objects for offline storage
+        final List<File> screenshotFiles = [];
+        final List<File> documentFiles = [];
+        final List<File> voiceMessageFiles = [];
+        final List<File> videoFiles = [];
+
+        // Extract file paths and convert to File objects
+        for (final screenshot in screenshots) {
+          final filePath =
+              screenshot['url']?.toString() ??
+              screenshot['offlinePath']?.toString() ??
+              '';
+          if (filePath.isNotEmpty && File(filePath).existsSync()) {
+            screenshotFiles.add(File(filePath));
+          }
+        }
+
+        for (final document in documents) {
+          final filePath =
+              document['url']?.toString() ??
+              document['offlinePath']?.toString() ??
+              '';
+          if (filePath.isNotEmpty && File(filePath).existsSync()) {
+            documentFiles.add(File(filePath));
+          }
+        }
+
+        for (final voiceMessage in voiceMessages) {
+          final filePath =
+              voiceMessage['url']?.toString() ??
+              voiceMessage['offlinePath']?.toString() ??
+              '';
+          if (filePath.isNotEmpty && File(filePath).existsSync()) {
+            voiceMessageFiles.add(File(filePath));
+          }
+        }
+
+        for (final videoFile in videofiles) {
+          final filePath =
+              videoFile['url']?.toString() ??
+              videoFile['offlinePath']?.toString() ??
+              '';
+          if (filePath.isNotEmpty && File(filePath).existsSync()) {
+            videoFiles.add(File(filePath));
+          }
+        }
+
+        // Store files offline using the service
+        final offlineResult = await FraudReportService.storeFilesOffline(
+          reportId:
+              updatedReport.id ??
+              DateTime.now().millisecondsSinceEpoch.toString(),
+          screenshots: screenshotFiles,
+          documents: documentFiles,
+          voiceMessages: voiceMessageFiles,
+          videofiles: videoFiles,
+        );
+
+        if (offlineResult['success'] == true) {
+          print(
+            '✅ Files stored offline successfully: ${offlineResult['message']}',
+          );
+
+          // Extract file paths for local model storage (same as scam service)
+          final screenshotPaths = screenshotFiles
+              .map((f) => f.path)
+              .where((path) => path.isNotEmpty)
+              .toList();
+
+          final documentPaths = documentFiles
+              .map((f) => f.path)
+              .where((path) => path.isNotEmpty)
+              .toList();
+
+          final voiceMessagePaths = voiceMessageFiles
+              .map((f) => f.path)
+              .where((path) => path.isNotEmpty)
+              .toList();
+
+          final videoPaths = videoFiles
+              .map((f) => f.path)
+              .where((path) => path.isNotEmpty)
+              .toList();
+
+          // Update report model with file paths
+          final updatedReportWithFiles = updatedReport.copyWith(
+            screenshots: screenshotPaths,
+            documents: documentPaths,
+            voiceMessages: voiceMessagePaths,
+            videofiles: videoPaths,
+          );
+
+          // Save updated report with file paths
+          if (updatedReportWithFiles.isInBox) {
+            await FraudReportService.updateReport(updatedReportWithFiles);
+            print('✅ Updated fraud report with file paths in local database');
+          } else {
+            await FraudReportService.saveReportOffline(updatedReportWithFiles);
+            print('✅ Saved fraud report with file paths to local database');
+          }
+
+          print('📁 Fraud report now has evidence files:');
+          print('📁 - Screenshots: ${screenshotPaths.length}');
+          print('📁 - Documents: ${documentPaths.length}');
+          print('📁 - Voice Messages: ${voiceMessagePaths.length}');
+          print('📁 - Video Files: ${videoPaths.length}');
+        } else {
+          print(
+            '⚠️ Warning: Files not stored offline: ${offlineResult['message']}',
+          );
+        }
+      } catch (e) {
+        print('❌ Error storing files offline: $e');
+      }
 
       // Verify the save by reading back the data
       final allReports = box.values.toList();
