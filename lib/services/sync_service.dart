@@ -18,8 +18,10 @@ class SyncService {
   static Future<void> syncAllUnsynced<T extends SyncableReport>(
     String boxName,
   ) async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    final isOnline = connectivityResult != ConnectivityResult.none;
+    final connectivityResults = await Connectivity().checkConnectivity();
+    final isOnline =
+        connectivityResults.isNotEmpty &&
+        !connectivityResults.contains(ConnectivityResult.none);
     if (!isOnline) return;
 
     final box = Hive.box<T>(boxName);
@@ -48,7 +50,10 @@ class SyncService {
 
   // Helper method to extract file URLs from FileModel objects for API calls
   static List<String> extractFileUrls(List<FileModel> files) {
-    return files.map((file) => file.displayUrl).where((url) => url.isNotEmpty).toList();
+    return files
+        .map((file) => file.displayUrl)
+        .where((url) => url.isNotEmpty)
+        .toList();
   }
 
   // Helper method to check if files need to be uploaded

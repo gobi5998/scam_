@@ -115,12 +115,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   // Load online data
   Future<void> _loadOnlineData() async {
-    await Future.wait([
-      _loadCategories(),
-      _loadAllReportTypes(),
-      _loadAlertLevels(),
-      _loadDeviceFilters(),
-    ]);
+    await Future.wait([_loadCategories(), _loadAlertLevels()]);
+
+    // Don't load all types initially - let them be loaded dynamically when categories are selected
+    // _loadAllReportTypes() is removed from here
   }
 
   Future<void> _loadDeviceFilters() async {
@@ -366,11 +364,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     if (connectivityResult == ConnectivityResult.none) {
       await _loadLocalData();
     } else {
-      await Future.wait([
-        _loadCategories(),
-        _loadAllReportTypes(),
-        _loadAlertLevels(),
-      ]);
+      await Future.wait([_loadCategories(), _loadAlertLevels()]);
+
+      // Load types only if categories are already selected
+      if (selectedCategoryIds.isNotEmpty) {
+        await _loadTypesByCategory(selectedCategoryIds);
+      }
     }
   }
 
@@ -441,47 +440,59 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   Future<void> _loadTypesByCategory(List<String> categoryIds) async {
     try {
+      print('🔍 === LOADING TYPES BY CATEGORY ===');
+      print('🔍 Category IDs: $categoryIds');
+
       setState(() {
         _isLoadingTypes = true;
         reportTypeId = [];
         selectedTypeIds = [];
       });
 
-      print('Fetching report types for categories: $categoryIds');
+      print('🔍 Fetching report types for categories: $categoryIds');
 
       // Load types for all selected categories
       List<Map<String, dynamic>> allTypes = [];
       for (String categoryId in categoryIds) {
         try {
+          print('🔍 Fetching types for category: $categoryId');
           final types = await _apiService.fetchReportTypesByCategory(
             categoryId,
           );
-          print('API Response - Types for category $categoryId: $types');
+          print(
+            '🔍 API Response - Types for category $categoryId: ${types.length} types',
+          );
+          print('🔍 Types data: $types');
           allTypes.addAll(types);
         } catch (e) {
-          print('Error fetching types for category $categoryId: $e');
+          print('❌ Error fetching types for category $categoryId: $e');
           // Continue with other categories even if one fails
         }
       }
 
-      print('All types length: ${allTypes.length}');
+      print('🔍 Total types collected: ${allTypes.length}');
       if (allTypes.isNotEmpty) {
-        print('First type: ${allTypes.first}');
+        print('🔍 First type: ${allTypes.first}');
         // Debug: Print all type structures
         for (int i = 0; i < allTypes.length; i++) {
-          print('Type $i:');
+          print('🔍 Type $i:');
           allTypes[i].forEach((key, value) {
-            print('  $key: $value (${value.runtimeType})');
+            print('🔍   $key: $value (${value.runtimeType})');
           });
         }
+      } else {
+        print('⚠️ No types found for selected categories');
       }
 
       setState(() {
         reportTypeId = allTypes;
         _isLoadingTypes = false;
       });
+
+      print('🔍 === TYPES LOADING COMPLETED ===');
+      print('🔍 Final reportTypeId length: ${reportTypeId.length}');
     } catch (e) {
-      print('Error loading types: $e');
+      print('❌ Error loading types: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to load types: $e';
@@ -884,24 +895,29 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   void _onCategoryChanged(List<String> categoryIds) {
     print('🔍 Category changed: $categoryIds');
+    print('🔍 Previous selected categories: $selectedCategoryIds');
+    print('🔍 New selected categories: $categoryIds');
+
     setState(() {
       selectedCategoryIds = categoryIds;
-      selectedTypeIds = [];
-      reportTypeId = [];
+      selectedTypeIds = []; // Clear selected types
+      reportTypeId = []; // Clear available types
     });
 
     // Fetch detailed data for selected categories
     _fetchSelectedCategoryData(categoryIds);
 
     if (categoryIds.isNotEmpty) {
+      print('🔍 Loading types for selected categories: $categoryIds');
       _loadTypesByCategory(categoryIds);
       // Refresh device filters based on new category
       _loadDeviceFilters();
     } else {
-      // If no categories selected, load all types
-      _loadAllReportTypes();
-      // Clear device filters when no category is selected
+      print('🔍 No categories selected - clearing types and device filters');
+      // Clear types and device filters when no category is selected
       setState(() {
+        reportTypeId = [];
+        selectedTypeIds = [];
         _deviceTypes = [];
         _detectTypes = [];
         _operatingSystems = [];
@@ -1257,8 +1273,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           ? Container(
                               padding: EdgeInsets.symmetric(vertical: 16),
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
+                                border: Border.all(color: Colors.blue.shade300),
                                 borderRadius: BorderRadius.circular(4),
+                                color: Colors.blue.shade50,
                               ),
                               child: Row(
                                 children: [
@@ -1268,10 +1285,19 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.blue.shade600,
+                                      ),
                                     ),
                                   ),
                                   SizedBox(width: 16),
-                                  Text('Loading types...'),
+                                  Text(
+                                    'Loading types for selected categories...',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ],
                               ),
                             )
@@ -1279,6 +1305,40 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                // Show message if no types available and categories are selected
+                                if (selectedCategoryIds.isNotEmpty &&
+                                    reportTypeId.isEmpty)
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    margin: EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      border: Border.all(
+                                        color: Colors.orange.shade200,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.info_outline,
+                                          color: Colors.orange.shade600,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'No types available for selected categories',
+                                            style: TextStyle(
+                                              color: Colors.orange.shade700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
                                 _buildMultiSelectDropdown(
                                   'Type',
                                   reportTypeId,

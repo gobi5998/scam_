@@ -363,6 +363,28 @@ class ApiService {
     }
   }
 
+  // Helper method to get file type from file path
+  String _getFileType(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
   // Upload due diligence file
   Future<Map<String, dynamic>> uploadDueDiligenceFile(
     File file,
@@ -388,10 +410,75 @@ class ApiService {
         'subcategoryId': subcategoryId,
       });
 
-      final response = await _dioService.fileUploadApi.post(
-        '/api/v1/due-diligence/upload?reportId=$reportId',
-        data: formData,
+      print('🔍 Form data details:');
+      print('   - File path: ${file.path}');
+      print('   - File name: ${file.path.split('/').last}');
+      print('   - Report ID: $reportId');
+      print('   - Category ID: $categoryId');
+      print('   - Subcategory ID: $subcategoryId');
+      print('   - Form data fields: ${formData.fields.length}');
+      print('   - Form data files: ${formData.files.length}');
+
+      // Debug form data fields
+      for (var field in formData.fields) {
+        print('   - Field: ${field.key} = ${field.value}');
+      }
+
+      // Debug form data files
+      for (var fileField in formData.files) {
+        print(
+          '   - File field: ${fileField.key} = ${fileField.value.filename}',
+        );
+      }
+
+      // Get the access token for authentication
+      final accessToken = await _getAccessToken();
+      if (accessToken == null) {
+        throw Exception('No access token available for file upload');
+      }
+
+      // Set headers with authentication
+      final headers = {
+        'Content-Type': 'multipart/form-data',
+        'Authorization': 'Bearer $accessToken',
+      };
+
+      print('🔑 Using access token: ${accessToken.substring(0, 20)}...');
+
+      print(
+        '🌐 Uploading to endpoint: /api/v1/due-diligence/upload?reportId=$reportId',
       );
+      print('🔑 Headers: $headers');
+
+      // Try the primary endpoint first
+      Response response;
+      try {
+        response = await _dioService.fileUploadApi.post(
+          '/api/v1/due-diligence/upload?reportId=$reportId',
+          data: formData,
+          options: Options(headers: headers),
+        );
+      } catch (e) {
+        print('⚠️ Primary endpoint failed, trying alternative endpoint...');
+        // Try alternative endpoint without query parameters
+        try {
+          response = await _dioService.fileUploadApi.post(
+            '/api/v1/due-diligence/upload',
+            data: formData,
+            options: Options(headers: headers),
+          );
+        } catch (e2) {
+          print(
+            '⚠️ Alternative endpoint failed, trying file-upload endpoint...',
+          );
+          // Try using the same endpoint as profile image upload
+          response = await _dioService.fileUploadApi.post(
+            '/api/v1/file-upload/due-diligence',
+            data: formData,
+            options: Options(headers: headers),
+          );
+        }
+      }
 
       print('✅ Upload response status: ${response.statusCode}');
       print('✅ Upload response data: ${response.data}');
@@ -399,22 +486,88 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ File uploaded successfully');
 
-        // Handle different response types
+        // Handle different response types and structure the response properly
         if (response.data is Map<String, dynamic>) {
-          return response.data;
+          final responseData = response.data as Map<String, dynamic>;
+
+          // Generate a proper document_id if missing
+          final documentId =
+              responseData['document_id'] ??
+              responseData['id'] ??
+              DateTime.now().millisecondsSinceEpoch.toString();
+
+          // Structure the response with complete file details
+          final structuredData = {
+            'document_id': documentId,
+            'uploaded_at':
+                responseData['uploaded_at'] ?? DateTime.now().toIso8601String(),
+            'status': responseData['status'] ?? 'in_review',
+            'comments': responseData['comments'] ?? '',
+            'url': responseData['url'] ?? responseData['file_url'],
+            'name': responseData['name'] ?? file.path.split('/').last,
+            'size': responseData['size'] ?? await file.length(),
+            'type': responseData['type'] ?? _getFileType(file.path),
+          };
+
+          return {'status': 'success', 'data': structuredData};
         } else if (response.data is String) {
-          return {'message': response.data, 'status': 'success'};
+          return {
+            'status': 'success',
+            'data': {
+              'document_id': DateTime.now().millisecondsSinceEpoch.toString(),
+              'uploaded_at': DateTime.now().toIso8601String(),
+              'status': 'in_review',
+              'comments': '',
+              'url': response.data,
+              'name': file.path.split('/').last,
+              'size': await file.length(),
+              'type': _getFileType(file.path),
+            },
+          };
         } else {
-          return {'data': response.data, 'status': 'success'};
+          return {
+            'status': 'success',
+            'data': {
+              'document_id': DateTime.now().millisecondsSinceEpoch.toString(),
+              'uploaded_at': DateTime.now().toIso8601String(),
+              'status': 'in_review',
+              'comments': '',
+              'url': null,
+              'name': file.path.split('/').last,
+              'size': await file.length(),
+              'type': _getFileType(file.path),
+            },
+          };
         }
       } else {
-        throw Exception('Failed to upload file: ${response.statusCode}');
+        print('❌ Upload failed with status: ${response.statusCode}');
+        print('❌ Response data: ${response.data}');
+        throw Exception(
+          'Failed to upload file: ${response.statusCode} - ${response.data}',
+        );
       }
     } on DioException catch (e) {
-      print('❌ Error uploading file: ${e.message}');
+      print('❌ DioException uploading file: ${e.message}');
+      print('❌ Error type: ${e.type}');
       print('❌ Response data: ${e.response?.data}');
       print('❌ Status code: ${e.response?.statusCode}');
-      throw Exception('Failed to upload file: ${e.message}');
+      print('❌ Request path: ${e.requestOptions.path}');
+
+      // Handle different types of DioExceptions
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          throw Exception('Network timeout: ${e.message}');
+        case DioExceptionType.connectionError:
+          throw Exception('Connection error: ${e.message}');
+        case DioExceptionType.badResponse:
+          throw Exception(
+            'Server error: ${e.response?.statusCode} - ${e.response?.data}',
+          );
+        default:
+          throw Exception('Upload failed: ${e.message}');
+      }
     }
   }
 
