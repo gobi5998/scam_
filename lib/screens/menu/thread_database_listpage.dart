@@ -6343,7 +6343,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         print('  - Created: ${report.createdAt}');
 
         if (report.isSynced != true) {
-          print('🔄 Testing sync for this report...');
+          print(' Testing sync for this report...');
 
           try {
             // Test the sendToBackend method with detailed logging
@@ -6352,11 +6352,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
             if (!success) {
               print(
-                '❌ This report failed to sync - check the sendToBackend logs above',
+                ' This report failed to sync - check the sendToBackend logs above',
               );
             }
           } catch (e) {
-            print('❌ Exception during sync: $e');
+            print('Exception during sync: $e');
           }
         }
         print('---');
@@ -6395,7 +6395,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       // Step 1: Check pending reports
       final pendingInfo = await ScamSyncService().getPendingReportsInfo();
-      print('📊 Pending reports info: $pendingInfo');
+      print('Pending reports info: $pendingInfo');
 
       if (pendingInfo['pendingCount'] == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -6415,16 +6415,16 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         final reportId = firstReport['id'] as String?;
 
         if (reportId != null) {
-          print('🔄 Testing sync for report: $reportId');
+          print('Testing sync for report: $reportId');
 
           // Test the sendToBackend method directly
           final localService = ScamLocalService();
           final report = await localService.getReportById(reportId);
 
           if (report != null) {
-            print('🔍 Report found, testing sendToBackend...');
+            print(' Report found, testing sendToBackend...');
             final success = await ScamReportService.sendToBackend(report);
-            print('📤 sendToBackend result: $success');
+            print('sendToBackend result: $success');
 
             if (success) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -6437,7 +6437,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('❌ Report failed to send to backend'),
+                  content: Text(' Report failed to send to backend'),
                   backgroundColor: Colors.red,
                   duration: Duration(seconds: 3),
                 ),
@@ -6447,7 +6447,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         }
       }
     } catch (e) {
-      print('❌ Error testing sync process: $e');
+      print('Error testing sync process: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error testing sync: $e'),
@@ -6473,7 +6473,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       if (result['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Backend test completed: ${result['message']}'),
+            content: Text('Backend test completed: ${result['message']}'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -6481,14 +6481,14 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Backend test failed: ${result['message']}'),
+            content: Text('Backend test failed: ${result['message']}'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
-      print('❌ Error testing backend response: $e');
+      print('Error testing backend response: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error testing backend response: $e'),
@@ -6502,7 +6502,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
   // Test the new token management system
   Future<void> _testTokenManagement() async {
     try {
-      print('🧪 Testing token management system...');
+      print('Testing token management system...');
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -6515,17 +6515,17 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       final validation = await TokenStorage.validateTokens();
 
       // Test token management
-      print('🔧 Testing token management...');
+      print('Testing token management...');
       final management = await TokenStorage.manageTokensForSync();
       print(
-        '🔧 Management result: ${management['reason']} - ${management['message']}',
+        'Management result: ${management['reason']} - ${management['message']}',
       );
 
       if (management['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '✅ Token management successful: ${management['message']}',
+              'Token management successful: ${management['message']}',
             ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
@@ -6535,7 +6535,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '❌ Token management failed: ${management['message']}',
+              'Token management failed: ${management['message']}',
             ),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
@@ -6545,7 +6545,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       // Show detailed results
     } catch (e) {
-      print('❌ Error testing token management: $e');
+      print(' Error testing token management: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error testing token management: $e'),
@@ -6571,7 +6571,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       if (timeoutResult['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ ${timeoutResult['message']}'),
+            content: Text('${timeoutResult['message']}'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -6582,7 +6582,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ ${timeoutResult['message']}'),
+            content: Text('${timeoutResult['message']}'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
           ),
@@ -6591,7 +6591,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         if (timeoutResult['reason'] == 'backend_timeout') {}
       }
     } catch (e) {
-      print('❌ Error handling backend timeout: $e');
+      print('Error handling backend timeout: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error handling timeout: $e'),
@@ -6940,7 +6940,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       if (duplicates.isNotEmpty || nullIdReports.isNotEmpty) {
         print(
-          '🧹 Found ${duplicates.length} duplicates and ${nullIdReports.length} null ID reports in $type reports',
+          'Found ${duplicates.length} duplicates and ${nullIdReports.length} null ID reports in $type reports',
         );
 
         // Clear the box and add back only unique reports
