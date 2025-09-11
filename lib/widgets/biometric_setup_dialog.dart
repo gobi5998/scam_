@@ -49,7 +49,7 @@ class _BiometricSetupDialogState extends State<BiometricSetupDialog> {
         } else {
           _selectedBiometric = '';
         }
-        
+
         // Debug print to help identify issues
         print('🔍 Biometric Setup Debug:');
         print('  - Available: $_availableBiometrics');
@@ -180,19 +180,24 @@ class _BiometricSetupDialogState extends State<BiometricSetupDialog> {
             const SizedBox(height: 24),
 
             // Biometric type selection (if multiple available and valid)
-            if (_availableBiometrics.length > 1 && 
+            if (_availableBiometrics.length > 1 &&
                 _availableBiometrics.every((bio) => bio.isNotEmpty) &&
-                _availableBiometrics.toSet().length == _availableBiometrics.length &&
+                _availableBiometrics.toSet().length ==
+                    _availableBiometrics.length &&
                 _selectedBiometric.isNotEmpty) ...[
               Builder(
                 builder: (context) {
                   try {
-                    final validValue = (_availableBiometrics.isNotEmpty && _availableBiometrics.contains(_selectedBiometric))
-                        ? _selectedBiometric 
-                        : (_availableBiometrics.isNotEmpty ? _availableBiometrics.first : null);
-                    
+                    final validValue =
+                        (_availableBiometrics.isNotEmpty &&
+                            _availableBiometrics.contains(_selectedBiometric))
+                        ? _selectedBiometric
+                        : (_availableBiometrics.isNotEmpty
+                              ? _availableBiometrics.first
+                              : null);
+
                     return DropdownButtonFormField<String>(
-                      initialValue: validValue,
+                      value: validValue,
                       decoration: const InputDecoration(
                         labelText: 'Select Biometric Type',
                         border: OutlineInputBorder(),

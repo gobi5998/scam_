@@ -38,7 +38,7 @@ class _CustomDropdownState extends State<CustomDropdown> {
         ),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          initialValue: widget.value,
+          value: widget.value,
           icon: Image.asset("assets/icon/Vector.png", width: 16, height: 16),
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
