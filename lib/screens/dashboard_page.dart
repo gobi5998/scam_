@@ -11,6 +11,7 @@ import '../custom/customButton.dart';
 import '../provider/dashboard_provider.dart';
 import '../widget/graph_widget.dart';
 import '../widget/Drawer/appDrawer.dart';
+import '../utils/drawer_utils.dart';
 import '../services/biometric_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/responsive_widget.dart';
@@ -214,6 +215,9 @@ class _DashboardPageState extends State<DashboardPage> {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Colors.white, size: 24),
           onPressed: () {
+            // Refresh user roles before opening drawer
+            DrawerUtils.refreshDrawerRoles();
+
             // Use the GlobalKey to open the drawer reliably
             _scaffoldKey.currentState?.openDrawer();
           },
@@ -533,7 +537,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         hasSelectedCategory: false,
                         isOffline: false,
                         localReports: [],
-                        severityLevels: [], alertLevels: [],
+                        severityLevels: [],
+                        alertLevels: [],
                       ),
                     ),
                   );

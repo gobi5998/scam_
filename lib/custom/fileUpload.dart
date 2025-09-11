@@ -777,7 +777,7 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
     print('📸 Picking images...');
 
     // Check if already at limit
-    if (selectedImages.length >= 5) {
+    if (selectedImages.length >= 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

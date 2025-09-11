@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:security_alert/provider/scam_report_provider.dart';
 import 'package:security_alert/screens/Due_diligence/Due_diligence1.dart';
-import 'package:security_alert/screens/Due_diligence/cached_due_diligence_wrapper.dart';
 import 'package:security_alert/screens/Due_diligence/Due_diligence_list_view.dart';
 import 'package:security_alert/screens/menu/feedbackPage.dart';
 import 'package:security_alert/screens/menu/profile_page.dart';
@@ -761,8 +760,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const AuthGuard(child: DashboardPage()),
         '/dashboard': (context) => const AuthGuard(child: DashboardPage()),
         '/profile': (context) => AuthGuard(child: ProfilePage()),
-        '/due-diligence': (context) =>
-            AuthGuard(child: CachedDueDiligenceWrapper()),
+        '/due-diligence': (context) => AuthGuard(child: DueDiligenceWrapper()),
         '/due-diligence-view': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final reportId = args as String?;

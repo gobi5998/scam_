@@ -72,6 +72,8 @@ class _InternationalPhoneInputState extends State<InternationalPhoneInput> {
                       }
                     }
                   },
+                  // Note: PhoneFormField doesn't have a validator parameter
+                  // Validation is handled in the onChanged callback
                   decoration: InputDecoration(
                     labelText: widget.label,
                     hintText: widget.hintText,

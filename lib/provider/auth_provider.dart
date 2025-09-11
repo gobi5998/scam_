@@ -31,12 +31,19 @@ class AuthProvider with ChangeNotifier {
         // Decode JWT token to get user information
         final userData = JwtService.decodeToken(token);
         if (userData != null) {
-          // Create user object from JWT token data
-          _currentUser = User(
-            id: userData['sub'] ?? '',
-            username: userData['preferred_username'] ?? '',
-            email: userData['email'] ?? '',
-          );
+          print('🔍 AuthProvider: Checking auth status with JWT data');
+          print('🔍 AuthProvider: JWT data keys: ${userData.keys.toList()}');
+
+          // Create user object from JWT token data using User.fromJson to preserve roles
+          _currentUser = User.fromJson(userData);
+
+          if (_currentUser != null) {
+            print('🔍 AuthProvider: User restored from JWT');
+            print(
+              '🔍 AuthProvider: User roles: ${_currentUser!.getDynamicField('roles')}',
+            );
+          }
+
           _isLoggedIn = true;
           _errorMessage = '';
         } else {
@@ -209,12 +216,20 @@ class AuthProvider with ChangeNotifier {
         // Decode JWT token to get user information
         final userData = JwtService.decodeToken(token);
         if (userData != null) {
-          // Create user object from JWT token data
-          _currentUser = User(
-            id: userData['sub'] ?? '',
-            username: userData['preferred_username'] ?? '',
-            email: userData['email'] ?? '',
-          );
+          print('🔍 AuthProvider: Restoring login state with JWT data');
+
+          // Create user object from JWT token data using User.fromJson to preserve roles
+          _currentUser = User.fromJson(userData);
+
+          if (_currentUser != null) {
+            print(
+              '🔍 AuthProvider: User restored from JWT in restoreLoginState',
+            );
+            print(
+              '🔍 AuthProvider: User roles: ${_currentUser!.getDynamicField('roles')}',
+            );
+          }
+
           _isLoggedIn = true;
           _errorMessage = '';
 
@@ -236,42 +251,31 @@ class AuthProvider with ChangeNotifier {
   // Set user data from API response (for auto-login)
   Future<void> setUserData(Map<String, dynamic> userData) async {
     try {
-      // Extract user information from the API response
-      String userId = '';
-      String username = '';
-      String email = '';
+      print('🔍 AuthProvider: Setting user data with roles');
+      print('🔍 AuthProvider: User data keys: ${userData.keys.toList()}');
 
-      // Handle different response formats
-      if (userData.containsKey('id')) {
-        userId = userData['id'].toString();
-      } else if (userData.containsKey('sub')) {
-        userId = userData['sub'].toString();
-      } else if (userData.containsKey('userId')) {
-        userId = userData['userId'].toString();
+      // Create user object using User.fromJson to preserve all data including roles
+      _currentUser = User.fromJson(userData);
+
+      // Debug role information
+      if (_currentUser != null) {
+        print('🔍 AuthProvider: User created successfully');
+        print('🔍 AuthProvider: User email: ${_currentUser!.email}');
+        print(
+          '🔍 AuthProvider: User roles: ${_currentUser!.getDynamicField('roles')}',
+        );
+
+        // Check due diligence access
+        final canAccess = _currentUser!.getDynamicField('roles') != null;
+        print('🔍 AuthProvider: Has roles data: $canAccess');
       }
-
-      if (userData.containsKey('username')) {
-        username = userData['username'].toString();
-      } else if (userData.containsKey('preferred_username')) {
-        username = userData['preferred_username'].toString();
-      } else if (userData.containsKey('userName')) {
-        username = userData['userName'].toString();
-      }
-
-      if (userData.containsKey('email')) {
-        email = userData['email'].toString();
-      } else if (userData.containsKey('emailAddress')) {
-        email = userData['emailAddress'].toString();
-      }
-
-      // Create user object
-      _currentUser = User(id: userId, username: username, email: email);
 
       _isLoggedIn = true;
       _errorMessage = '';
 
       notifyListeners();
     } catch (e) {
+      print('❌ AuthProvider: Error setting user data: $e');
       _isLoggedIn = false;
       _currentUser = null;
       _errorMessage = 'Failed to set user data: $e';

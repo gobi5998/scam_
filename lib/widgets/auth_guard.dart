@@ -9,6 +9,7 @@ import '../screens/SplashScreen.dart';
 import '../screens/scam/scam_sync_service.dart';
 import '../screens/Fraud/fraud_sync_service.dart';
 import '../screens/malware/malware_sync_service.dart';
+import '../utils/drawer_utils.dart';
 
 class AuthGuard extends StatefulWidget {
   final Widget child;
@@ -125,6 +126,9 @@ class _AuthGuardState extends State<AuthGuard> {
           if (userResponse is Map<String, dynamic>) {
             // Update auth provider with user data
             await authProvider.setUserData(userResponse);
+
+            // Refresh drawer roles after successful login
+            DrawerUtils.refreshDrawerRoles();
 
             // Trigger post-login sync for pending reports
             _triggerPostLoginSync();
@@ -341,6 +345,9 @@ class _AuthGuardState extends State<AuthGuard> {
           if (userResponse is Map<String, dynamic>) {
             // Update auth provider with user data
             await authProvider.setUserData(userResponse);
+
+            // Refresh drawer roles after successful retry
+            DrawerUtils.refreshDrawerRoles();
 
             setState(() {
               _authChecked = true;

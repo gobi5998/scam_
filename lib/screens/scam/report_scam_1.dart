@@ -249,9 +249,9 @@ String? validatePhone(String? value, {String? countryCode}) {
   // Remove any non-digit characters for validation
   final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
 
-  // Define country-specific phone number lengths
+  // Define country-specific phone number lengths (for national numbers only, excluding country code)
   final Map<String, List<int>> countryPhoneLengths = {
-    'IN': [10], // India
+    'IN': [10], // India - national number should be 10 digits
     'US': [10], // United States
     'CA': [10], // Canada
     'GB': [10, 11], // United Kingdom
@@ -390,8 +390,542 @@ String? validatePhone(String? value, {String? countryCode}) {
   // If country code is provided, validate against specific country rules
   if (countryCode != null && countryPhoneLengths.containsKey(countryCode)) {
     final allowedLengths = countryPhoneLengths[countryCode]!;
-    if (!allowedLengths.contains(digitsOnly.length)) {
+
+    // For international phone numbers, we need to extract the national number
+    // The value might be in format like "+91 9666666666" or "+919666666666"
+    String nationalNumber = value;
+
+    // Remove country code prefix if present
+    if (value.startsWith('+')) {
+      // Remove the + sign and country code digits
+      // For India (+91), remove +91 and get the remaining digits
+      if (countryCode == 'IN' && value.startsWith('+91')) {
+        nationalNumber = value.substring(3).replaceAll(RegExp(r'[^\d]'), '');
+      } else if (countryCode == 'US' && value.startsWith('+1')) {
+        nationalNumber = value.substring(2).replaceAll(RegExp(r'[^\d]'), '');
+      } else if (countryCode == 'CA' && value.startsWith('+1')) {
+        nationalNumber = value.substring(2).replaceAll(RegExp(r'[^\d]'), '');
+      } else {
+        // For other countries, try to remove the country code
+        // This is a simplified approach - in production, you'd use a proper phone number library
+        nationalNumber = value.replaceAll(RegExp(r'[^\d]'), '');
+        // Remove common country code lengths
+        if (nationalNumber.length > 10) {
+          nationalNumber = nationalNumber.substring(nationalNumber.length - 10);
+        }
+      }
+    } else {
+      // Remove any non-digit characters for validation
+      nationalNumber = nationalNumber.replaceAll(RegExp(r'[^\d]'), '');
+    }
+
+    // Validate the national number length
+    if (!allowedLengths.contains(nationalNumber.length)) {
       return 'Phone number must be ${allowedLengths.join(' or ')} digits for ${countryCode}';
+    }
+
+    // Additional country-specific validation rules
+    if (countryCode == 'IN' && nationalNumber.length == 10) {
+      // India: Mobile numbers must start with 6, 7, 8, or 9
+      if (!RegExp(r'^[6-9]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Indian mobile number (should start with 6, 7, 8, or 9)';
+      }
+    } else if (countryCode == 'US' && nationalNumber.length == 10) {
+      // US: First digit cannot be 0 or 1
+      if (!RegExp(r'^[2-9]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid US phone number (cannot start with 0 or 1)';
+      }
+    } else if (countryCode == 'CA' && nationalNumber.length == 10) {
+      // Canada: First digit cannot be 0 or 1
+      if (!RegExp(r'^[2-9]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Canadian phone number (cannot start with 0 or 1)';
+      }
+    } else if (countryCode == 'GB' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // UK: Mobile numbers start with 7, landline with 1 or 2
+      if (nationalNumber.length == 11 &&
+          !RegExp(r'^7\d{10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid UK mobile number (11 digits starting with 7)';
+      } else if (nationalNumber.length == 10 &&
+          !RegExp(r'^[12]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid UK landline number (10 digits starting with 1 or 2)';
+      }
+    } else if (countryCode == 'AU' && nationalNumber.length == 9) {
+      // Australia: Mobile numbers start with 4
+      if (!RegExp(r'^4\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Australian mobile number (9 digits starting with 4)';
+      }
+    } else if (countryCode == 'DE' &&
+        (nationalNumber.length == 10 ||
+            nationalNumber.length == 11 ||
+            nationalNumber.length == 12)) {
+      // Germany: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{9,11}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid German mobile number (starting with 1)';
+      }
+    } else if (countryCode == 'FR' && nationalNumber.length == 10) {
+      // France: Mobile numbers start with 6 or 7
+      if (!RegExp(r'^[67]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid French mobile number (starting with 6 or 7)';
+      }
+    } else if (countryCode == 'IT' && nationalNumber.length == 10) {
+      // Italy: Mobile numbers start with 3
+      if (!RegExp(r'^3\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Italian mobile number (10 digits starting with 3)';
+      }
+    } else if (countryCode == 'ES' && nationalNumber.length == 9) {
+      // Spain: Mobile numbers start with 6 or 7
+      if (!RegExp(r'^[67]\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Spanish mobile number (9 digits starting with 6 or 7)';
+      }
+    } else if (countryCode == 'BR' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // Brazil: Mobile numbers start with 9
+      if (nationalNumber.length == 11 &&
+          !RegExp(r'^9\d{10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Brazilian mobile number (11 digits starting with 9)';
+      } else if (nationalNumber.length == 10 &&
+          !RegExp(r'^[2-5]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Brazilian landline number (10 digits starting with 2-5)';
+      }
+    } else if (countryCode == 'MX' && nationalNumber.length == 10) {
+      // Mexico: Mobile numbers start with 1, 2, or 3
+      if (!RegExp(r'^[123]\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Mexican phone number (starting with 1, 2, or 3)';
+      }
+    } else if (countryCode == 'JP' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // Japan: Mobile numbers start with 7, 8, or 9
+      if (!RegExp(r'^[789]\d{9,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Japanese mobile number (starting with 7, 8, or 9)';
+      }
+    } else if (countryCode == 'KR' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // South Korea: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{9,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid South Korean mobile number (starting with 1)';
+      }
+    } else if (countryCode == 'CN' && nationalNumber.length == 11) {
+      // China: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Chinese mobile number (11 digits starting with 1)';
+      }
+    } else if (countryCode == 'RU' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // Russia: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{9,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Russian mobile number (starting with 9)';
+      }
+    } else if (countryCode == 'ZA' && nationalNumber.length == 9) {
+      // South Africa: Mobile numbers start with 6, 7, or 8
+      if (!RegExp(r'^[678]\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid South African mobile number (9 digits starting with 6, 7, or 8)';
+      }
+    } else if (countryCode == 'NG' && nationalNumber.length == 11) {
+      // Nigeria: Mobile numbers start with 7, 8, or 9
+      if (!RegExp(r'^[789]\d{10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Nigerian mobile number (11 digits starting with 7, 8, or 9)';
+      }
+    } else if (countryCode == 'EG' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // Egypt: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{9,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Egyptian mobile number (starting with 1)';
+      }
+    } else if (countryCode == 'SA' && nationalNumber.length == 9) {
+      // Saudi Arabia: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Saudi mobile number (9 digits starting with 5)';
+      }
+    } else if (countryCode == 'AE' && nationalNumber.length == 9) {
+      // UAE: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid UAE mobile number (9 digits starting with 5)';
+      }
+    } else if (countryCode == 'TR' && nationalNumber.length == 10) {
+      // Turkey: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Turkish mobile number (10 digits starting with 5)';
+      }
+    } else if (countryCode == 'PK' && nationalNumber.length == 10) {
+      // Pakistan: Mobile numbers start with 3
+      if (!RegExp(r'^3\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Pakistani mobile number (10 digits starting with 3)';
+      }
+    } else if (countryCode == 'BD' &&
+        (nationalNumber.length == 10 || nationalNumber.length == 11)) {
+      // Bangladesh: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{9,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Bangladeshi mobile number (starting with 1)';
+      }
+    } else if (countryCode == 'LK' && nationalNumber.length == 9) {
+      // Sri Lanka: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Sri Lankan mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'NP' && nationalNumber.length == 10) {
+      // Nepal: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Nepalese mobile number (10 digits starting with 9)';
+      }
+    } else if (countryCode == 'TH' && nationalNumber.length == 9) {
+      // Thailand: Mobile numbers start with 6, 8, or 9
+      if (!RegExp(r'^[689]\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Thai mobile number (9 digits starting with 6, 8, or 9)';
+      }
+    } else if (countryCode == 'VN' &&
+        (nationalNumber.length == 9 || nationalNumber.length == 10)) {
+      // Vietnam: Mobile numbers start with 3, 5, 7, 8, or 9
+      if (!RegExp(r'^[35789]\d{8,9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Vietnamese mobile number (starting with 3, 5, 7, 8, or 9)';
+      }
+    } else if (countryCode == 'PH' && nationalNumber.length == 10) {
+      // Philippines: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Philippine mobile number (10 digits starting with 9)';
+      }
+    } else if (countryCode == 'ID' &&
+        (nationalNumber.length == 9 ||
+            nationalNumber.length == 10 ||
+            nationalNumber.length == 11)) {
+      // Indonesia: Mobile numbers start with 8
+      if (!RegExp(r'^8\d{8,10}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Indonesian mobile number (starting with 8)';
+      }
+    } else if (countryCode == 'MY' &&
+        (nationalNumber.length == 9 || nationalNumber.length == 10)) {
+      // Malaysia: Mobile numbers start with 1
+      if (!RegExp(r'^1\d{8,9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Malaysian mobile number (starting with 1)';
+      }
+    } else if (countryCode == 'SG' && nationalNumber.length == 8) {
+      // Singapore: Mobile numbers start with 8 or 9
+      if (!RegExp(r'^[89]\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Singaporean mobile number (8 digits starting with 8 or 9)';
+      }
+    } else if (countryCode == 'HK' && nationalNumber.length == 8) {
+      // Hong Kong: Mobile numbers start with 5, 6, 8, or 9
+      if (!RegExp(r'^[5689]\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Hong Kong mobile number (8 digits starting with 5, 6, 8, or 9)';
+      }
+    } else if (countryCode == 'TW' && nationalNumber.length == 9) {
+      // Taiwan: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Taiwanese mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'MM' &&
+        (nationalNumber.length == 9 || nationalNumber.length == 10)) {
+      // Myanmar: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8,9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Myanmar mobile number (starting with 9)';
+      }
+    } else if (countryCode == 'KH' &&
+        (nationalNumber.length == 8 || nationalNumber.length == 9)) {
+      // Cambodia: Mobile numbers start with 1, 6, 7, 8, or 9
+      if (!RegExp(r'^[16789]\d{7,8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Cambodian mobile number (starting with 1, 6, 7, 8, or 9)';
+      }
+    } else if (countryCode == 'LA' &&
+        (nationalNumber.length == 8 || nationalNumber.length == 9)) {
+      // Laos: Mobile numbers start with 2, 3, 4, 5, 6, 7, 8, or 9
+      if (!RegExp(r'^[2-9]\d{7,8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Laotian mobile number (starting with 2-9)';
+      }
+    } else if (countryCode == 'MN' && nationalNumber.length == 8) {
+      // Mongolia: Mobile numbers start with 8 or 9
+      if (!RegExp(r'^[89]\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Mongolian mobile number (8 digits starting with 8 or 9)';
+      }
+    } else if (countryCode == 'KZ' && nationalNumber.length == 10) {
+      // Kazakhstan: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Kazakh mobile number (10 digits starting with 7)';
+      }
+    } else if (countryCode == 'UZ' && nationalNumber.length == 9) {
+      // Uzbekistan: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Uzbek mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'KG' && nationalNumber.length == 9) {
+      // Kyrgyzstan: Mobile numbers start with 7 or 9
+      if (!RegExp(r'^[79]\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Kyrgyz mobile number (9 digits starting with 7 or 9)';
+      }
+    } else if (countryCode == 'TJ' && nationalNumber.length == 9) {
+      // Tajikistan: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Tajik mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'TM' && nationalNumber.length == 8) {
+      // Turkmenistan: Mobile numbers start with 6 or 7
+      if (!RegExp(r'^[67]\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Turkmen mobile number (8 digits starting with 6 or 7)';
+      }
+    } else if (countryCode == 'AF' && nationalNumber.length == 9) {
+      // Afghanistan: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Afghan mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'IR' && nationalNumber.length == 10) {
+      // Iran: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Iranian mobile number (10 digits starting with 9)';
+      }
+    } else if (countryCode == 'IQ' && nationalNumber.length == 10) {
+      // Iraq: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Iraqi mobile number (10 digits starting with 7)';
+      }
+    } else if (countryCode == 'SY' && nationalNumber.length == 9) {
+      // Syria: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Syrian mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'LB' && nationalNumber.length == 8) {
+      // Lebanon: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Lebanese mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'JO' && nationalNumber.length == 9) {
+      // Jordan: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Jordanian mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'IL' && nationalNumber.length == 9) {
+      // Israel: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Israeli mobile number (9 digits starting with 5)';
+      }
+    } else if (countryCode == 'PS' && nationalNumber.length == 9) {
+      // Palestine: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Palestinian mobile number (9 digits starting with 5)';
+      }
+    } else if (countryCode == 'KW' && nationalNumber.length == 8) {
+      // Kuwait: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Kuwaiti mobile number (8 digits starting with 5)';
+      }
+    } else if (countryCode == 'QA' && nationalNumber.length == 8) {
+      // Qatar: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Qatari mobile number (8 digits starting with 5)';
+      }
+    } else if (countryCode == 'BH' && nationalNumber.length == 8) {
+      // Bahrain: Mobile numbers start with 3 or 6
+      if (!RegExp(r'^[36]\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Bahraini mobile number (8 digits starting with 3 or 6)';
+      }
+    } else if (countryCode == 'OM' && nationalNumber.length == 8) {
+      // Oman: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Omani mobile number (8 digits starting with 9)';
+      }
+    } else if (countryCode == 'YE' && nationalNumber.length == 9) {
+      // Yemen: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Yemeni mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'SO' && nationalNumber.length == 9) {
+      // Somalia: Mobile numbers start with 6
+      if (!RegExp(r'^6\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Somali mobile number (9 digits starting with 6)';
+      }
+    } else if (countryCode == 'DJ' && nationalNumber.length == 8) {
+      // Djibouti: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Djiboutian mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'ER' && nationalNumber.length == 7) {
+      // Eritrea: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Eritrean mobile number (7 digits starting with 7)';
+      }
+    } else if (countryCode == 'ET' && nationalNumber.length == 9) {
+      // Ethiopia: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Ethiopian mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'SD' && nationalNumber.length == 9) {
+      // Sudan: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Sudanese mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'SS' && nationalNumber.length == 9) {
+      // South Sudan: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid South Sudanese mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'KE' && nationalNumber.length == 9) {
+      // Kenya: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Kenyan mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'UG' && nationalNumber.length == 9) {
+      // Uganda: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Ugandan mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'TZ' && nationalNumber.length == 9) {
+      // Tanzania: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Tanzanian mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'RW' && nationalNumber.length == 9) {
+      // Rwanda: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Rwandan mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'BI' && nationalNumber.length == 8) {
+      // Burundi: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Burundian mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'MW' && nationalNumber.length == 9) {
+      // Malawi: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Malawian mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'ZM' && nationalNumber.length == 9) {
+      // Zambia: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Zambian mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'ZW' && nationalNumber.length == 9) {
+      // Zimbabwe: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Zimbabwean mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'BW' && nationalNumber.length == 7) {
+      // Botswana: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Botswanan mobile number (7 digits starting with 7)';
+      }
+    } else if (countryCode == 'NA' && nationalNumber.length == 8) {
+      // Namibia: Mobile numbers start with 8
+      if (!RegExp(r'^8\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Namibian mobile number (8 digits starting with 8)';
+      }
+    } else if (countryCode == 'SZ' && nationalNumber.length == 8) {
+      // Eswatini: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Eswatini mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'LS' && nationalNumber.length == 8) {
+      // Lesotho: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Lesotho mobile number (8 digits starting with 5)';
+      }
+    } else if (countryCode == 'MG' && nationalNumber.length == 9) {
+      // Madagascar: Mobile numbers start with 3
+      if (!RegExp(r'^3\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Malagasy mobile number (9 digits starting with 3)';
+      }
+    } else if (countryCode == 'MU' && nationalNumber.length == 7) {
+      // Mauritius: Mobile numbers start with 5
+      if (!RegExp(r'^5\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Mauritian mobile number (7 digits starting with 5)';
+      }
+    } else if (countryCode == 'SC' && nationalNumber.length == 7) {
+      // Seychelles: Mobile numbers start with 2
+      if (!RegExp(r'^2\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Seychellois mobile number (7 digits starting with 2)';
+      }
+    } else if (countryCode == 'KM' && nationalNumber.length == 7) {
+      // Comoros: Mobile numbers start with 3
+      if (!RegExp(r'^3\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Comorian mobile number (7 digits starting with 3)';
+      }
+    } else if (countryCode == 'MZ' && nationalNumber.length == 9) {
+      // Mozambique: Mobile numbers start with 8
+      if (!RegExp(r'^8\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Mozambican mobile number (9 digits starting with 8)';
+      }
+    } else if (countryCode == 'AO' && nationalNumber.length == 9) {
+      // Angola: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Angolan mobile number (9 digits starting with 9)';
+      }
+    } else if (countryCode == 'GW' && nationalNumber.length == 7) {
+      // Guinea-Bissau: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Guinea-Bissau mobile number (7 digits starting with 9)';
+      }
+    } else if (countryCode == 'GN' && nationalNumber.length == 9) {
+      // Guinea: Mobile numbers start with 6
+      if (!RegExp(r'^6\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Guinean mobile number (9 digits starting with 6)';
+      }
+    } else if (countryCode == 'SL' && nationalNumber.length == 8) {
+      // Sierra Leone: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Sierra Leonean mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'LR' && nationalNumber.length == 8) {
+      // Liberia: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Liberian mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'CI' && nationalNumber.length == 10) {
+      // Ivory Coast: Mobile numbers start with 0
+      if (!RegExp(r'^0\d{9}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Ivorian mobile number (10 digits starting with 0)';
+      }
+    } else if (countryCode == 'GH' && nationalNumber.length == 9) {
+      // Ghana: Mobile numbers start with 2
+      if (!RegExp(r'^2\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Ghanaian mobile number (9 digits starting with 2)';
+      }
+    } else if (countryCode == 'TG' && nationalNumber.length == 8) {
+      // Togo: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Togolese mobile number (8 digits starting with 9)';
+      }
+    } else if (countryCode == 'BJ' && nationalNumber.length == 8) {
+      // Benin: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Beninese mobile number (8 digits starting with 9)';
+      }
+    } else if (countryCode == 'NE' && nationalNumber.length == 8) {
+      // Niger: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Nigerien mobile number (8 digits starting with 9)';
+      }
+    } else if (countryCode == 'BF' && nationalNumber.length == 8) {
+      // Burkina Faso: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Burkinabé mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'ML' && nationalNumber.length == 8) {
+      // Mali: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Malian mobile number (8 digits starting with 7)';
+      }
+    } else if (countryCode == 'SN' && nationalNumber.length == 9) {
+      // Senegal: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{8}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Senegalese mobile number (9 digits starting with 7)';
+      }
+    } else if (countryCode == 'GM' && nationalNumber.length == 7) {
+      // Gambia: Mobile numbers start with 7
+      if (!RegExp(r'^7\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Gambian mobile number (7 digits starting with 7)';
+      }
+    } else if (countryCode == 'CV' && nationalNumber.length == 7) {
+      // Cape Verde: Mobile numbers start with 9
+      if (!RegExp(r'^9\d{6}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Cape Verdean mobile number (7 digits starting with 9)';
+      }
+    } else if (countryCode == 'MR' && nationalNumber.length == 8) {
+      // Mauritania: Mobile numbers start with 2
+      if (!RegExp(r'^2\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Mauritanian mobile number (8 digits starting with 2)';
+      }
+    } else if (countryCode == 'EH' && nationalNumber.length == 8) {
+      // Western Sahara: Mobile numbers start with 6
+      if (!RegExp(r'^6\d{7}$').hasMatch(nationalNumber)) {
+        return 'Enter a valid Western Saharan mobile number (8 digits starting with 6)';
+      }
     }
   } else {
     // Fallback validation for unknown countries (7-15 digits)
@@ -968,10 +1502,18 @@ class _ReportScam1State extends State<ReportScam1> {
                                     child: PhoneFormField(
                                       onChanged: (PhoneNumber? number) {
                                         if (number != null) {
+                                          // Validate the phone number with country-specific rules
+                                          final validationError = validatePhone(
+                                            number.international,
+                                            countryCode: number.isoCode,
+                                          );
+
                                           setState(() {
                                             currentPhoneNumber = number;
-                                            _phoneError = '';
-                                            _isPhoneValid = true;
+                                            _phoneError = validationError ?? '';
+                                            _isPhoneValid =
+                                                validationError == null &&
+                                                number.nsn.isNotEmpty;
                                           });
                                         } else {
                                           setState(() {

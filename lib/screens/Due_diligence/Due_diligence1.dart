@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../models/offline_model.dart';
 import '../../services/api_service.dart';
 import '../../services/offline_storage_service.dart';
-import '../../services/due_diligence_cache_service.dart';
 
 import '../../provider/auth_provider.dart';
 import 'Due_diligence_list_view.dart';
@@ -21,91 +20,363 @@ class DueDiligenceWrapper extends StatefulWidget {
 
 class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   final ApiService _apiService = ApiService();
-  final DueDiligenceCacheService _cacheService = DueDiligenceCacheService();
-
-  // Local state variables
+  List<Category> categories = [];
+  bool isLoading = true;
+  String? errorMessage;
   Map<String, List<String>> selectedSubcategories = {};
   Map<String, Map<String, List<FileData>>> uploadedFiles = {};
   Map<String, Map<String, String>> fileTypes = {};
   Map<String, bool> expandedCategories = {};
   Map<String, Map<String, bool>> checkedSubcategories = {};
 
-  // Cache-aware getters
-  List<Category> get categories => _cacheService.getCategories();
-  bool get isLoading => _cacheService.isLoading;
-  String? get errorMessage => _cacheService.errorMessage;
-  bool get _isOnline => _cacheService.isOnline;
-  String? get _groupId => _cacheService.groupId;
-  String? get _currentReportId => _cacheService.currentReportId;
+  // Offline support variables
+  bool _isOnline = true;
+  String? _groupId;
+  String? _currentReportId;
 
   @override
   void initState() {
     super.initState();
-    _initializeWithCache();
+    _initializeOfflineSupport();
   }
 
-  Future<void> _initializeWithCache() async {
+  Future<void> _initializeOfflineSupport() async {
     try {
-      debugPrint('🚀 === INITIALIZING DUE DILIGENCE WITH CACHE ===');
+      debugPrint('🚀 === INITIALIZING OFFLINE SUPPORT ===');
 
-      // Update current report ID in cache
-      _cacheService.updateCurrentReportId(widget.reportId);
-      debugPrint('📋 Current report ID: ${widget.reportId}');
+      // Check online status
+      _isOnline = await OfflineStorageService.isOnline();
+      debugPrint('🌐 Online status: $_isOnline');
 
-      // Initialize cache (loads data only once)
-      await _cacheService.initialize();
+      // Check if categories are cached
+      final hasCached = await OfflineStorageService.hasCachedCategories();
+      debugPrint('💾 Has cached categories: $hasCached');
 
-      // Initialize local state
-      _initializeLocalState();
+      // Get user's groupId
+      await _fetchUserGroupId();
 
-      // Trigger UI update
-      if (mounted) {
-        setState(() {});
-      }
+      // Load categories (online or offline)
+      await _loadCategories();
 
-      debugPrint('✅ === DUE DILIGENCE CACHE INITIALIZED ===');
-      debugPrint('📦 Cache status: ${_cacheService.getCacheStatus()}');
+      debugPrint('✅ === OFFLINE SUPPORT INITIALIZED ===');
     } catch (e) {
-      debugPrint('❌ Error initializing with cache: $e');
-      if (mounted) {
-        setState(() {});
-      }
+      debugPrint('❌ Error initializing offline support: $e');
+      setState(() {
+        errorMessage = 'Failed to initialize: $e';
+        isLoading = false;
+      });
     }
   }
 
-  void _initializeLocalState() {
-    // Initialize expanded categories
-    for (var category in categories) {
-      expandedCategories[category.id] = false;
-      checkedSubcategories[category.id] = {};
-      uploadedFiles[category.id] = {};
-      fileTypes[category.id] = {};
+  Future<void> _fetchUserGroupId() async {
+    try {
+      if (_isOnline) {
+        // Get from API
+        final userProfile = await _apiService.getUserMe();
+        if (userProfile != null) {
+          _groupId =
+              userProfile['groupId'] ??
+              userProfile['group_id'] ??
+              userProfile['group'] ??
+              userProfile['organizationId'] ??
+              userProfile['organization_id'];
 
-      for (var subcategory in category.subcategories) {
-        checkedSubcategories[category.id]![subcategory.id] = false;
-        uploadedFiles[category.id]![subcategory.id] = [];
-        fileTypes[category.id]![subcategory.id] = 'image';
+          if (_groupId != null) {
+            // Save to offline storage
+            final authProvider = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            );
+            final currentUser = authProvider.currentUser;
+            if (currentUser != null) {
+              await OfflineStorageService.saveUserData(
+                userId: currentUser.id,
+                groupId: _groupId!,
+                additionalData: userProfile,
+              );
+            }
+          }
+        }
+      } else {
+        // Get from offline storage
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUser = authProvider.currentUser;
+        if (currentUser != null) {
+          _groupId = await OfflineStorageService.getCachedGroupId(
+            currentUser.id,
+          );
+        }
       }
+
+      debugPrint('🔑 GroupId: $_groupId');
+    } catch (e) {
+      debugPrint('❌ Error fetching groupId: $e');
+      _groupId = 'default-group-id'; // Fallback
     }
   }
 
-  /// Refresh data using cache service
+  // Add refresh functionality
   Future<void> _refreshData() async {
-    debugPrint('🔄 Refreshing Due Diligence data...');
-    await _cacheService.refresh();
-    _initializeLocalState();
-    if (mounted) {
-      setState(() {});
+    debugPrint('🔄 Refreshing data...');
+    await _loadCategories();
+  }
+
+  // Check if categories are cached
+  Future<bool> _hasCachedCategories() async {
+    try {
+      final cachedCategories =
+          await OfflineStorageService.getCategoriesTemplates();
+      return cachedCategories.isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ Error checking cached categories: $e');
+      return false;
     }
   }
 
-  // Removed old methods - now using cache service
+  // Force refresh categories from API (even if offline)
+  Future<void> _forceRefreshCategories() async {
+    try {
+      debugPrint('🔄 Force refreshing categories from API...');
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
 
-  // Removed old methods - now using cache service
+      // Always try to load from API first
+      final response = await _apiService.getCategoriesWithSubcategories();
 
-  // Removed old test methods - now using cache service
+      if (response['status'] == 'success') {
+        final List<dynamic> data = response['data'];
+        debugPrint('📊 Force refresh: API returned ${data.length} categories');
 
-  // Removed _loadCategories - now using cache service
+        categories = data.map((json) => Category.fromJson(json)).toList();
+
+        // Save to offline storage
+        debugPrint('💾 Force refresh: Caching categories offline...');
+        await OfflineStorageService.saveCategoriesTemplates(data);
+        debugPrint(
+          '✅ Force refresh: Categories loaded and cached successfully',
+        );
+      } else {
+        throw Exception('Failed to load categories from API');
+      }
+    } catch (e) {
+      debugPrint('❌ Force refresh failed: $e');
+      setState(() {
+        errorMessage = 'Failed to refresh categories: $e';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Test offline functionality
+  Future<void> _testOfflineFunctionality() async {
+    try {
+      debugPrint('🧪 === TESTING OFFLINE FUNCTIONALITY ===');
+
+      // Test 1: Check connectivity
+      final isOnline = await OfflineStorageService.isOnline();
+      debugPrint('🧪 Test 1 - Connectivity: $isOnline');
+
+      // Test 2: Check cached categories
+      final hasCached = await OfflineStorageService.hasCachedCategories();
+      debugPrint('🧪 Test 2 - Has cached categories: $hasCached');
+
+      // Test 3: Get cached categories
+      final cachedCategories =
+          await OfflineStorageService.getCategoriesTemplates();
+      debugPrint(
+        '🧪 Test 3 - Cached categories count: ${cachedCategories.length}',
+      );
+
+      // Test 4: Check storage stats
+      final stats = await OfflineStorageService.getStorageStats();
+      debugPrint('🧪 Test 4 - Storage stats: $stats');
+
+      // Test 5: Check user data
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        final cachedGroupId = await OfflineStorageService.getCachedGroupId(
+          currentUser.id,
+        );
+        debugPrint('🧪 Test 5 - Cached groupId: $cachedGroupId');
+      }
+
+      debugPrint('🧪 === OFFLINE FUNCTIONALITY TEST COMPLETED ===');
+
+      // Show results in a dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Offline Test Results'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Connectivity: ${isOnline ? "Online" : "Offline"}'),
+              Text('Has Cached Categories: $hasCached'),
+              Text('Cached Categories Count: ${cachedCategories.length}'),
+              Text('Storage Stats: $stats'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Offline test failed: $e');
+    }
+  }
+
+  // Simulate offline mode for testing
+  Future<void> _simulateOfflineMode() async {
+    try {
+      debugPrint('🔧 === SIMULATING OFFLINE MODE ===');
+
+      // Force offline mode
+      setState(() {
+        _isOnline = false;
+      });
+
+      debugPrint('🔧 Forced offline mode');
+
+      // Try to load categories from cache
+      await _loadCategories();
+
+      debugPrint('🔧 === OFFLINE MODE SIMULATION COMPLETED ===');
+    } catch (e) {
+      debugPrint('❌ Offline simulation failed: $e');
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      if (_isOnline) {
+        // Load from API and cache offline
+        debugPrint('🌐 Loading categories from API...');
+        final response = await _apiService.getCategoriesWithSubcategories();
+
+        if (response['status'] == 'success') {
+          final List<dynamic> data = response['data'];
+          debugPrint('📊 API returned ${data.length} categories');
+
+          categories = data.map((json) => Category.fromJson(json)).toList();
+
+          // Save to offline storage
+          debugPrint('💾 Caching categories offline...');
+          await OfflineStorageService.saveCategoriesTemplates(data);
+          debugPrint('✅ Categories loaded from API and cached offline');
+
+          // Debug: Print category details
+          for (int i = 0; i < categories.length; i++) {
+            final category = categories[i];
+            debugPrint(
+              '📁 Category ${i + 1}: ${category.name} (${category.subcategories.length} subcategories)',
+            );
+            for (int j = 0; j < category.subcategories.length; j++) {
+              final subcategory = category.subcategories[j];
+              debugPrint(
+                '  📄 Subcategory ${j + 1}: ${subcategory.name} (${subcategory.type})',
+              );
+            }
+          }
+        } else {
+          throw Exception('Failed to load categories from API');
+        }
+      } else {
+        // Load from offline storage
+        debugPrint('📱 Loading categories from offline storage...');
+        final cachedCategories =
+            await OfflineStorageService.getCategoriesTemplates();
+
+        debugPrint('📊 Found ${cachedCategories.length} cached categories');
+
+        if (cachedCategories.isNotEmpty) {
+          categories = cachedCategories
+              .map(
+                (template) => Category(
+                  id: template.id,
+                  name: template.name,
+                  label: template.label,
+                  description: template.description,
+                  order: template.order,
+                  isActive: template.isActive,
+                  subcategories: template.subcategories
+                      .map(
+                        (subTemplate) => Subcategory(
+                          id: subTemplate.id,
+                          name: subTemplate.name,
+                          label: subTemplate.label,
+                          type: subTemplate.type,
+                          required: subTemplate.required,
+                          options: subTemplate.options,
+                          order: subTemplate.order,
+                          categoryId: subTemplate.categoryId,
+                          isActive: subTemplate.isActive,
+                        ),
+                      )
+                      .toList(),
+                ),
+              )
+              .toList();
+          debugPrint('✅ Categories loaded from offline storage');
+
+          // Debug: Print cached category details
+          for (int i = 0; i < categories.length; i++) {
+            final category = categories[i];
+            debugPrint(
+              '📁 Cached Category ${i + 1}: ${category.name} (${category.subcategories.length} subcategories)',
+            );
+            for (int j = 0; j < category.subcategories.length; j++) {
+              final subcategory = category.subcategories[j];
+              debugPrint(
+                '  📄 Cached Subcategory ${j + 1}: ${subcategory.name} (${subcategory.type})',
+              );
+            }
+          }
+        } else {
+          debugPrint('❌ No cached categories found');
+          throw Exception('No cached categories found');
+        }
+      }
+
+      // Initialize selected subcategories and uploaded files
+      for (var category in categories) {
+        selectedSubcategories[category.id] = [];
+        uploadedFiles[category.id] = {};
+        fileTypes[category.id] = {};
+        expandedCategories[category.id] = false;
+        checkedSubcategories[category.id] = {};
+
+        for (var subcategory in category.subcategories) {
+          uploadedFiles[category.id]![subcategory.id] = [];
+          fileTypes[category.id]![subcategory.id] = '';
+          checkedSubcategories[category.id]![subcategory.id] = false;
+        }
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error loading categories: $e';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   Future<void> _pickFile(String categoryId, String subcategoryId) async {
     try {
@@ -132,12 +403,10 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         // If offline, save file locally
         if (!_isOnline) {
           try {
-            final currentReportId =
-                _currentReportId ??
-                'temp_${DateTime.now().millisecondsSinceEpoch}';
             final localPath = await OfflineStorageService.saveFileLocally(
               fileData.file,
-              currentReportId,
+              _currentReportId ??
+                  'temp_${DateTime.now().millisecondsSinceEpoch}',
               categoryId,
               subcategoryId,
             );
@@ -486,8 +755,9 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
 
   Future<void> _confirmSubmit() async {
     try {
-      // Note: isLoading is now a getter from cache service, so we can't set it directly
-      // The cache service handles loading states internally
+      setState(() {
+        isLoading = true;
+      });
 
       print('🚀 Starting due diligence submission...');
       print('📋 Report ID: ${widget.reportId}');
@@ -508,6 +778,12 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -675,15 +951,11 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   Future<void> _submitOffline() async {
     try {
       // Generate a unique report ID for offline storage
-      final currentReportId =
-          'offline_${DateTime.now().millisecondsSinceEpoch}';
-
-      // Update the cache service with the new report ID
-      _cacheService.updateCurrentReportId(currentReportId);
+      _currentReportId = 'offline_${DateTime.now().millisecondsSinceEpoch}';
 
       // Create offline report
       final offlineReport = OfflineDueDiligenceReport(
-        id: currentReportId,
+        id: _currentReportId!,
         groupId: _groupId ?? 'default-group-id',
         categories: await _convertToOfflineCategories(),
         status: 'draft',
@@ -788,9 +1060,6 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
   }
 
   Future<void> _addFilesToSyncQueue() async {
-    final currentReportId =
-        _currentReportId ?? 'offline_${DateTime.now().millisecondsSinceEpoch}';
-
     for (var categoryId in checkedSubcategories.keys) {
       for (var subcategoryId in checkedSubcategories[categoryId]!.keys) {
         if (checkedSubcategories[categoryId]![subcategoryId] == true) {
@@ -801,7 +1070,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
               // Save file locally first
               final localPath = await OfflineStorageService.saveFileLocally(
                 fileData.file,
-                currentReportId,
+                _currentReportId!,
                 categoryId,
                 subcategoryId,
               );
@@ -812,7 +1081,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                 {
                   'type': 'file_upload',
                   'localPath': localPath,
-                  'reportId': currentReportId,
+                  'reportId': _currentReportId!,
                   'categoryId': categoryId,
                   'subcategoryId': subcategoryId,
                   'fileName': fileData.fileName,
@@ -928,19 +1197,19 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           //   onPressed: _simulateOfflineMode,
           //   tooltip: 'Simulate Offline Mode',
           // ),
-          // IconButton(
-          //   icon: Icon(Icons.visibility, color: Colors.blue.shade600),
-          //   onPressed: () {
-          //     print(
-          //       '🔍 Debug: Navigating to view with reportId: ${widget.reportId}',
-          //     );
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(builder: (context) => DueDiligenceListView()),
-          //     );
-          //   },
-          //   tooltip: 'View Due Diligence',
-          // ),
+          IconButton(
+            icon: Icon(Icons.visibility, color: Colors.blue.shade600),
+            onPressed: () {
+              print(
+                '🔍 Debug: Navigating to view with reportId: ${widget.reportId}',
+              );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DueDiligenceListView()),
+              );
+            },
+            tooltip: 'View Due Diligence',
+          ),
         ],
       ),
       body: isLoading
@@ -963,7 +1232,7 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: _refreshData,
+                    onPressed: _loadCategories,
                     child: const Text('Retry'),
                   ),
                 ],
