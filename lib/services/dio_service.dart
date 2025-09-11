@@ -27,12 +27,12 @@ class DioService {
   }
 
   void _initClients() {
-    // Auth API (for authentication endpoints) - Special timeout for auth
+    // Auth API (for authentication endpoints) - Increased timeout for reliability
     authApi = Dio(
       BaseOptions(
         baseUrl: ApiConfig.authBaseUrl,
-        connectTimeout: const Duration(seconds: 8), // Faster timeout for auth
-        receiveTimeout: const Duration(seconds: 8), // Faster timeout for auth
+        connectTimeout: const Duration(seconds: ApiConfig.connectTimeout),
+        receiveTimeout: const Duration(seconds: ApiConfig.receiveTimeout),
         contentType: 'application/json',
       ),
     );
@@ -323,10 +323,10 @@ class DioService {
   }
 
   Future<Response> reportsPut(
-      String path, {
-        dynamic data,
-        Map<String, dynamic>? queryParameters,
-      }) async {
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     return await reportsApi.put(
       path,
       data: data,

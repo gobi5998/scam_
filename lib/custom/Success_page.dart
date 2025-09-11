@@ -64,7 +64,7 @@ class _ReportSuccessState extends State<ReportSuccess> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) =>
-                                    ThreadDatabaseListPage(searchQuery: ''),
+                                    ThreadDatabaseListPage(searchQuery: '', alertLevels: [],),
                               ),
                             );
                           },

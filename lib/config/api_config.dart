@@ -67,9 +67,11 @@ class ApiConfig {
     'Accept': 'application/json',
   };
 
-  // Timeout settings - Adjusted to match backend timeout
-  static const int connectTimeout = 8; // seconds (below backend 10s limit)
-  static const int receiveTimeout = 8; // seconds (below backend 10s limit)
+  // Timeout settings - Increased for better reliability
+  static const int connectTimeout =
+      30; // seconds (increased for better reliability)
+  static const int receiveTimeout =
+      30; // seconds (increased for better reliability)
 
   // Retry settings
   static const int maxRetries = 3;

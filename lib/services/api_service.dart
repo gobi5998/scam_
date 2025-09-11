@@ -1469,7 +1469,7 @@ class ApiService {
     List<String>? severityLevels,
     bool? hasEvidence, // NEW: Filter for reports with evidence files
     int page = ApiConfig.defaultPage,
-    int limit = ApiConfig.defaultLimit, // Use default limit from config
+    int limit = ApiConfig.defaultLimit, List<String>? alertLevels, String? deviceTypeId, String? detectTypeId, String? operatingSystemName, DateTime? startDate, DateTime? endDate, // Use default limit from config
   }) async {
     try {
       print(

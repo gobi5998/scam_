@@ -533,7 +533,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         hasSelectedCategory: false,
                         isOffline: false,
                         localReports: [],
-                        severityLevels: [],
+                        severityLevels: [], alertLevels: [],
                       ),
                     ),
                   );

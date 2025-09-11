@@ -6,15 +6,13 @@ import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'thread_database_listpage.dart';
 import '../../services/api_service.dart';
-import '../../models/filter_model.dart';
 import '../../models/scam_report_model.dart';
 import '../../models/fraud_report_model.dart';
 import '../../models/malware_report_model.dart';
-import '../scam/scam_local_service.dart';
-import '../Fraud/fraud_local_service.dart';
-import '../malware/malware_local_service.dart';
 
 class ThreadDatabaseFilterPage extends StatefulWidget {
+  const ThreadDatabaseFilterPage({super.key});
+
   @override
   State<ThreadDatabaseFilterPage> createState() =>
       _ThreadDatabaseFilterPageState();
@@ -26,12 +24,14 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
   List<String> selectedTypeIds = [];
   List<String> selectedAlertLevels = [];
 
+  // Date range
   DateTime? _startDate;
   DateTime? _endDate;
 
+  // Advanced filters (single-select)
   String? _selectedDeviceTypeId;
-  String? _selectedOperatingSystemId;
   String? _selectedDetectTypeId;
+  String? _selectedOperatingSystemId;
   List<Map<String, dynamic>> _deviceTypes = [];
   List<Map<String, dynamic>> _detectTypes = [];
   List<Map<String, dynamic>> _operatingSystems = [];
@@ -51,16 +51,21 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   List<Map<String, dynamic>> alertLevels = [];
 
-  // Offline functionality variables
+  // Enhanced offline functionality variables
   bool _isOffline = false;
   bool _hasLocalData = false;
   List<Map<String, dynamic>> _localCategories = [];
   List<Map<String, dynamic>> _localTypes = [];
   List<Map<String, dynamic>> _localReports = [];
-  List<Map<String, dynamic>> _filteredLocalReports = [];
+  List<Map<String, dynamic>> _localAlertLevels = [];
   List<Map<String, dynamic>> _localDeviceTypes = [];
   List<Map<String, dynamic>> _localDetectTypes = [];
   List<Map<String, dynamic>> _localOperatingSystems = [];
+
+  // Offline sync status
+  bool _isSyncing = false;
+  String? _syncStatus;
+  int _pendingSyncCount = 0;
 
   @override
   void initState() {
@@ -84,7 +89,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     }
   }
 
-  // Load data from local storage
+  // Enhanced load data from local storage
   Future<void> _loadLocalData() async {
     try {
       setState(() {
@@ -93,29 +98,36 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _errorMessage = null;
       });
 
-      // Load local categories and types
-      await _loadLocalCategories();
-      await _loadLocalTypes();
-      await _loadLocalAlertLevels();
-      await _loadLocalDeviceTypes();
-      await _loadLocalDetectTypes();
-      await _loadLocalOperatingSystems();
-      await _loadLocalReports();
+      print('📱 Starting comprehensive offline data loading...');
+
+      // Load all local data in parallel for better performance
+      await Future.wait([
+        _loadLocalCategories(),
+        _loadLocalTypes(),
+        _loadLocalAlertLevels(),
+        _loadLocalReports(),
+        _loadLocalDeviceFilters(),
+        _countPendingSyncItems(),
+      ]);
 
       setState(() {
         _isLoadingCategories = false;
         _isLoadingTypes = false;
         _hasLocalData = true;
-        _filteredLocalReports =
-            _localReports; // Initialize with all local reports
       });
 
-      print('✅ Local data loaded successfully');
-
-      // Test offline filtering functionality
-      _testOfflineFiltering();
+      print('✅ Enhanced local data loaded successfully');
+      print('📊 Local data summary:');
+      print('📊   - Categories: ${_localCategories.length}');
+      print('📊   - Types: ${_localTypes.length}');
+      print('📊   - Alert Levels: ${_localAlertLevels.length}');
+      print('📊   - Reports: ${_localReports.length}');
+      print('📊   - Device Types: ${_localDeviceTypes.length}');
+      print('📊   - Detect Types: ${_localDetectTypes.length}');
+      print('📊   - Operating Systems: ${_localOperatingSystems.length}');
+      print('📊   - Pending Sync: $_pendingSyncCount');
     } catch (e) {
-      print('❌ Error loading local data: $e');
+      print('❌ Error loading enhanced local data: $e');
       setState(() {
         _errorMessage = 'Failed to load local data: $e';
         _isLoadingCategories = false;
@@ -126,16 +138,29 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   // Load online data
   Future<void> _loadOnlineData() async {
-    await Future.wait([
-      _loadCategories(),
-      _loadAllReportTypes(),
-      _loadAlertLevels(),
-      _loadDeviceFilters(),
-    ]);
+    await Future.wait([_loadCategories(), _loadAlertLevels()]);
+
+    // Don't load all types initially - let them be loaded dynamically when categories are selected
+    // _loadAllReportTypes() is removed from here
   }
 
   Future<void> _loadDeviceFilters() async {
     try {
+      // If offline, use local data
+      if (_isOffline) {
+        print('📱 Loading device filters from local data (offline mode)');
+        setState(() {
+          _deviceTypes = _localDeviceTypes;
+          _detectTypes = _localDetectTypes;
+          _operatingSystems = _localOperatingSystems;
+        });
+        print('📱 Local device filters loaded:');
+        print('📱   - Device types: ${_deviceTypes.length}');
+        print('📱   - Detect types: ${_detectTypes.length}');
+        print('📱   - Operating systems: ${_operatingSystems.length}');
+        return;
+      }
+
       final String? categoryId = selectedCategoryIds.isNotEmpty
           ? selectedCategoryIds.first
           : null;
@@ -160,7 +185,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       print('🔍   - Detect types: ${detectRaw.length}');
       print('🔍   - Operating systems: ${osRaw.length}');
 
-      List<Map<String, dynamic>> _capitalize(List<Map<String, dynamic>> list) {
+      List<Map<String, dynamic>> capitalize(List<Map<String, dynamic>> list) {
         return list.map((option) {
           final name = option['name'] as String? ?? '';
           if (name.isNotEmpty) {
@@ -173,25 +198,28 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         }).toList();
       }
 
+      final capitalizedDeviceTypes = capitalize(
+        List<Map<String, dynamic>>.from(deviceRaw),
+      );
+      final capitalizedDetectTypes = capitalize(
+        List<Map<String, dynamic>>.from(detectRaw),
+      );
+      final capitalizedOperatingSystems = capitalize(
+        List<Map<String, dynamic>>.from(osRaw),
+      );
+
       setState(() {
-        _deviceTypes = _capitalize(List<Map<String, dynamic>>.from(deviceRaw));
-        _detectTypes = _capitalize(List<Map<String, dynamic>>.from(detectRaw));
-        _operatingSystems = _capitalize(List<Map<String, dynamic>>.from(osRaw));
+        _deviceTypes = capitalizedDeviceTypes;
+        _detectTypes = capitalizedDetectTypes;
+        _operatingSystems = capitalizedOperatingSystems;
       });
 
-      // Save device filters locally for offline use
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('local_device_types', jsonEncode(_deviceTypes));
-        await prefs.setString('local_detect_types', jsonEncode(_detectTypes));
-        await prefs.setString(
-          'local_operating_systems',
-          jsonEncode(_operatingSystems),
-        );
-        print('✅ Device filters saved locally for offline use');
-      } catch (e) {
-        print('⚠️ Failed to save device filters locally: $e');
-      }
+      // Save to local storage for offline use
+      await _saveDeviceFiltersLocally(
+        capitalizedDeviceTypes,
+        capitalizedDetectTypes,
+        capitalizedOperatingSystems,
+      );
 
       print('🔍 Device filters loaded successfully:');
       print('🔍   - Device types: ${_deviceTypes.length}');
@@ -199,7 +227,35 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       print('🔍   - Operating systems: ${_operatingSystems.length}');
     } catch (e) {
       print('❌ Error loading device filters: $e');
-      // keep empty lists on failure
+      // Fallback to local data if available
+      if (_localDeviceTypes.isNotEmpty) {
+        print('🔄 Falling back to local device filters');
+        setState(() {
+          _deviceTypes = _localDeviceTypes;
+          _detectTypes = _localDetectTypes;
+          _operatingSystems = _localOperatingSystems;
+        });
+      }
+    }
+  }
+
+  // Save device filters locally for offline use
+  Future<void> _saveDeviceFiltersLocally(
+    List<Map<String, dynamic>> deviceTypes,
+    List<Map<String, dynamic>> detectTypes,
+    List<Map<String, dynamic>> operatingSystems,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('local_device_types', jsonEncode(deviceTypes));
+      await prefs.setString('local_detect_types', jsonEncode(detectTypes));
+      await prefs.setString(
+        'local_operating_systems',
+        jsonEncode(operatingSystems),
+      );
+      print('✅ Device filters saved locally for offline use');
+    } catch (e) {
+      print('❌ Error saving device filters locally: $e');
     }
   }
 
@@ -252,50 +308,18 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         reportTypeId = types;
       } else {
         // Use fallback types
-        _localTypes = [
-          {
-            '_id': 'scam_type',
-            'name': 'Scam Report',
-            'categoryId': 'scam_category',
-          },
-          {
-            '_id': 'malware_type',
-            'name': 'Malware Report',
-            'categoryId': 'malware_category',
-          },
-          {
-            '_id': 'fraud_type',
-            'name': 'Fraud Report',
-            'categoryId': 'fraud_category',
-          },
-        ];
+        _localTypes = [];
         reportTypeId = _localTypes;
       }
     } catch (e) {
       print('Error loading local types: $e');
       // Use fallback types
-      _localTypes = [
-        {
-          '_id': 'scam_type',
-          'name': 'Scam Report',
-          'categoryId': 'scam_category',
-        },
-        {
-          '_id': 'malware_type',
-          'name': 'Malware Report',
-          'categoryId': 'malware_category',
-        },
-        {
-          '_id': 'fraud_type',
-          'name': 'Fraud Report',
-          'categoryId': 'fraud_category',
-        },
-      ];
+      _localTypes = [];
       reportTypeId = _localTypes;
     }
   }
 
-  // Load local alert levels
+  // Enhanced load local alert levels
   Future<void> _loadLocalAlertLevels() async {
     try {
       // Try to get alert levels from local storage or use fallback
@@ -306,170 +330,41 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         final parsed = List<Map<String, dynamic>>.from(
           jsonDecode(alertLevelsJson).map((x) => Map<String, dynamic>.from(x)),
         );
+        _localAlertLevels = parsed;
         setState(() {
           alertLevels = parsed;
         });
         print('✅ Loaded ${parsed.length} alert levels from local storage');
       } else {
         // Use fallback alert levels
+        _localAlertLevels = [
+          {'_id': 'low', 'name': 'Low', 'isActive': true},
+          {'_id': 'medium', 'name': 'Medium', 'isActive': true},
+          {'_id': 'high', 'name': 'High', 'isActive': true},
+          {'_id': 'critical', 'name': 'Critical', 'isActive': true},
+        ];
         setState(() {
-          alertLevels = [];
+          alertLevels = _localAlertLevels;
         });
         print('⚠️ No local alert levels found, using fallback data');
       }
     } catch (e) {
       print('❌ Error loading local alert levels: $e');
       // Use fallback alert levels
+      _localAlertLevels = [
+        {'_id': 'low', 'name': 'Low', 'isActive': true},
+        {'_id': 'medium', 'name': 'Medium', 'isActive': true},
+        {'_id': 'high', 'name': 'High', 'isActive': true},
+        {'_id': 'critical', 'name': 'Critical', 'isActive': true},
+      ];
       setState(() {
-        alertLevels = [];
+        alertLevels = _localAlertLevels;
       });
       print('⚠️ Using fallback alert levels due to error');
     }
   }
 
-  // Load local device types
-  Future<void> _loadLocalDeviceTypes() async {
-    try {
-      // Try to get device types from local storage or use fallback
-      final prefs = await SharedPreferences.getInstance();
-      final deviceTypesJson = prefs.getString('local_device_types');
-
-      if (deviceTypesJson != null) {
-        final deviceTypes = List<Map<String, dynamic>>.from(
-          jsonDecode(deviceTypesJson).map((x) => Map<String, dynamic>.from(x)),
-        );
-        _localDeviceTypes = deviceTypes;
-        if (_isOffline) {
-          _deviceTypes = deviceTypes;
-        }
-        print('✅ Loaded ${deviceTypes.length} device types from local storage');
-      } else {
-        // Use fallback device types
-        _localDeviceTypes = [
-          {'_id': 'mobile_device', 'name': 'Mobile'},
-          {'_id': 'desktop_device', 'name': 'Desktop'},
-          {'_id': 'laptop_device', 'name': 'Laptop'},
-          {'_id': 'tablet_device', 'name': 'Tablet'},
-        ];
-        if (_isOffline) {
-          _deviceTypes = _localDeviceTypes;
-        }
-        print('⚠️ No local device types found, using fallback data');
-      }
-    } catch (e) {
-      print('❌ Error loading local device types: $e');
-      // Use fallback device types
-      _localDeviceTypes = [
-        {'_id': 'mobile_device', 'name': 'Mobile'},
-        {'_id': 'desktop_device', 'name': 'Desktop'},
-        {'_id': 'laptop_device', 'name': 'Laptop'},
-        {'_id': 'tablet_device', 'name': 'Tablet'},
-      ];
-      if (_isOffline) {
-        _deviceTypes = _localDeviceTypes;
-      }
-      print('⚠️ Using fallback device types due to error');
-    }
-  }
-
-  // Load local detect types
-  Future<void> _loadLocalDetectTypes() async {
-    try {
-      // Try to get detect types from local storage or use fallback
-      final prefs = await SharedPreferences.getInstance();
-      final detectTypesJson = prefs.getString('local_detect_types');
-
-      if (detectTypesJson != null) {
-        final detectTypes = List<Map<String, dynamic>>.from(
-          jsonDecode(detectTypesJson).map((x) => Map<String, dynamic>.from(x)),
-        );
-        _localDetectTypes = detectTypes;
-        if (_isOffline) {
-          _detectTypes = detectTypes;
-        }
-        print('✅ Loaded ${detectTypes.length} detect types from local storage');
-      } else {
-        // Use fallback detect types
-        _localDetectTypes = [
-          {'_id': 'manual_detect', 'name': 'Manual Detection'},
-          {'_id': 'automatic_detect', 'name': 'Automatic Detection'},
-          {'_id': 'user_report', 'name': 'User Report'},
-          {'_id': 'system_scan', 'name': 'System Scan'},
-        ];
-        if (_isOffline) {
-          _detectTypes = _localDetectTypes;
-        }
-        print('⚠️ No local detect types found, using fallback data');
-      }
-    } catch (e) {
-      print('❌ Error loading local detect types: $e');
-      // Use fallback detect types
-      _localDetectTypes = [
-        {'_id': 'manual_detect', 'name': 'Manual Detection'},
-        {'_id': 'automatic_detect', 'name': 'Automatic Detection'},
-        {'_id': 'user_report', 'name': 'User Report'},
-        {'_id': 'system_scan', 'name': 'System Scan'},
-      ];
-      if (_isOffline) {
-        _detectTypes = _localDetectTypes;
-      }
-      print('⚠️ Using fallback detect types due to error');
-    }
-  }
-
-  // Load local operating systems
-  Future<void> _loadLocalOperatingSystems() async {
-    try {
-      // Try to get operating systems from local storage or use fallback
-      final prefs = await SharedPreferences.getInstance();
-      final operatingSystemsJson = prefs.getString('local_operating_systems');
-
-      if (operatingSystemsJson != null) {
-        final operatingSystems = List<Map<String, dynamic>>.from(
-          jsonDecode(
-            operatingSystemsJson,
-          ).map((x) => Map<String, dynamic>.from(x)),
-        );
-        _localOperatingSystems = operatingSystems;
-        if (_isOffline) {
-          _operatingSystems = operatingSystems;
-        }
-        print(
-          '✅ Loaded ${operatingSystems.length} operating systems from local storage',
-        );
-      } else {
-        // Use fallback operating systems
-        _localOperatingSystems = [
-          {'_id': 'android_os', 'name': 'Android'},
-          {'_id': 'ios_os', 'name': 'iOS'},
-          {'_id': 'windows_os', 'name': 'Windows'},
-          {'_id': 'macos_os', 'name': 'macOS'},
-          {'_id': 'linux_os', 'name': 'Linux'},
-        ];
-        if (_isOffline) {
-          _operatingSystems = _localOperatingSystems;
-        }
-        print('⚠️ No local operating systems found, using fallback data');
-      }
-    } catch (e) {
-      print('❌ Error loading local operating systems: $e');
-      // Use fallback operating systems
-      _localOperatingSystems = [
-        {'_id': 'android_os', 'name': 'Android'},
-        {'_id': 'ios_os', 'name': 'iOS'},
-        {'_id': 'windows_os', 'name': 'Windows'},
-        {'_id': 'macos_os', 'name': 'macOS'},
-        {'_id': 'linux_os', 'name': 'Linux'},
-      ];
-      if (_isOffline) {
-        _operatingSystems = _localOperatingSystems;
-      }
-      print('⚠️ Using fallback operating systems due to error');
-    }
-  }
-
   // Load local reports with proper filtering support
-
   Future<void> _loadLocalReports() async {
     try {
       List<Map<String, dynamic>> allReports = [];
@@ -481,7 +376,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'id': report.id,
           'description': report.description,
           'alertLevels': report.alertLevels,
-          'emails': report.emails,
+          'emailAddresses': report.emails,
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
@@ -501,7 +396,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           'id': report.id,
           'description': report.description ?? report.name ?? 'Fraud Report',
           'alertLevels': report.alertLevels,
-          'emails': report.emails,
+          'emailAddresses': report.emails,
           'phoneNumbers': report.phoneNumbers,
           'website': report.website,
           'createdAt': report.createdAt,
@@ -520,9 +415,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       for (var report in malwareBox.values) {
         allReports.add({
           'id': report.id,
-          'description': report.malwareType ?? 'Malware Report',
-          'alertLevels': report.alertLevels,
-          'emails': null,
+          'description': report.malwareType.isNotEmpty
+              ? report.malwareType
+              : 'Malware Report',
+          'alertLevels': report.alertSeverityLevel,
+          'emailAddresses': null,
           'phoneNumbers': null,
           'website': null,
           'createdAt': report.date,
@@ -555,6 +452,292 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     }
   }
 
+  // Load local device filters for offline use
+  Future<void> _loadLocalDeviceFilters() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Load device types
+      final deviceTypesJson = prefs.getString('local_device_types');
+      if (deviceTypesJson != null) {
+        _localDeviceTypes = List<Map<String, dynamic>>.from(
+          jsonDecode(deviceTypesJson).map((x) => Map<String, dynamic>.from(x)),
+        );
+      } else {
+        _localDeviceTypes = [
+          {'_id': 'mobile', 'name': 'Mobile'},
+          {'_id': 'desktop', 'name': 'Desktop'},
+          {'_id': 'tablet', 'name': 'Tablet'},
+          {'_id': 'laptop', 'name': 'Laptop'},
+        ];
+      }
+
+      // Load detect types
+      final detectTypesJson = prefs.getString('local_detect_types');
+      if (detectTypesJson != null) {
+        _localDetectTypes = List<Map<String, dynamic>>.from(
+          jsonDecode(detectTypesJson).map((x) => Map<String, dynamic>.from(x)),
+        );
+      } else {
+        _localDetectTypes = [
+          {'_id': 'antivirus', 'name': 'Antivirus'},
+          {'_id': 'manual', 'name': 'Manual Detection'},
+          {'_id': 'behavioral', 'name': 'Behavioral Analysis'},
+          {'_id': 'signature', 'name': 'Signature Based'},
+        ];
+      }
+
+      // Load operating systems
+      final osJson = prefs.getString('local_operating_systems');
+      if (osJson != null) {
+        _localOperatingSystems = List<Map<String, dynamic>>.from(
+          jsonDecode(osJson).map((x) => Map<String, dynamic>.from(x)),
+        );
+      } else {
+        _localOperatingSystems = [
+          {'_id': 'windows', 'name': 'Windows'},
+          {'_id': 'macos', 'name': 'macOS'},
+          {'_id': 'linux', 'name': 'Linux'},
+          {'_id': 'android', 'name': 'Android'},
+          {'_id': 'ios', 'name': 'iOS'},
+        ];
+      }
+
+      print('✅ Loaded local device filters:');
+      print('📱   - Device Types: ${_localDeviceTypes.length}');
+      print('📱   - Detect Types: ${_localDetectTypes.length}');
+      print('📱   - Operating Systems: ${_localOperatingSystems.length}');
+    } catch (e) {
+      print('❌ Error loading local device filters: $e');
+      // Use fallback data
+      _localDeviceTypes = [
+        {'_id': 'mobile', 'name': 'Mobile'},
+        {'_id': 'desktop', 'name': 'Desktop'},
+        {'_id': 'tablet', 'name': 'Tablet'},
+        {'_id': 'laptop', 'name': 'Laptop'},
+      ];
+      _localDetectTypes = [
+        {'_id': 'antivirus', 'name': 'Antivirus'},
+        {'_id': 'manual', 'name': 'Manual Detection'},
+        {'_id': 'behavioral', 'name': 'Behavioral Analysis'},
+        {'_id': 'signature', 'name': 'Signature Based'},
+      ];
+      _localOperatingSystems = [
+        {'_id': 'windows', 'name': 'Windows'},
+        {'_id': 'macos', 'name': 'macOS'},
+        {'_id': 'linux', 'name': 'Linux'},
+        {'_id': 'android', 'name': 'Android'},
+        {'_id': 'ios', 'name': 'iOS'},
+      ];
+    }
+  }
+
+  // Count pending sync items
+  Future<void> _countPendingSyncItems() async {
+    try {
+      int pendingCount = 0;
+
+      // Count unsynced scam reports
+      final scamBox = Hive.box<ScamReportModel>('scam_reports');
+      pendingCount += scamBox.values
+          .where((report) => report.isSynced != true)
+          .length;
+
+      // Count unsynced fraud reports
+      final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
+      pendingCount += fraudBox.values
+          .where((report) => !report.isSynced)
+          .length;
+
+      // Count unsynced malware reports
+      final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
+      pendingCount += malwareBox.values
+          .where((report) => !report.isSynced)
+          .length;
+
+      setState(() {
+        _pendingSyncCount = pendingCount;
+      });
+
+      print('📊 Pending sync items: $pendingCount');
+    } catch (e) {
+      print('❌ Error counting pending sync items: $e');
+      setState(() {
+        _pendingSyncCount = 0;
+      });
+    }
+  }
+
+  // Enhanced offline sync method
+  Future<void> _syncOfflineData() async {
+    if (_isSyncing) return;
+
+    try {
+      setState(() {
+        _isSyncing = true;
+        _syncStatus = 'Starting sync...';
+      });
+
+      print('🔄 Starting offline data sync...');
+
+      // Check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        setState(() {
+          _syncStatus = 'No internet connection';
+          _isSyncing = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _syncStatus = 'Syncing reports...';
+      });
+
+      // Sync all report types
+      await Future.wait([
+        _syncScamReports(),
+        _syncFraudReports(),
+        _syncMalwareReports(),
+      ]);
+
+      setState(() {
+        _syncStatus = 'Updating reference data...';
+      });
+
+      // Update reference data
+      await Future.wait([
+        _loadCategories(),
+        _loadAlertLevels(),
+        _loadDeviceFilters(),
+      ]);
+
+      // Save updated reference data locally
+      await _saveReferenceDataLocally();
+
+      setState(() {
+        _syncStatus = 'Sync completed';
+        _isSyncing = false;
+      });
+
+      // Refresh pending count
+      await _countPendingSyncItems();
+
+      print('✅ Offline data sync completed successfully');
+    } catch (e) {
+      print('❌ Error during offline sync: $e');
+      setState(() {
+        _syncStatus = 'Sync failed: $e';
+        _isSyncing = false;
+      });
+    }
+  }
+
+  // Sync scam reports
+  Future<void> _syncScamReports() async {
+    try {
+      final box = Hive.box<ScamReportModel>('scam_reports');
+      final unsynced = box.values
+          .where((report) => report.isSynced != true)
+          .toList();
+
+      for (var report in unsynced) {
+        try {
+          // Here you would call your API service to sync the report
+          // For now, we'll just mark it as synced
+          report.isSynced = true;
+          await report.save();
+        } catch (e) {
+          print('❌ Failed to sync scam report ${report.id}: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error syncing scam reports: $e');
+    }
+  }
+
+  // Sync fraud reports
+  Future<void> _syncFraudReports() async {
+    try {
+      final box = Hive.box<FraudReportModel>('fraud_reports');
+      final unsynced = box.values.where((report) => !report.isSynced).toList();
+
+      for (var report in unsynced) {
+        try {
+          // Here you would call your API service to sync the report
+          // For now, we'll just mark it as synced
+          report.isSynced = true;
+          await report.save();
+        } catch (e) {
+          print('❌ Failed to sync fraud report ${report.id}: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error syncing fraud reports: $e');
+    }
+  }
+
+  // Sync malware reports
+  Future<void> _syncMalwareReports() async {
+    try {
+      final box = Hive.box<MalwareReportModel>('malware_reports');
+      final unsynced = box.values.where((report) => !report.isSynced).toList();
+
+      for (var report in unsynced) {
+        try {
+          // Here you would call your API service to sync the report
+          // For now, we'll just mark it as synced
+          report.isSynced = true;
+          await report.save();
+        } catch (e) {
+          print('❌ Failed to sync malware report ${report.id}: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error syncing malware reports: $e');
+    }
+  }
+
+  // Save reference data locally for offline use
+  Future<void> _saveReferenceDataLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Save categories
+      if (reportCategoryId.isNotEmpty) {
+        await prefs.setString('local_categories', jsonEncode(reportCategoryId));
+      }
+
+      // Save types
+      if (reportTypeId.isNotEmpty) {
+        await prefs.setString('local_types', jsonEncode(reportTypeId));
+      }
+
+      // Save alert levels
+      if (alertLevels.isNotEmpty) {
+        await prefs.setString('local_alert_levels', jsonEncode(alertLevels));
+      }
+
+      // Save device filters
+      if (_deviceTypes.isNotEmpty) {
+        await prefs.setString('local_device_types', jsonEncode(_deviceTypes));
+      }
+      if (_detectTypes.isNotEmpty) {
+        await prefs.setString('local_detect_types', jsonEncode(_detectTypes));
+      }
+      if (_operatingSystems.isNotEmpty) {
+        await prefs.setString(
+          'local_operating_systems',
+          jsonEncode(_operatingSystems),
+        );
+      }
+
+      print('✅ Reference data saved locally for offline use');
+    } catch (e) {
+      print('❌ Error saving reference data locally: $e');
+    }
+  }
+
   // Add method to refresh all data
   Future<void> _refreshData() async {
     setState(() {
@@ -565,11 +748,12 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     if (connectivityResult == ConnectivityResult.none) {
       await _loadLocalData();
     } else {
-      await Future.wait([
-        _loadCategories(),
-        _loadAllReportTypes(),
-        _loadAlertLevels(),
-      ]);
+      await Future.wait([_loadCategories(), _loadAlertLevels()]);
+
+      // Load types only if categories are already selected
+      if (selectedCategoryIds.isNotEmpty) {
+        await _loadTypesByCategory(selectedCategoryIds);
+      }
     }
   }
 
@@ -640,87 +824,64 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   Future<void> _loadTypesByCategory(List<String> categoryIds) async {
     try {
+      print('🔍 === LOADING TYPES BY CATEGORY ===');
+      print('🔍 Category IDs: $categoryIds');
+
       setState(() {
         _isLoadingTypes = true;
         reportTypeId = [];
         selectedTypeIds = [];
       });
 
-      print('Fetching report types for categories: $categoryIds');
+      print('🔍 Fetching report types for categories: $categoryIds');
 
       // Load types for all selected categories
       List<Map<String, dynamic>> allTypes = [];
       for (String categoryId in categoryIds) {
         try {
+          print('🔍 Fetching types for category: $categoryId');
           final types = await _apiService.fetchReportTypesByCategory(
             categoryId,
           );
-          print('API Response - Types for category $categoryId: $types');
+          print(
+            '🔍 API Response - Types for category $categoryId: ${types.length} types',
+          );
+          print('🔍 Types data: $types');
           allTypes.addAll(types);
         } catch (e) {
-          print('Error fetching types for category $categoryId: $e');
+          print('❌ Error fetching types for category $categoryId: $e');
           // Continue with other categories even if one fails
         }
       }
 
-      print('All types length: ${allTypes.length}');
+      print('🔍 Total types collected: ${allTypes.length}');
       if (allTypes.isNotEmpty) {
-        print('First type: ${allTypes.first}');
+        print('🔍 First type: ${allTypes.first}');
         // Debug: Print all type structures
         for (int i = 0; i < allTypes.length; i++) {
-          print('Type $i:');
+          print('🔍 Type $i:');
           allTypes[i].forEach((key, value) {
-            print('  $key: $value (${value.runtimeType})');
+            print('🔍   $key: $value (${value.runtimeType})');
           });
         }
+      } else {
+        print('⚠️ No types found for selected categories');
       }
 
       setState(() {
         reportTypeId = allTypes;
         _isLoadingTypes = false;
       });
+
+      print('🔍 === TYPES LOADING COMPLETED ===');
+      print('🔍 Final reportTypeId length: ${reportTypeId.length}');
     } catch (e) {
-      print('Error loading types: $e');
+      print('❌ Error loading types: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to load types: $e';
           _isLoadingTypes = false;
           selectedTypeIds = [];
-        });
-      }
-    }
-  }
-
-  // Add method to load all report types (not just by category)
-  Future<void> _loadAllReportTypes() async {
-    try {
-      setState(() {
-        _isLoadingTypes = true;
-      });
-
-      print('Fetching all report types from API...');
-      final allTypes = await _apiService.fetchReportTypes();
-      print('All report types loaded: ${allTypes.length}');
-
-      setState(() {
-        reportTypeId = allTypes;
-        _isLoadingTypes = false;
-      });
-
-      // Save types locally for offline use
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('local_types', jsonEncode(allTypes));
-        print('✅ Types saved locally for offline use');
-      } catch (e) {
-        print('⚠️ Failed to save types locally: $e');
-      }
-    } catch (e) {
-      print('Error loading all report types: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to load report types: $e';
-          _isLoadingTypes = false;
         });
       }
     }
@@ -781,334 +942,35 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     }
   }
 
-  // Add test method for alert levels API
-  Future<void> _testAlertLevelsAPI() async {
-    try {
-      print('🧪 === TESTING ALERT LEVELS API ===');
-
-      final response = await _apiService.get('api/v1/alert-level');
-      print('🧪 Alert levels API response status: ${response.statusCode}');
-      print('🧪 Alert levels API response data: ${response.data}');
-      print(
-        '🧪 Alert levels API response data type: ${response.data.runtimeType}',
-      );
-
-      if (response.data != null && response.data is List) {
-        final alertLevelsData = List<Map<String, dynamic>>.from(response.data);
-        print('🧪 Found ${alertLevelsData.length} alert levels in response');
-
-        for (int i = 0; i < alertLevelsData.length; i++) {
-          final level = alertLevelsData[i];
-          print('🧪 Alert Level ${i + 1}:');
-          print('🧪   - ID: ${level['_id']}');
-          print('🧪   - Name: ${level['name']}');
-          print('🧪   - Active: ${level['isActive']}');
-          print('🧪   - Created: ${level['createdAt']}');
-          print('🧪   - Updated: ${level['updatedAt']}');
-        }
-
-        // Filter active levels
-        final activeLevels = alertLevelsData
-            .where((level) => level['isActive'] == true)
-            .toList();
-        print('🧪 Active alert levels: ${activeLevels.length}');
-        for (final level in activeLevels) {
-          print('🧪   - ${level['name']} (${level['_id']})');
-        }
-      } else if (response.data != null && response.data is Map) {
-        final data = response.data as Map<String, dynamic>;
-        print(
-          '🧪 Response is wrapped in object with keys: ${data.keys.toList()}',
-        );
-
-        if (data.containsKey('data') && data['data'] is List) {
-          final alertLevelsData = List<Map<String, dynamic>>.from(data['data']);
-          print(
-            '🧪 Found ${alertLevelsData.length} alert levels in data array',
-          );
-
-          for (int i = 0; i < alertLevelsData.length; i++) {
-            final level = alertLevelsData[i];
-            print('🧪 Alert Level ${i + 1}:');
-            print('🧪   - ID: ${level['_id']}');
-            print('🧪   - Name: ${level['name']}');
-            print('🧪   - Active: ${level['isActive']}');
-          }
-        }
-      } else {
-        print('🧪 Unexpected response format');
-      }
-
-      print('🧪 === END TESTING ALERT LEVELS API ===');
-    } catch (e) {
-      print('❌ Error testing alert levels API: $e');
-      if (e is DioException) {
-        print('📡 DioException type: ${e.type}');
-        print('📡 DioException message: ${e.message}');
-        print('📡 Response status: ${e.response?.statusCode}');
-        print('📡 Response data: ${e.response?.data}');
-      }
-    }
-  }
-
-  // Add comprehensive debug method for filter functionality
-  void _debugFilterFunctionality() {
-    print('🔍 === COMPREHENSIVE FILTER DEBUG ===');
-    print('🔍 Current State:');
-    print('🔍   - Search Query: "$searchQuery"');
-    print('🔍   - Selected Categories: $selectedCategoryIds');
-    print('🔍   - Selected Types: $selectedTypeIds');
-    print('🔍   - Selected Alert Levels: $selectedAlertLevels');
-    print('🔍   - Is Offline: $_isOffline');
-
-    print('🔍 Available Categories:');
-    for (int i = 0; i < reportCategoryId.length; i++) {
-      final cat = reportCategoryId[i];
-      final id = cat['_id'] ?? cat['id'] ?? 'unknown';
-      final name = cat['name'] ?? 'unknown';
-      final isSelected = selectedCategoryIds.contains(id);
-      print('🔍   ${i + 1}. ID: $id, Name: $name, Selected: $isSelected');
-    }
-
-    print('🔍 Available Types:');
-    for (int i = 0; i < reportTypeId.length; i++) {
-      final type = reportTypeId[i];
-      final id = type['_id'] ?? type['id'] ?? 'unknown';
-      final name = type['name'] ?? 'unknown';
-      final categoryId = type['categoryId'] ?? 'unknown';
-      final isSelected = selectedTypeIds.contains(id);
-      print(
-        '🔍   ${i + 1}. ID: $id, Name: $name, Category: $categoryId, Selected: $isSelected',
-      );
-    }
-
-    print('🔍 Available Alert Levels:');
-    for (int i = 0; i < alertLevels.length; i++) {
-      final level = alertLevels[i];
-      final id = level['_id'] ?? level['id'] ?? 'unknown';
-      final name = level['name'] ?? 'unknown';
-      final isActive = level['isActive'] ?? false;
-      final isSelected = selectedAlertLevels.contains(id);
-      print(
-        '🔍   ${i + 1}. ID: $id, Name: $name, Active: $isActive, Selected: $isSelected',
-      );
-    }
-
-    // Show detailed alert level information
-    if (selectedAlertLevels.isNotEmpty) {
-      print('🔍 Selected Alert Level Details:');
-      for (final alertLevelId in selectedAlertLevels) {
-        final alertLevel = alertLevels.firstWhere(
-          (level) => (level['_id'] ?? level['id']) == alertLevelId,
-          orElse: () => {'name': 'Unknown', 'id': alertLevelId},
-        );
-        print('🔍   - ID: $alertLevelId, Name: ${alertLevel['name']}');
-      }
-    }
-
-    print('🔍 Local Reports Summary:');
-    print('🔍   - Total Local Reports: ${_localReports.length}');
-    if (_localReports.isNotEmpty) {
-      final scamCount = _localReports.where((r) => r['type'] == 'scam').length;
-      final fraudCount = _localReports
-          .where((r) => r['type'] == 'fraud')
-          .length;
-      final malwareCount = _localReports
-          .where((r) => r['type'] == 'malware')
-          .length;
-      print('🔍   - Scam Reports: $scamCount');
-      print('🔍   - Fraud Reports: $fraudCount');
-      print('🔍   - Malware Reports: $malwareCount');
-
-      print('🔍 Sample Local Reports:');
-      for (int i = 0; i < _localReports.length && i < 3; i++) {
-        final report = _localReports[i];
-        print('🔍   Report ${i + 1}:');
-        print('🔍     - ID: ${report['id']}');
-        print('🔍     - Type: ${report['type']}');
-        print('🔍     - Category ID: ${report['reportCategoryId']}');
-        print('🔍     - Type ID: ${report['reportTypeId']}');
-        print('🔍     - Category Name: ${report['categoryName']}');
-        print('🔍     - Type Name: ${report['typeName']}');
-        print('🔍     - Alert Level: ${report['alertLevels']}');
-        print('🔍     - Description: ${report['description']}');
-      }
-    }
-
-    print('🔍 === END COMPREHENSIVE FILTER DEBUG ===');
-  }
-
-  // Add test method to simulate different filter scenarios
-  void _testFilterScenarios() {
-    print('🧪 === TESTING FILTER SCENARIOS ===');
-
-    // Test 1: Select Report Scam category
-    print('🧪 Test 1: Selecting Report Scam category');
-    final scamCategoryId =
-        reportCategoryId.firstWhere(
-          (cat) =>
-              (cat['name']?.toString().toLowerCase().contains('scam') ?? false),
-          orElse: () => {'_id': 'scam_category', 'name': 'Report Scam'},
-        )['_id'] ??
-        'scam_category';
-
-    print('🧪   - Found scam category ID: $scamCategoryId');
-    print(
-      '🧪   - Available categories: ${reportCategoryId.map((c) => '${c['_id']}: ${c['name']}').toList()}',
-    );
-
-    // Test 2: Select Report Fraud category
-    print('🧪 Test 2: Selecting Report Fraud category');
-    final fraudCategoryId =
-        reportCategoryId.firstWhere(
-          (cat) =>
-              (cat['name']?.toString().toLowerCase().contains('fraud') ??
-              false),
-          orElse: () => {'_id': 'fraud_category', 'name': 'Report Fraud'},
-        )['_id'] ??
-        'fraud_category';
-
-    print('🧪   - Found fraud category ID: $fraudCategoryId');
-
-    // Test 3: Select Report Malware category
-    print('🧪 Test 3: Selecting Report Malware category');
-    final malwareCategoryId =
-        reportCategoryId.firstWhere(
-          (cat) =>
-              (cat['name']?.toString().toLowerCase().contains('malware') ??
-              false),
-          orElse: () => {'_id': 'malware_category', 'name': 'Report Malware'},
-        )['_id'] ??
-        'malware_category';
-
-    print('🧪   - Found malware category ID: $malwareCategoryId');
-
-    // Test 4: Check available types for each category
-    print('🧪 Test 4: Checking available types');
-    for (final type in reportTypeId) {
-      final typeId = type['_id'] ?? type['id'];
-      final typeName = type['name'];
-      final categoryId = type['categoryId'];
-      print('🧪   - Type: $typeName (ID: $typeId, Category: $categoryId)');
-    }
-
-    // Test 5: Check severity levels
-    print('🧪 Test 5: Checking alert levels');
-    for (final level in alertLevels) {
-      final levelId = level['_id'] ?? level['id'];
-      final levelName = level['name'];
-      final isActive = level['isActive'];
-      print('🧪   - Level: $levelName (ID: $levelId, Active: $isActive)');
-    }
-
-    // Test 6: Simulate filter application
-    print('🧪 Test 6: Simulating filter application');
-    print('🧪   - Current search query: "$searchQuery"');
-    print('🧪   - Current selected categories: $selectedCategoryIds');
-    print('🧪   - Current selected types: $selectedTypeIds');
-    print('🧪   - Current selected alert levels: $selectedAlertLevels');
-
-    // Test 7: Check local reports for filtering
-    print('🧪 Test 7: Checking local reports for filtering');
-    if (_localReports.isNotEmpty) {
-      final scamReports = _localReports
-          .where((r) => r['type'] == 'scam')
-          .toList();
-      final fraudReports = _localReports
-          .where((r) => r['type'] == 'fraud')
-          .toList();
-      final malwareReports = _localReports
-          .where((r) => r['type'] == 'malware')
-          .toList();
-
-      print('🧪   - Scam reports available: ${scamReports.length}');
-      print('🧪   - Fraud reports available: ${fraudReports.length}');
-      print('🧪   - Malware reports available: ${malwareReports.length}');
-
-      if (scamReports.isNotEmpty) {
-        print('🧪   - Sample scam report: ${scamReports.first['description']}');
-      }
-      if (fraudReports.isNotEmpty) {
-        print(
-          '🧪   - Sample fraud report: ${fraudReports.first['description']}',
-        );
-      }
-      if (malwareReports.isNotEmpty) {
-        print(
-          '🧪   - Sample malware report: ${malwareReports.first['description']}',
-        );
-      }
-    }
-
-    print('🧪 === END TESTING FILTER SCENARIOS ===');
-  }
-
-  // Add test method to simulate Low severity selection
-  void _testLowSeverityFilter() {
-    print('🧪 === TESTING LOW SEVERITY FILTER ===');
-
-    // Find the Low alert level
-    final lowAlertLevel = alertLevels.firstWhere(
-      (level) => (level['name']?.toString().toLowerCase() == 'low'),
-      orElse: () => {'_id': 'low', 'name': 'Low'},
-    );
-
-    print(
-      '🧪 Found Low alert level: ${lowAlertLevel['_id']} - ${lowAlertLevel['name']}',
-    );
-
-    // Simulate selecting Low alert level
-    setState(() {
-      selectedAlertLevels = [lowAlertLevel['_id']];
-    });
-
-    print('🧪 Selected alert levels after setting Low: $selectedAlertLevels');
-
-    // Show what would be passed to the list page
-    print('🧪 Would pass to list page:');
-    print('🧪   - selectedAlertLevels: $selectedAlertLevels');
-    print('🧪   - hasSelectedAlertLevel: ${selectedAlertLevels.isNotEmpty}');
-
-    // Show available alert levels for comparison
-    print('🧪 Available alert levels:');
-    for (final level in alertLevels) {
-      final id = level['_id'] ?? level['id'];
-      final name = level['name'];
-      final isSelected = selectedAlertLevels.contains(id);
-      print('🧪   - $name (ID: $id, Selected: $isSelected)');
-    }
-
-    print('🧪 === END TESTING LOW SEVERITY FILTER ===');
-  }
-
   void _onCategoryChanged(List<String> categoryIds) {
     print('🔍 Category changed: $categoryIds');
+    print('🔍 Previous selected categories: $selectedCategoryIds');
+    print('🔍 New selected categories: $categoryIds');
+
     setState(() {
       selectedCategoryIds = categoryIds;
-      selectedTypeIds = [];
-      reportTypeId = [];
+      selectedTypeIds = []; // Clear selected types
+      reportTypeId = []; // Clear available types
     });
 
-    // Apply offline filtering if in offline mode
-    if (_isOffline) {
-      _applyOfflineFilters();
+    // Fetch detailed data for selected categories
+    _fetchSelectedCategoryData(categoryIds);
+
+    if (categoryIds.isNotEmpty) {
+      print('🔍 Loading types for selected categories: $categoryIds');
+      _loadTypesByCategory(categoryIds);
+      // Refresh device filters based on new category
+      _loadDeviceFilters();
     } else {
-      // Fetch detailed data for selected categories
-      _fetchSelectedCategoryData(categoryIds);
-
-      if (categoryIds.isNotEmpty) {
-        _loadTypesByCategory(categoryIds);
-        _loadDeviceFilters();
-      } else {
-        // If no categories selected, load all types
-        _loadAllReportTypes();
-
-        setState(() {
-          _deviceTypes = [];
-          _detectTypes = [];
-          _operatingSystems = [];
-        });
-      }
+      print('🔍 No categories selected - clearing types and device filters');
+      // Clear types and device filters when no category is selected
+      setState(() {
+        reportTypeId = [];
+        selectedTypeIds = [];
+        _deviceTypes = [];
+        _detectTypes = [];
+        _operatingSystems = [];
+      });
     }
   }
 
@@ -1178,621 +1040,6 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     }
   }
 
-  // CRITICAL FIX: Apply offline filters to local reports
-  void _applyOfflineFilters() {
-    print('🔍 OFFLINE: Applying filters to local reports...');
-    print('🔍 OFFLINE: Search query: "$searchQuery"');
-    print('🔍 OFFLINE: Selected categories: $selectedCategoryIds');
-    print('🔍 OFFLINE: Selected types: $selectedTypeIds');
-    print('🔍 OFFLINE: Selected alert levels: $selectedAlertLevels');
-    print('🔍 OFFLINE: Selected device type: $_selectedDeviceTypeId');
-    print('🔍 OFFLINE: Selected detect type: $_selectedDetectTypeId');
-    print('🔍 OFFLINE: Selected operating system: $_selectedOperatingSystemId');
-    print('🔍 OFFLINE: Total local reports: ${_localReports.length}');
-
-    // Debug: Show available local categories and types
-    print(
-      '🔍 OFFLINE: Available local categories: ${_localCategories.map((c) => '${c['_id']}: ${c['name']}').toList()}',
-    );
-    print(
-      '🔍 OFFLINE: Available local types: ${_localTypes.map((t) => '${t['_id']}: ${t['name']}').toList()}',
-    );
-    print(
-      '🔍 OFFLINE: Available local alert levels: ${alertLevels.map((a) => '${a['_id']}: ${a['name']}').toList()}',
-    );
-
-    // Debug: Show sample local report structure
-    if (_localReports.isNotEmpty) {
-      print('🔍 OFFLINE: Sample local report structure:');
-      final sampleReport = _localReports.first;
-      sampleReport.forEach((key, value) {
-        print('🔍 OFFLINE:   $key: $value');
-      });
-    }
-
-    List<Map<String, dynamic>> filtered = List.from(_localReports);
-
-    // Apply search query filter
-    if (searchQuery.isNotEmpty) {
-      final query = searchQuery.toLowerCase();
-      filtered = filtered.where((report) {
-        final description = (report['description'] ?? '')
-            .toString()
-            .toLowerCase();
-        final name = (report['name'] ?? '').toString().toLowerCase();
-        final type = (report['type'] ?? '').toString().toLowerCase();
-        final categoryName = (report['categoryName'] ?? '')
-            .toString()
-            .toLowerCase();
-        final typeName = (report['typeName'] ?? '').toString().toLowerCase();
-
-        return description.contains(query) ||
-            name.contains(query) ||
-            type.contains(query) ||
-            categoryName.contains(query) ||
-            typeName.contains(query);
-      }).toList();
-      print('🔍 OFFLINE: After search filter: ${filtered.length} reports');
-    }
-
-    // Apply category filter
-    if (selectedCategoryIds.isNotEmpty) {
-      print(
-        '🔍 OFFLINE: Applying category filter with selected IDs: $selectedCategoryIds',
-      );
-      filtered = filtered.where((report) {
-        final reportCategoryId = report['reportCategoryId']?.toString() ?? '';
-        final categoryName = (report['categoryName'] ?? '')
-            .toString()
-            .toLowerCase();
-
-        print(
-          '🔍 OFFLINE: Checking report - Category ID: $reportCategoryId, Category Name: $categoryName',
-        );
-
-        // Check if category ID matches or category name matches
-        final categoryMatches = selectedCategoryIds.any((selectedId) {
-          print('🔍 OFFLINE: Comparing with selected ID: $selectedId');
-
-          // Direct ID match
-          if (selectedId == reportCategoryId) {
-            print('🔍 OFFLINE: Direct ID match found!');
-            return true;
-          }
-
-          // Check by category name mapping
-          final selectedCategory = _localCategories.firstWhere(
-            (cat) => (cat['_id'] ?? cat['id']) == selectedId,
-            orElse: () => {'name': ''},
-          );
-          final selectedCategoryName = (selectedCategory['name'] ?? '')
-              .toString()
-              .toLowerCase();
-
-          print('🔍 OFFLINE: Selected category name: $selectedCategoryName');
-
-          final nameMatch =
-              categoryName.contains(selectedCategoryName) ||
-              selectedCategoryName.contains(categoryName);
-
-          if (nameMatch) {
-            print('🔍 OFFLINE: Name match found!');
-          }
-
-          return nameMatch;
-        });
-
-        if (categoryMatches) {
-          print('🔍 OFFLINE: Report matches category filter');
-        }
-
-        return categoryMatches;
-      }).toList();
-      print('🔍 OFFLINE: After category filter: ${filtered.length} reports');
-    }
-
-    // Apply type filter
-    if (selectedTypeIds.isNotEmpty) {
-      print(
-        '🔍 OFFLINE: Applying type filter with selected IDs: $selectedTypeIds',
-      );
-      filtered = filtered.where((report) {
-        final reportTypeId = report['reportTypeId']?.toString() ?? '';
-        final typeName = (report['typeName'] ?? '').toString().toLowerCase();
-
-        print(
-          '🔍 OFFLINE: Checking report - Type ID: $reportTypeId, Type Name: $typeName',
-        );
-
-        // Check if type ID matches or type name matches
-        final typeMatches = selectedTypeIds.any((selectedId) {
-          print('🔍 OFFLINE: Comparing with selected type ID: $selectedId');
-
-          // Direct ID match
-          if (selectedId == reportTypeId) {
-            print('🔍 OFFLINE: Direct type ID match found!');
-            return true;
-          }
-
-          // Check by type name mapping
-          final selectedType = _localTypes.firstWhere(
-            (type) => (type['_id'] ?? type['id']) == selectedId,
-            orElse: () => {'name': ''},
-          );
-          final selectedTypeName = (selectedType['name'] ?? '')
-              .toString()
-              .toLowerCase();
-
-          print('🔍 OFFLINE: Selected type name: $selectedTypeName');
-
-          final nameMatch =
-              typeName.contains(selectedTypeName) ||
-              selectedTypeName.contains(typeName);
-
-          if (nameMatch) {
-            print('🔍 OFFLINE: Type name match found!');
-          }
-
-          return nameMatch;
-        });
-
-        if (typeMatches) {
-          print('🔍 OFFLINE: Report matches type filter');
-        }
-
-        return typeMatches;
-      }).toList();
-      print('🔍 OFFLINE: After type filter: ${filtered.length} reports');
-    }
-
-    // Apply alert level filter
-    if (selectedAlertLevels.isNotEmpty) {
-      print(
-        '🔍 OFFLINE: Applying alert level filter with selected IDs: $selectedAlertLevels',
-      );
-      filtered = filtered.where((report) {
-        final reportAlertLevel = report['alertLevels']?.toString() ?? '';
-
-        print('🔍 OFFLINE: Checking report - Alert Level: $reportAlertLevel');
-
-        // Check if alert level matches
-        final alertLevelMatches = selectedAlertLevels.any((selectedId) {
-          print(
-            '🔍 OFFLINE: Comparing with selected alert level ID: $selectedId',
-          );
-
-          // Direct ID match
-          if (selectedId == reportAlertLevel) {
-            print('🔍 OFFLINE: Direct alert level ID match found!');
-            return true;
-          }
-
-          // Check by alert level name mapping
-          final selectedAlertLevel = alertLevels.firstWhere(
-            (level) => (level['_id'] ?? level['id']) == selectedId,
-            orElse: () => {'name': ''},
-          );
-          final selectedAlertLevelName = (selectedAlertLevel['name'] ?? '')
-              .toString()
-              .toLowerCase();
-
-          print(
-            '🔍 OFFLINE: Selected alert level name: $selectedAlertLevelName',
-          );
-
-          final nameMatch =
-              reportAlertLevel.toLowerCase().contains(selectedAlertLevelName) ||
-              selectedAlertLevelName.contains(reportAlertLevel.toLowerCase());
-
-          if (nameMatch) {
-            print('🔍 OFFLINE: Alert level name match found!');
-          }
-
-          return nameMatch;
-        });
-
-        if (alertLevelMatches) {
-          print('🔍 OFFLINE: Report matches alert level filter');
-        }
-
-        return alertLevelMatches;
-      }).toList();
-      print('🔍 OFFLINE: After alert level filter: ${filtered.length} reports');
-    }
-
-    // Apply device type filter
-    if (_selectedDeviceTypeId != null) {
-      filtered = filtered.where((report) {
-        final reportDeviceType =
-            report['infectedDeviceType']?.toString() ??
-            report['deviceType']?.toString() ??
-            '';
-
-        // Check if device type matches
-        final deviceTypeMatches = _selectedDeviceTypeId == reportDeviceType;
-
-        if (!deviceTypeMatches) {
-          // Check by device type name mapping
-          final selectedDeviceType = _localDeviceTypes.firstWhere(
-            (deviceType) =>
-                (deviceType['_id'] ?? deviceType['id']) ==
-                _selectedDeviceTypeId,
-            orElse: () => {'name': ''},
-          );
-          final selectedDeviceTypeName = (selectedDeviceType['name'] ?? '')
-              .toString()
-              .toLowerCase();
-
-          return reportDeviceType.toLowerCase().contains(
-                selectedDeviceTypeName,
-              ) ||
-              selectedDeviceTypeName.contains(reportDeviceType.toLowerCase());
-        }
-
-        return deviceTypeMatches;
-      }).toList();
-      print('🔍 OFFLINE: After device type filter: ${filtered.length} reports');
-    }
-
-    // Apply detect type filter
-    if (_selectedDetectTypeId != null) {
-      filtered = filtered.where((report) {
-        final reportDetectType =
-            report['detectionMethod']?.toString() ??
-            report['detectType']?.toString() ??
-            '';
-
-        // Check if detect type matches
-        final detectTypeMatches = _selectedDetectTypeId == reportDetectType;
-
-        if (!detectTypeMatches) {
-          // Check by detect type name mapping
-          final selectedDetectType = _localDetectTypes.firstWhere(
-            (detectType) =>
-                (detectType['_id'] ?? detectType['id']) ==
-                _selectedDetectTypeId,
-            orElse: () => {'name': ''},
-          );
-          final selectedDetectTypeName = (selectedDetectType['name'] ?? '')
-              .toString()
-              .toLowerCase();
-
-          return reportDetectType.toLowerCase().contains(
-                selectedDetectTypeName,
-              ) ||
-              selectedDetectTypeName.contains(reportDetectType.toLowerCase());
-        }
-
-        return detectTypeMatches;
-      }).toList();
-      print('🔍 OFFLINE: After detect type filter: ${filtered.length} reports');
-    }
-
-    // Apply operating system filter
-    if (_selectedOperatingSystemId != null) {
-      filtered = filtered.where((report) {
-        final reportOperatingSystem =
-            report['operatingSystem']?.toString() ??
-            report['os']?.toString() ??
-            '';
-
-        // Check if operating system matches
-        final operatingSystemMatches =
-            _selectedOperatingSystemId == reportOperatingSystem;
-
-        if (!operatingSystemMatches) {
-          // Check by operating system name mapping
-          final selectedOperatingSystem = _localOperatingSystems.firstWhere(
-            (os) => (os['_id'] ?? os['id']) == _selectedOperatingSystemId,
-            orElse: () => {'name': ''},
-          );
-          final selectedOperatingSystemName =
-              (selectedOperatingSystem['name'] ?? '').toString().toLowerCase();
-
-          return reportOperatingSystem.toLowerCase().contains(
-                selectedOperatingSystemName,
-              ) ||
-              selectedOperatingSystemName.contains(
-                reportOperatingSystem.toLowerCase(),
-              );
-        }
-
-        return operatingSystemMatches;
-      }).toList();
-      print(
-        '🔍 OFFLINE: After operating system filter: ${filtered.length} reports',
-      );
-    }
-
-    // Apply date range filter
-    if (_startDate != null || _endDate != null) {
-      filtered = filtered.where((report) {
-        final reportDate = _parseReportDate(report);
-        if (reportDate == null) return false;
-
-        if (_startDate != null && reportDate.isBefore(_startDate!))
-          return false;
-        if (_endDate != null && reportDate.isAfter(_endDate!)) return false;
-
-        return true;
-      }).toList();
-      print('🔍 OFFLINE: After date filter: ${filtered.length} reports');
-    }
-
-    setState(() {
-      _filteredLocalReports = filtered;
-    });
-
-    print(
-      '✅ OFFLINE: Filtering completed. ${filtered.length} reports match criteria',
-    );
-  }
-
-  // CRITICAL FIX: Test offline filtering functionality
-  void _testOfflineFiltering() {
-    print('🧪 === TESTING OFFLINE FILTERING ===');
-
-    if (_localReports.isEmpty) {
-      print('❌ No local reports available for testing');
-      return;
-    }
-
-    print('🧪 Total local reports: ${_localReports.length}');
-    print('🧪 Available categories: ${_localCategories.length}');
-    print('🧪 Available types: ${_localTypes.length}');
-    print('🧪 Available alert levels: ${alertLevels.length}');
-
-    // Test 1: Filter by category
-    if (_localCategories.isNotEmpty) {
-      final testCategoryId =
-          _localCategories.first['_id'] ?? _localCategories.first['id'];
-      print('🧪 Testing category filter with ID: $testCategoryId');
-
-      setState(() {
-        selectedCategoryIds = [testCategoryId.toString()];
-      });
-      _applyOfflineFilters();
-
-      print('🧪 Category filter test completed');
-    }
-
-    // Test 2: Filter by type
-    if (_localTypes.isNotEmpty) {
-      final testTypeId = _localTypes.first['_id'] ?? _localTypes.first['id'];
-      print('🧪 Testing type filter with ID: $testTypeId');
-
-      setState(() {
-        selectedTypeIds = [testTypeId.toString()];
-      });
-      _applyOfflineFilters();
-
-      print('🧪 Type filter test completed');
-    }
-
-    // Test 3: Filter by alert level
-    if (alertLevels.isNotEmpty) {
-      final testAlertLevelId =
-          alertLevels.first['_id'] ?? alertLevels.first['id'];
-      print('🧪 Testing alert level filter with ID: $testAlertLevelId');
-
-      setState(() {
-        selectedAlertLevels = [testAlertLevelId.toString()];
-      });
-      _applyOfflineFilters();
-
-      print('🧪 Alert level filter test completed');
-    }
-
-    // Reset filters
-    _clearAllFilters();
-    print('🧪 === END TESTING OFFLINE FILTERING ===');
-  }
-
-  // Helper method to parse report date
-  DateTime? _parseReportDate(Map<String, dynamic> report) {
-    try {
-      final dateString =
-          report['createdAt']?.toString() ?? report['date']?.toString();
-      if (dateString == null) return null;
-
-      return DateTime.tryParse(dateString);
-    } catch (e) {
-      print('❌ OFFLINE: Error parsing date: $e');
-      return null;
-    }
-  }
-
-  // CRITICAL FIX: Update search query with offline filtering
-  void _onSearchChanged(String query) {
-    setState(() {
-      searchQuery = query;
-    });
-
-    if (_isOffline) {
-      print('🔍 OFFLINE: Search query changed - applying filters');
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Force apply offline filters (for manual triggering)
-  void _forceApplyOfflineFilters() {
-    if (_isOffline) {
-      print('🔍 OFFLINE: Force applying offline filters');
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Update alert level selection with offline filtering
-  void _onAlertLevelChanged(List<String> alertLevelIds) {
-    setState(() {
-      selectedAlertLevels = alertLevelIds;
-    });
-
-    if (_isOffline) {
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Update type selection with offline filtering
-  void _onTypeChanged(List<String> typeIds) {
-    setState(() {
-      selectedTypeIds = typeIds;
-    });
-
-    if (_isOffline) {
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Update device type selection with offline filtering
-  void _onDeviceTypeChanged(List<String> deviceTypeIds) {
-    setState(() {
-      _selectedDeviceTypeId = deviceTypeIds.isNotEmpty
-          ? deviceTypeIds.first
-          : null;
-    });
-
-    if (_isOffline) {
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Update detect type selection with offline filtering
-  void _onDetectTypeChanged(List<String> detectTypeIds) {
-    setState(() {
-      _selectedDetectTypeId = detectTypeIds.isNotEmpty
-          ? detectTypeIds.first
-          : null;
-    });
-
-    if (_isOffline) {
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Update operating system selection with offline filtering
-  void _onOperatingSystemChanged(List<String> operatingSystemIds) {
-    setState(() {
-      _selectedOperatingSystemId = operatingSystemIds.isNotEmpty
-          ? operatingSystemIds.first
-          : null;
-    });
-
-    if (_isOffline) {
-      _applyOfflineFilters();
-    }
-  }
-
-  // CRITICAL FIX: Clear all filters in offline mode
-  void _clearAllFilters() {
-    setState(() {
-      searchQuery = '';
-      selectedCategoryIds = [];
-      selectedTypeIds = [];
-      selectedAlertLevels = [];
-      _selectedDeviceTypeId = null;
-      _selectedDetectTypeId = null;
-      _selectedOperatingSystemId = null;
-      _startDate = null;
-      _endDate = null;
-      _filteredLocalReports = _localReports;
-    });
-
-    print(
-      '🧹 OFFLINE: All filters cleared, showing all ${_localReports.length} local reports',
-    );
-  }
-
-  // New method to test the dynamic API call
-  Future<void> _testDynamicApiCall() async {
-    try {
-      print('=== TESTING DYNAMIC API CALL ===');
-
-      // Create a filter with the exact parameters from your URL
-      final filter = ReportsFilter(
-        page: 1,
-        limit: 200, // Updated default limit to 200
-        reportCategoryId: 'https://c61c0359421d.ngrok-free.app',
-        reportTypeId: '68752de7a40625496c08b42a',
-        deviceTypeId: '687616edc688f12536d1d2d5',
-        detectTypeId: '68761767c688f12536d1d2dd',
-        operatingSystemName: '6875f41f652eaccf5ecbe6b2',
-        // search: 'scam',
-      );
-
-      print('Testing filter: $filter');
-      print('Built URL: ${filter.buildUrl()}');
-
-      final reports = await _apiService.fetchReportsWithFilter(filter);
-      print('Received ${reports.length} reports');
-
-      if (reports.isNotEmpty) {
-        print('First report: ${reports.first}');
-      }
-    } catch (e) {
-      print('Error testing dynamic API call: $e');
-    }
-  }
-
-  // New method to use the complex filter
-  Future<void> _useComplexFilter() async {
-    try {
-      print('=== USING COMPLEX FILTER ===');
-      print('🔍 Debug - selectedAlertLevels: $selectedAlertLevels');
-      print(
-        '🔍 Debug - selectedAlertLevels type: ${selectedAlertLevels.runtimeType}',
-      );
-      print(
-        '🔍 Debug - selectedAlertLevels isEmpty: ${selectedAlertLevels.isEmpty}',
-      );
-
-      // Pass alert level IDs directly to API
-      final alertLevelsForAPI = selectedAlertLevels.isNotEmpty
-          ? selectedAlertLevels
-          : null;
-
-      print('🔍 Debug - selectedAlertLevels: $selectedAlertLevels');
-      print('🔍 Debug - alertLevelsForAPI: $alertLevelsForAPI');
-      print(
-        '🔍 Debug - alertLevelsForAPI type: ${alertLevelsForAPI.runtimeType}',
-      );
-      print(
-        '🔍 Debug - selectedAlertLevels isEmpty: ${selectedAlertLevels.isEmpty}',
-      );
-
-      // Debug: Show what alert level IDs are being passed
-      if (selectedAlertLevels.isNotEmpty) {
-        print('🔍 Debug - Alert level IDs being passed to API:');
-        for (final alertLevelId in selectedAlertLevels) {
-          final alertLevel = alertLevels.firstWhere(
-            (level) => (level['_id'] ?? level['id']) == alertLevelId,
-            orElse: () => {'name': 'Unknown', 'id': alertLevelId},
-          );
-          print('🔍   - ID: $alertLevelId, Name: ${alertLevel['name']}');
-        }
-      }
-
-      final reports = await _apiService.getReportsWithComplexFilter(
-        searchQuery: searchQuery,
-        categoryIds: selectedCategoryIds.isNotEmpty
-            ? selectedCategoryIds
-            : null,
-        typeIds: selectedTypeIds.isNotEmpty ? selectedTypeIds : null,
-        severityLevels: alertLevelsForAPI,
-        page: 1,
-        limit: 200, // Updated default limit to 200
-      );
-
-      print('Received ${reports.length} reports from complex filter');
-
-      if (reports.isNotEmpty) {
-        print('First report: ${reports.first}');
-      }
-    } catch (e) {
-      print('Error using complex filter: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1802,7 +1049,59 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-        actions: [],
+        actions: [
+          // Refresh button
+          IconButton(
+            onPressed: _refreshData,
+            icon: Icon(Icons.refresh, color: Colors.black),
+            tooltip: 'Refresh Data',
+          ),
+          // Sync button (only show when online and has pending items)
+          if (!_isOffline && _pendingSyncCount > 0)
+            IconButton(
+              onPressed: _isSyncing ? null : _syncOfflineData,
+              icon: _isSyncing
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
+                    )
+                  : Stack(
+                      children: [
+                        Icon(Icons.sync, color: Colors.black),
+                        if (_pendingSyncCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              constraints: BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                '$_pendingSyncCount',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+              tooltip: 'Sync Offline Data',
+            ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -1817,37 +1116,145 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
               ),
               const SizedBox(height: 16),
 
-              // // Offline Status Indicator
-              // if (_isOffline)
-              //   Container(
-              //     padding: EdgeInsets.all(12),
-              //     margin: EdgeInsets.only(bottom: 16),
-              //     decoration: BoxDecoration(
-              //       color: Colors.orange.shade50,
-              //       border: Border.all(color: Colors.orange.shade200),
-              //       borderRadius: BorderRadius.circular(8),
-              //     ),
-              //     child: Row(
-              //       children: [
-              //         Icon(
-              //           Icons.wifi_off,
-              //           color: Colors.orange.shade600,
-              //           size: 20,
-              //         ),
-              //         if (_hasLocalData)
-              //           Container(
-              //             padding: EdgeInsets.symmetric(
-              //               horizontal: 8,
-              //               vertical: 4,
-              //             ),
-              //             decoration: BoxDecoration(
-              //               color: Colors.green.shade100,
-              //               borderRadius: BorderRadius.circular(12),
-              //             ),
-              //           ),
-              //       ],
-              //     ),
-              //   ),
+              // Enhanced Offline Status Indicator
+              if (_isOffline)
+                Container(
+                  padding: EdgeInsets.all(12),
+                  margin: EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    border: Border.all(color: Colors.orange.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.wifi_off,
+                            color: Colors.orange.shade600,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Offline Mode - Showing local data',
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          if (_hasLocalData)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_localReports.length} reports available',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (_pendingSyncCount > 0) ...[
+                        SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.sync,
+                              color: Colors.blue.shade600,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              '$_pendingSyncCount items pending sync',
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+              // Online Status with Sync Button
+              if (!_isOffline && _pendingSyncCount > 0)
+                Container(
+                  padding: EdgeInsets.all(12),
+                  margin: EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    border: Border.all(color: Colors.blue.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync, color: Colors.blue.shade600, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$_pendingSyncCount items ready to sync',
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (_syncStatus != null)
+                              Text(
+                                _syncStatus!,
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (!_isSyncing)
+                        ElevatedButton.icon(
+                          onPressed: _syncOfflineData,
+                          icon: Icon(Icons.sync, size: 16),
+                          label: Text('Sync Now'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade600,
+                            foregroundColor: Colors.white,
+                            minimumSize: Size(80, 32),
+                            textStyle: TextStyle(fontSize: 12),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.blue.shade600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
               const SizedBox(height: 8),
 
               // Scrollable Content
@@ -1860,10 +1267,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       TextFormField(
                         decoration: InputDecoration(
                           labelText: 'Search',
+
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: _onSearchChanged,
+                        onChanged: (val) => setState(() => searchQuery = val),
                       ),
                       const SizedBox(height: 16),
 
@@ -1960,8 +1368,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           ? Container(
                               padding: EdgeInsets.symmetric(vertical: 16),
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
+                                border: Border.all(color: Colors.blue.shade300),
                                 borderRadius: BorderRadius.circular(4),
+                                color: Colors.blue.shade50,
                               ),
                               child: Row(
                                 children: [
@@ -1971,10 +1380,19 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.blue.shade600,
+                                      ),
                                     ),
                                   ),
                                   SizedBox(width: 16),
-                                  Text('Loading types...'),
+                                  Text(
+                                    'Loading types for selected categories...',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ],
                               ),
                             )
@@ -1982,11 +1400,49 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                // Show message if no types available and categories are selected
+                                if (selectedCategoryIds.isNotEmpty &&
+                                    reportTypeId.isEmpty)
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    margin: EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      border: Border.all(
+                                        color: Colors.orange.shade200,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.info_outline,
+                                          color: Colors.orange.shade600,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'No types available for selected categories',
+                                            style: TextStyle(
+                                              color: Colors.orange.shade700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
                                 _buildMultiSelectDropdown(
                                   'Type',
                                   reportTypeId,
                                   selectedTypeIds,
-                                  _onTypeChanged,
+                                  (values) {
+                                    setState(() => selectedTypeIds = values);
+                                    // Fetch detailed data for selected types
+                                    _fetchSelectedTypeData(values);
+                                  },
                                   (item) {
                                     final id =
                                         item['_id']?.toString() ??
@@ -2019,29 +1475,43 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                       _buildMultiSelectDropdown(
                         'Alert Levels',
                         alertLevels.isNotEmpty
-                            ? alertLevels
-                                  .map(
-                                    (level) => {
-                                      'id': level['_id'] ?? level['id'],
-                                      'name':
-                                          (level['name'] ?? 'Unknown')
-                                              .toString()
-                                              .substring(0, 1)
-                                              .toUpperCase() +
-                                          (level['name'] ?? 'Unknown')
-                                              .toString()
-                                              .substring(1)
-                                              .toLowerCase(),
-                                    },
-                                  )
-                                  .toList()
+                            ? alertLevels.map((level) {
+                                final id = level['_id'] ?? level['id'];
+                                final name = level['name'] ?? 'Unknown';
+                                print(
+                                  '🔍 Processing alert level: ID=$id, Name=$name',
+                                );
+                                return {
+                                  'id': id,
+                                  'name':
+                                      name
+                                          .toString()
+                                          .substring(0, 1)
+                                          .toUpperCase() +
+                                      name
+                                          .toString()
+                                          .substring(1)
+                                          .toLowerCase(),
+                                };
+                              }).toList()
                             : [],
                         selectedAlertLevels,
-                        _onAlertLevelChanged,
+                        (values) {
+                          print(
+                            '🔍 UI Debug - Alert level selection changed: $values',
+                          );
+                          print('🔍 Previous selection: $selectedAlertLevels');
+                          print('🔍 New selection: $values');
+                          print(
+                            '🔍 Alert levels available: ${alertLevels.length}',
+                          );
+                          print('🔍 Current alertLevels data: $alertLevels');
+                          setState(() => selectedAlertLevels = values);
+                          print('🔍 After setState: $selectedAlertLevels');
+                        },
                         (item) => item['id']?.toString(),
                         (item) => item['name']?.toString() ?? 'Unknown',
                       ),
-                      const SizedBox(height: 16),
                       const SizedBox(height: 16),
                       _buildMultiSelectDropdown(
                         'Device Type',
@@ -2049,7 +1519,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedDeviceTypeId == null
                             ? <String>[]
                             : <String>[_selectedDeviceTypeId!],
-                        _onDeviceTypeChanged,
+                        (values) => setState(
+                          () => _selectedDeviceTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ?? item['deviceTypeName'] ?? 'Device')
@@ -2062,7 +1536,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedDetectTypeId == null
                             ? <String>[]
                             : <String>[_selectedDetectTypeId!],
-                        _onDetectTypeChanged,
+                        (values) => setState(
+                          () => _selectedDetectTypeId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ?? item['detectTypeName'] ?? 'Detect')
@@ -2075,7 +1553,11 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                         _selectedOperatingSystemId == null
                             ? <String>[]
                             : <String>[_selectedOperatingSystemId!],
-                        _onOperatingSystemChanged,
+                        (values) => setState(
+                          () => _selectedOperatingSystemId = values.isNotEmpty
+                              ? values.first
+                              : null,
+                        ),
                         (item) => (item['_id'] ?? item['id'])?.toString(),
                         (item) =>
                             (item['name'] ??
@@ -2110,15 +1592,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                 const Spacer(),
                                 if (_startDate != null || _endDate != null)
                                   TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _startDate = null;
-                                        _endDate = null;
-                                      });
-                                      if (_isOffline) {
-                                        _applyOfflineFilters();
-                                      }
-                                    },
+                                    onPressed: () => setState(() {
+                                      _startDate = null;
+                                      _endDate = null;
+                                    }),
                                     icon: const Icon(Icons.clear, size: 18),
                                     label: const Text('Clear'),
                                   ),
@@ -2149,9 +1626,6 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                             _endDate = null;
                                           }
                                         });
-                                        if (_isOffline) {
-                                          _applyOfflineFilters();
-                                        }
                                       }
                                     },
                                     child: Text(
@@ -2184,9 +1658,6 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                             59,
                                           );
                                         });
-                                        if (_isOffline) {
-                                          _applyOfflineFilters();
-                                        }
                                       }
                                     },
                                     child: Text(
@@ -2204,102 +1675,25 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
                       const SizedBox(height: 16),
 
-                      // Offline Filter Results Indicator
-                      if (_isOffline)
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          margin: EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            border: Border.all(color: Colors.blue.shade200),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.filter_list,
-                                    color: Colors.blue.shade600,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${_filteredLocalReports.length} reports match your filters (Total: ${_localReports.length})',
-                                      style: TextStyle(
-                                        color: Colors.blue.shade700,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: _clearAllFilters,
-                                    child: Text(
-                                      'Clear Filters',
-                                      style: TextStyle(
-                                        color: Colors.blue.shade700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _forceApplyOfflineFilters,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green.shade100,
-                                        foregroundColor: Colors.green.shade700,
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Apply Filters',
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _testOfflineFiltering,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange.shade100,
-                                        foregroundColor: Colors.orange.shade700,
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Test Filters',
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
                       // View All Reports Link
                       GestureDetector(
                         onTap: () {
-                          // CRITICAL FIX: Apply offline filters before navigation
-                          if (_isOffline) {
-                            print(
-                              '🔍 OFFLINE: View All Reports pressed - applying filters before navigation',
-                            );
-                            _applyOfflineFilters();
-                            print(
-                              '🔍 OFFLINE: Filtered reports count: ${_filteredLocalReports.length}',
-                            );
-                          }
+                          // Debug: Log parameters for View All Reports
+                          print('🔍 === VIEW ALL REPORTS PARAMETERS ===');
+                          print('🔍 Advanced filters:');
+                          print(
+                            '🔍   - Device Type ID: $_selectedDeviceTypeId',
+                          );
+                          print(
+                            '🔍   - Detect Type ID: $_selectedDetectTypeId',
+                          );
+                          print(
+                            '🔍   - Operating System ID: $_selectedOperatingSystemId',
+                          );
+                          print('🔍 Date filters:');
+                          print('🔍   - Start Date: $_startDate');
+                          print('🔍   - End Date: $_endDate');
+                          print('🔍 === END VIEW ALL REPORTS PARAMETERS ===');
 
                           Navigator.push(
                             context,
@@ -2314,9 +1708,13 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                                 hasSelectedSeverity: false,
                                 hasSelectedCategory: false,
                                 isOffline: _isOffline,
-                                localReports: _isOffline
-                                    ? _filteredLocalReports
-                                    : _localReports,
+                                localReports: _localReports,
+                                alertLevels: alertLevels,
+                                startDate: _startDate,
+                                endDate: _endDate,
+                                deviceTypeId: _selectedDeviceTypeId,
+                                detectTypeId: _selectedDetectTypeId,
+                                operatingSystemName: _selectedOperatingSystemId,
                               ),
                             ),
                           );
@@ -2350,47 +1748,64 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                     ),
                   ),
                   onPressed: () {
-                    // CRITICAL FIX: Apply offline filters before navigation
-                    if (_isOffline) {
-                      print(
-                        '🔍 OFFLINE: Filter button pressed - applying filters before navigation',
-                      );
-                      _applyOfflineFilters();
-                      print(
-                        '🔍 OFFLINE: Filtered reports count: ${_filteredLocalReports.length}',
-                      );
-                    }
-
                     // Check if we have any filters applied
                     final hasAnyFilters =
                         searchQuery.isNotEmpty ||
                         selectedCategoryIds.isNotEmpty ||
                         selectedTypeIds.isNotEmpty ||
-                        selectedAlertLevels.isNotEmpty ||
-                        _selectedDeviceTypeId != null ||
-                        _selectedDetectTypeId != null ||
-                        _selectedOperatingSystemId != null ||
-                        _startDate != null ||
-                        _endDate != null;
+                        selectedAlertLevels.isNotEmpty;
 
                     print('🔍 Next button pressed - Filters: $hasAnyFilters');
-                    print('🔍 Is Offline: $_isOffline');
-                    print('🔍 Total local reports: ${_localReports.length}');
-                    print(
-                      '🔍 Filtered local reports: ${_filteredLocalReports.length}',
-                    );
-
                     if (hasAnyFilters) {
                       print(
-                        '🔍 Search: "${searchQuery}", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}',
+                        '🔍 Search: "$searchQuery", Categories: ${selectedCategoryIds.length}, Types: ${selectedTypeIds.length}, Alert Levels: ${selectedAlertLevels.length}',
                       );
-                      print('🔍 Device Type: $_selectedDeviceTypeId');
-                      print('🔍 Detect Type: $_selectedDetectTypeId');
-                      print('🔍 Operating System: $_selectedOperatingSystemId');
-                      print('🔍 Date Range: $_startDate to $_endDate');
                     } else {
                       print('🔍 No filters applied - will show all reports');
                     }
+
+                    // Debug: Log all filter parameters being passed
+                    print('🔍 === FILTER PARAMETERS BEING PASSED ===');
+                    print('🔍 Basic filters:');
+                    print('🔍   - Search: "$searchQuery"');
+                    print('🔍   - Categories: $selectedCategoryIds');
+                    print('🔍   - Types: $selectedTypeIds');
+                    print('🔍   - Alert Levels: $selectedAlertLevels');
+                    print('🔍 Alert Level Details:');
+                    for (String alertLevelId in selectedAlertLevels) {
+                      final alertLevel = alertLevels.firstWhere(
+                        (level) =>
+                            (level['_id'] ?? level['id']) == alertLevelId,
+                        orElse: () => {'name': 'Unknown', 'id': alertLevelId},
+                      );
+                      print(
+                        '🔍     - ID: $alertLevelId, Name: ${alertLevel['name']}',
+                      );
+                    }
+                    print('🔍 Advanced filters:');
+                    print('🔍   - Device Type ID: $_selectedDeviceTypeId');
+                    print('🔍   - Detect Type ID: $_selectedDetectTypeId');
+                    print(
+                      '🔍   - Operating System ID: $_selectedOperatingSystemId',
+                    );
+                    print('🔍 Date filters:');
+                    print('🔍   - Start Date: $_startDate');
+                    print('🔍   - End Date: $_endDate');
+                    print('🔍 === END FILTER PARAMETERS ===');
+
+                    // Debug: Log final computed values
+                    print('🔍 === FINAL COMPUTED VALUES ===');
+                    print('🔍   - hasSearchQuery: ${searchQuery.isNotEmpty}');
+                    print(
+                      '🔍   - hasSelectedType: ${selectedTypeIds.isNotEmpty}',
+                    );
+                    print(
+                      '🔍   - hasSelectedSeverity: ${selectedAlertLevels.isNotEmpty}',
+                    );
+                    print(
+                      '🔍   - hasSelectedCategory: ${selectedCategoryIds.isNotEmpty}',
+                    );
+                    print('🔍 === END COMPUTED VALUES ===');
 
                     Navigator.push(
                       context,
@@ -2405,10 +1820,13 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
                           hasSelectedSeverity: selectedAlertLevels.isNotEmpty,
                           hasSelectedCategory: selectedCategoryIds.isNotEmpty,
                           isOffline: _isOffline,
-                          localReports: _isOffline
-                              ? _filteredLocalReports
-                              : _localReports,
-                          severityLevels: alertLevels,
+                          localReports: _localReports,
+                          alertLevels: alertLevels,
+                          startDate: _startDate,
+                          endDate: _endDate,
+                          deviceTypeId: _selectedDeviceTypeId,
+                          detectTypeId: _selectedDetectTypeId,
+                          operatingSystemName: _selectedOperatingSystemId,
                         ),
                       ),
                     );

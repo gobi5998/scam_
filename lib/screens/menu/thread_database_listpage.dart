@@ -53,7 +53,7 @@ class ThreadDatabaseListPage extends StatefulWidget {
     this.hasSelectedCategory = false,
     this.isOffline = false,
     this.localReports = const [],
-    this.severityLevels = const [],
+    this.severityLevels = const [], DateTime? endDate, DateTime? startDate, required List<Map<String, dynamic>> alertLevels, String? deviceTypeId, String? detectTypeId, String? operatingSystemName,
   }) : super(key: key);
 
   @override
@@ -6534,9 +6534,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Token management failed: ${management['message']}',
-            ),
+            content: Text('Token management failed: ${management['message']}'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
           ),
@@ -6659,7 +6657,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       // Fix any null IDs that might have been created
       await _fixNullIdsInAllBoxes();
-
     } catch (e) {
       print('Error during duplicate removal: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -6820,14 +6817,10 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       // Refresh the UI
       await _loadFilteredReports();
-
     } catch (e) {
       print('Error during sync with duplicate prevention: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sync error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Sync error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -6835,15 +6828,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
   // Final verification and cleanup after sync
   Future<void> _finalDuplicateVerification() async {
     try {
-      
-
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
       final malwareBox = Hive.box<MalwareReportModel>('malware_reports');
 
       // One more aggressive cleanup to ensure no duplicates remain
       await _removeAllDuplicatesAggressively();
-
     } catch (e) {
       print(' Error during final duplicate verification: $e');
     }
@@ -6871,9 +6861,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       final duplicates = <String>[];
       final nullIdReports = <dynamic>[];
 
-      print(
-        ' Processing ${allReports.length} $type reports for duplicates...',
-      );
+      print(' Processing ${allReports.length} $type reports for duplicates...');
 
       for (final report in allReports) {
         // Handle null IDs first
@@ -6955,8 +6943,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         for (final report in nullIdReports) {
           await box.put(report.id, report);
         }
-
-        
       } else {
         print('No duplicates or null IDs found in $type reports');
       }
@@ -6968,8 +6954,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
   // Enhanced sync function that prevents duplicates
   Future<void> _syncWithDuplicatePrevention() async {
     try {
-      
-
       // First, clean up any existing duplicates
       await _removeAllDuplicates();
 
@@ -6978,8 +6962,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
 
       // Clean up again after sync to prevent new duplicates
       await _removeAllDuplicates();
-
-      
 
       // Refresh the UI
       _loadFilteredReports();
@@ -6993,10 +6975,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
     } catch (e) {
       print('Error during sync with duplicate prevention: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sync error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Sync error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -7170,7 +7149,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
   // Enhanced method to clean up existing duplicates with intelligent detection
   Future<void> _cleanExistingDuplicates() async {
     try {
-
       // Get all reports from all sources
       final scamBox = Hive.box<ScamReportModel>('scam_reports');
       final fraudBox = Hive.box<FraudReportModel>('fraud_reports');
@@ -7184,7 +7162,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       totalDuplicatesRemoved += await _cleanFraudDuplicates(fraudBox);
       totalDuplicatesRemoved += await _cleanMalwareDuplicates(malwareBox);
 
-      // Step 2: Remove online duplicates from server  
+      // Step 2: Remove online duplicates from server
       await _removeOnlineDuplicatesFromServer();
 
       // Step 3: Cross-box duplicate removal
@@ -7194,7 +7172,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       await _removeAllDuplicatesAggressively();
       // Refresh the UI
       await _loadFilteredReports();
-
     } catch (e) {
       print(' Error during enhanced duplicate cleanup: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -7342,8 +7319,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
     final seenContentKeys = <String>{};
     int duplicatesRemoved = 0;
 
-    
-
     for (var report in allReports) {
       // First, check for serverId-based duplicates (highest priority)
       if (report.isSynced == true &&
@@ -7352,12 +7327,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         // This is a synced report with valid server ID
         if (seenServerIds.contains(report.id)) {
           duplicatesRemoved++;
-          
+
           continue; // Skip this duplicate
         } else {
           seenServerIds.add(report.id!);
           uniqueReports.add(report);
-          
+
           continue; // Skip content-based check for synced reports
         }
       }
@@ -7369,10 +7344,8 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       if (!seenContentKeys.contains(key)) {
         seenContentKeys.add(key);
         uniqueReports.add(report);
-        
       } else {
         duplicatesRemoved++;
-        
       }
     }
 
@@ -7381,7 +7354,6 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       for (var report in uniqueReports) {
         await box.put(report.id, report);
       }
-      
     } else {
       print(' No duplicate malware reports found');
     }
