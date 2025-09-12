@@ -790,17 +790,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       return;
     }
 
-    // Show current selection status
-    // if (selectedImages.isNotEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Currently selected: ${selectedImages.length}/5 screenshots. Adding more...'),
-    //       backgroundColor: Colors.blue,
-    //       duration: const Duration(seconds: 2),
-    //     ),
-    //   );
-    // }
-
     final images = await _picker.pickMultiImage();
     if (images != null) {
       print('📸 Selected ${images.length} images');
@@ -910,17 +899,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       );
       return;
     }
-
-    // Show current selection status
-    // if (selectedDocuments.isNotEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Currently selected: ${selectedDocuments.length}/5 documents. Adding more...'),
-    //       backgroundColor: Colors.blue,
-    //       duration: const Duration(seconds: 2),
-    //     ),
-    //   );
-    // }
 
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -1039,17 +1017,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       return;
     }
 
-    // Show current selection status
-    // if (selectedVoiceFiles.isNotEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Currently selected: ${selectedVoiceFiles.length}/5 voice files. Adding more...'),
-    //       backgroundColor: Colors.blue,
-    //       duration: const Duration(seconds: 2),
-    //     ),
-    //   );
-    // }
-
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -1165,17 +1132,6 @@ class FileUploadWidgetState extends State<FileUploadWidget> {
       );
       return;
     }
-
-    // Show current selection status
-    // if (selectedVideoFiles.isNotEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Currently selected: ${selectedVideoFiles.length}/5 video files. Adding more...'),
-    //       backgroundColor: Colors.blue,
-    //       duration: const Duration(seconds: 2),
-    //     ),
-    //   );
-    // }
 
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,

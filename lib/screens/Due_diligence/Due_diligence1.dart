@@ -378,6 +378,40 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
     }
   }
 
+  // Helper method to get proper MIME type from file extension
+  String _getFileMimeType(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'webp':
+        return 'image/webp';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'txt':
+        return 'text/plain';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'm4a':
+        return 'audio/mp4';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
   Future<void> _pickFile(String categoryId, String subcategoryId) async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -387,11 +421,20 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         // Show dialog to get document number
         final documentNumber = await _showDocumentNumberDialog();
 
+        // Get proper MIME type from file extension
+        final fileName = file.path.split('/').last;
+        final mimeType = _getFileMimeType(fileName);
+
+        debugPrint('🔍 File MIME type detection:');
+        debugPrint('   - File name: $fileName');
+        debugPrint('   - XFile.mimeType: ${file.mimeType}');
+        debugPrint('   - Detected MIME type: $mimeType');
+
         final fileData = FileData(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           file: File(file.path),
-          fileName: file.path.split('/').last,
-          fileType: file.mimeType ?? 'unknown',
+          fileName: fileName,
+          fileType: mimeType,
           documentNumber: documentNumber ?? '',
           uploadTime: DateTime.now(),
         );

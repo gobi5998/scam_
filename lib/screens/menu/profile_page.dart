@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
-import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../widgets/responsive_widget.dart';
 import 'edit_profile_page.dart';
 import '../../services/app_version_service.dart';
@@ -17,6 +13,7 @@ import '../../widgets/profile_image_widget.dart';
 import '../../provider/auth_provider.dart';
 import '../login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../widget/Drawer/appDrawer.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -29,9 +26,6 @@ class _ProfilePageState extends State<ProfilePage> {
   User? _user;
   bool _isLoading = true;
   String _errorMessage = '';
-  File? _profileImage;
-  final ImagePicker _picker = ImagePicker();
-  final bool _isUploadingImage = false;
   String? _dynamicProfileImageUrl;
   int _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
 
@@ -148,212 +142,43 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      print(
-        '📱 Picking image from ${source == ImageSource.camera ? 'camera' : 'gallery'}',
-      );
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 80,
-      );
-
-      if (image != null) {
-        print(
-          '🖼️ Image selected: ${image.path} (${await image.length()} bytes)',
-        );
-        setState(() {
-          _profileImage = File(image.path);
-        });
-        print('🔄 Starting upload process...');
-        await _uploadProfileImage();
-      } else {
-        print('❌ No image selected or selection cancelled');
-      }
-    } catch (e) {
-      print('❌ Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error picking image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _uploadProfileImage() async {
-    if (_profileImage == null) {
-      print('❌ No profile image selected');
-      return;
-    }
-
-    print(
-      '🔍 Current _dynamicProfileImageUrl before upload: $_dynamicProfileImageUrl',
-    );
-
-    print('🔄 Starting profile image upload process');
-    print('📂 File path: ${_profileImage!.path}');
-    print('📄 File exists: ${await _profileImage!.exists()}');
-
-    if (!await _profileImage!.exists()) {
-      print('❌ File does not exist at path: ${_profileImage!.path}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: Selected file does not exist'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Get file size
-      final fileSize = await _profileImage!.length();
-      print(
-        '📊 File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(2)} KB)',
-      );
-
-      // Check file size limit (e.g., 5MB)
-      const maxFileSize = 5 * 1024 * 1024; // 5MB
-      if (fileSize > maxFileSize) {
-        throw Exception('File size too large. Maximum allowed is 5MB');
-      }
-
-      // Create form data for image upload
-      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      print('📤 Preparing form data with filename: $fileName');
-
-      final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
-          _profileImage!.path,
-          filename: fileName,
-        ),
-      });
-
-      print('📤 Form data prepared, starting upload...');
-
-      // Use ProfileImageService to handle the upload and profile update
-      print('🔄 Starting profile image upload...');
-      final imageUrl = await ProfileImageService.uploadAndUpdateProfileImage(
-        formData,
-        context: context,
-      );
-      print('📡 Upload completed, response URL: $imageUrl');
-      print('🔍 Current user after upload: ${_user?.toJson()}');
-
-      if (imageUrl != null) {
-        print('✅ Success! Image URL: $imageUrl');
-
-        // Update the user object with the new image URL
-        if (_user != null) {
-          setState(() {
-            _user = _user!.copyWith(imageUrl: imageUrl);
-            _dynamicProfileImageUrl = imageUrl;
-          });
-
-          // Also update the auth provider
-          final authProvider = Provider.of<AuthProvider>(
-            context,
-            listen: false,
-          );
-          authProvider.setUserData(_user!.toJson());
-
-          print('🔄 Updated user with new image URL: $imageUrl');
-
-          // Force refresh the profile to ensure UI shows new image
-          await _loadUserProfile();
-        }
-
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile image updated successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-
-          // Force a rebuild to show the new image
-          setState(() {});
-        }
-      } else {
-        print('❌ Upload failed: No image URL returned');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload profile image: No URL returned'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('❌ Error uploading profile image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  void _showImagePickerDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Select Profile Image'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.camera_alt),
-                title: Text('Take Photo'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.photo_library),
-                title: Text('Choose from Gallery'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // void _showImagePickerDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (BuildContext context) {
+  //       return AlertDialog(
+  //         title: Text('Select Profile Image'),
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             ListTile(
+  //               leading: Icon(Icons.camera_alt),
+  //               title: Text('Take Photo'),
+  //               onTap: () {
+  //                 Navigator.pop(context);
+  //                 _pickImage(ImageSource.camera);
+  //               },
+  //             ),
+  //             ListTile(
+  //               leading: Icon(Icons.photo_library),
+  //               title: Text('Choose from Gallery'),
+  //               onTap: () {
+  //                 Navigator.pop(context);
+  //                 _pickImage(ImageSource.gallery);
+  //               },
+  //             ),
+  //           ],
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(context),
+  //             child: Text('Cancel'),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -396,13 +221,29 @@ class _ProfilePageState extends State<ProfilePage> {
                     IconButton(
                       icon: Icon(Icons.refresh, color: Colors.white),
                       onPressed: () async {
-                        await _loadUserProfile();
-                        await _loadDynamicProfileImage();
+                        // Clear cache first
                         _clearImageCache();
+
+                        // Update timestamp to force refresh
                         setState(() {
                           _imageUpdateTimestamp =
                               DateTime.now().millisecondsSinceEpoch;
                         });
+
+                        // Reload profile data
+                        await _loadUserProfile();
+                        await _loadDynamicProfileImage();
+
+                        // Show refresh feedback
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Profile refreshed'),
+                              backgroundColor: Colors.blue,
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
                       },
                     ),
                     IconButton(
@@ -438,6 +279,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         radius: 40,
                                         backgroundColor: Colors.white
                                             .withOpacity(0.2),
+                                        forceRefresh: _imageUpdateTimestamp > 0,
                                       );
                                     },
                                   ),
@@ -473,6 +315,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         radius: 40,
                                         backgroundColor: Colors.white
                                             .withOpacity(0.2),
+                                        forceRefresh: _imageUpdateTimestamp > 0,
                                       );
                                     },
                                   ),
@@ -490,74 +333,51 @@ class _ProfilePageState extends State<ProfilePage> {
                                   // Profile Image with Edit Button
                                   Stack(
                                     children: [
-                                      _profileImage != null
-                                          ? CircleAvatar(
-                                              radius: 50,
-                                              backgroundColor: Colors.white
-                                                  .withOpacity(0.2),
-                                              backgroundImage: FileImage(
-                                                _profileImage!,
-                                              ),
-                                            )
-                                          : Builder(
-                                              builder: (context) {
-                                                final imageUrl =
-                                                    _dynamicProfileImageUrl ??
-                                                    _user?.imageUrl;
-                                                print(
-                                                  '🖼️ Profile page - Image URL for widget: $imageUrl',
-                                                );
-                                                return ProfileImageWidget(
-                                                  key: ValueKey(
-                                                    'profile_main_${imageUrl ?? 'default'}_$_imageUpdateTimestamp',
-                                                  ),
-                                                  imageUrl: imageUrl,
-                                                  radius: 50,
-                                                  backgroundColor: Colors.white
-                                                      .withOpacity(0.2),
-                                                );
-                                              },
+                                      Builder(
+                                        builder: (context) {
+                                          final imageUrl =
+                                              _dynamicProfileImageUrl ??
+                                              _user?.imageUrl;
+                                          print(
+                                            '🖼️ Profile page - Image URL for widget: $imageUrl',
+                                          );
+                                          return ProfileImageWidget(
+                                            key: ValueKey(
+                                              'profile_main_${imageUrl ?? 'default'}_$_imageUpdateTimestamp',
                                             ),
-                                      if (_isUploadingImage)
-                                        Positioned.fill(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.5,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Center(
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      Positioned(
-                                        bottom: 0,
-                                        right: 0,
-                                        child: GestureDetector(
-                                          onTap: _showImagePickerDialog,
-                                          child: Container(
-                                            padding: EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.blue,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.white,
-                                                width: 2,
-                                              ),
-                                            ),
-                                            child: Icon(
-                                              Icons.camera_alt,
-                                              color: Colors.white,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ),
+                                            imageUrl: imageUrl,
+                                            radius: 50,
+                                            backgroundColor: Colors.white
+                                                .withOpacity(0.2),
+                                            forceRefresh:
+                                                _imageUpdateTimestamp > 0,
+                                          );
+                                        },
                                       ),
+
+                                      // Positioned(
+                                      //   bottom: 0,
+                                      //   right: 0,
+                                      //   child: GestureDetector(
+                                      //     // onTap: _showImagePickerDialog,
+                                      //     child: Container(
+                                      //       padding: EdgeInsets.all(4),
+                                      //       decoration: BoxDecoration(
+                                      //         color: Colors.blue,
+                                      //         shape: BoxShape.circle,
+                                      //         border: Border.all(
+                                      //           color: Colors.white,
+                                      //           width: 2,
+                                      //         ),
+                                      //       ),
+                                      //       child: Icon(
+                                      //         Icons.camera_alt,
+                                      //         color: Colors.white,
+                                      //         size: 16,
+                                      //       ),
+                                      //     ),
+                                      //   ),
+                                      // ),
                                     ],
                                   ),
                                   SizedBox(height: 8),
@@ -993,167 +813,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _updateFirstName(String firstName) async {
-    try {
-      final apiService = ApiService();
-      final result = await apiService.updateUserProfileExactById(
-        userId: _user?.id ?? '',
-        imageUrl: _user?.imageUrl ?? '',
-        firstName: firstName,
-        lastName: _user?.lastName ?? '',
-      );
-
-      if (result != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('First name updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        await _loadUserProfile();
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating first name: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _updateLastName(String lastName) async {
-    try {
-      final apiService = ApiService();
-      final result = await apiService.updateUserProfileExactById(
-        userId: _user?.id ?? '',
-        imageUrl: _user?.imageUrl ?? '',
-        firstName: _user?.firstName ?? '',
-        lastName: lastName,
-      );
-
-      if (result != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Last name updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        await _loadUserProfile();
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating last name: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showEditFieldDialog(
-    String fieldName,
-    String currentValue,
-    Function(String) updateFunction,
-  ) {
-    final controller = TextEditingController(text: currentValue);
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Edit $fieldName'),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: fieldName,
-              border: OutlineInputBorder(),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newValue = controller.text.trim();
-                Navigator.pop(context);
-
-                if (newValue.isNotEmpty && newValue != currentValue) {
-                  await updateFunction(newValue);
-                }
-              },
-              child: Text('Update'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showEditNameDialog() {
-    final firstNameController = TextEditingController(
-      text: _user?.firstName ?? '',
-    );
-    final lastNameController = TextEditingController(
-      text: _user?.lastName ?? '',
-    );
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Edit Name'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: firstNameController,
-                decoration: InputDecoration(
-                  labelText: 'First Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: lastNameController,
-                decoration: InputDecoration(
-                  labelText: 'Last Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-
-                final firstName = firstNameController.text.trim();
-                final lastName = lastNameController.text.trim();
-
-                if (firstName.isNotEmpty && firstName != _user?.firstName) {
-                  await _updateFirstName(firstName);
-                }
-
-                if (lastName.isNotEmpty && lastName != _user?.lastName) {
-                  await _updateLastName(lastName);
-                }
-              },
-              child: Text('Update'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _showChangePasswordDialog() {
     showModalBottomSheet(
       context: context,
@@ -1186,12 +845,12 @@ class _ProfilePageState extends State<ProfilePage> {
       final currentImageUrl = _dynamicProfileImageUrl ?? _user?.imageUrl;
       if (currentImageUrl != null && currentImageUrl.isNotEmpty) {
         // Clear specific image from cache
-        CachedNetworkImage.evictFromCache(currentImageUrl);
+        ProfileImageWidget.clearCache(currentImageUrl);
         print('🗑️ Cleared cache for specific image: $currentImageUrl');
       }
 
       // Clear all cached images
-      CachedNetworkImage.evictFromCache('');
+      ProfileImageWidget.clearAllCache();
       print('🗑️ Cleared all image cache');
     } catch (e) {
       print('⚠️ Error clearing image cache: $e');
@@ -1199,23 +858,25 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _navigateToEditProfile() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => EditProfilePage(user: _user)),
     );
 
     // Always refresh the data when returning from edit page
     print('🔄 Returning from edit profile page, refreshing data...');
-    await _loadUserProfile();
-    await _loadDynamicProfileImage();
 
-    // Clear image cache to ensure fresh image loads
+    // Clear image cache first
     _clearImageCache();
 
-    // Force a rebuild to show updated image
+    // Update timestamp to force refresh
     setState(() {
       _imageUpdateTimestamp = DateTime.now().millisecondsSinceEpoch;
     });
+
+    // Reload profile data
+    await _loadUserProfile();
+    await _loadDynamicProfileImage();
   }
 }
 
@@ -1276,7 +937,7 @@ class _ChangePasswordBottomSheetState extends State<ChangePasswordBottomSheet> {
           final newPassword = _newPasswordController.text.trim();
 
           print('🔒 Attempting to change password...');
-          final response = await apiService.changePassword(userId, newPassword);
+          await apiService.changePassword(userId, newPassword);
 
           setState(() => _isLoading = false);
 

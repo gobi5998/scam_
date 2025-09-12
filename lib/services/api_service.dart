@@ -206,7 +206,6 @@ class ApiService {
 
   // Profile image methods
 
-
   // Password reset method
   Future<Response> forgotPassword(String email) async {
     return await _dioService.authPost(
@@ -1469,7 +1468,13 @@ class ApiService {
     List<String>? severityLevels,
     bool? hasEvidence, // NEW: Filter for reports with evidence files
     int page = ApiConfig.defaultPage,
-    int limit = ApiConfig.defaultLimit, List<String>? alertLevels, String? deviceTypeId, String? detectTypeId, String? operatingSystemName, DateTime? startDate, DateTime? endDate, // Use default limit from config
+    int limit = ApiConfig.defaultLimit,
+    List<String>? alertLevels,
+    String? deviceTypeId,
+    String? detectTypeId,
+    String? operatingSystemName,
+    DateTime? startDate,
+    DateTime? endDate, // Use default limit from config
   }) async {
     try {
       print(
@@ -2773,9 +2778,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateUserProfileById(
-      String userId,
-      Map<String, dynamic> profileData,
-      ) async {
+    String userId,
+    Map<String, dynamic> profileData,
+  ) async {
     try {
       if (_useMockData) {
         return {'message': 'Profile updated successfully (mock data)'};
@@ -2834,18 +2839,18 @@ class ApiService {
 
   // Dynamic method to update any user field
   Future<Map<String, dynamic>> updateUserField(
-      String userId,
-      String fieldName,
-      dynamic fieldValue,
-      ) async {
+    String userId,
+    String fieldName,
+    dynamic fieldValue,
+  ) async {
     return await updateUserProfileById(userId, {fieldName: fieldValue});
   }
 
   // Dynamic method to update multiple user fields
   Future<Map<String, dynamic>> updateUserFields(
-      String userId,
-      Map<String, dynamic> fields,
-      ) async {
+    String userId,
+    Map<String, dynamic> fields,
+  ) async {
     return await updateUserProfileById(userId, fields);
   }
 
@@ -3094,6 +3099,7 @@ class ApiService {
       throw Exception('Failed to update profile: ${e.message}');
     }
   }
+
   Future<Map<String, String>> _getAuthHeaders() async {
     final token = await _getAccessToken();
     return {
@@ -3105,9 +3111,9 @@ class ApiService {
 
   // Change password method
   Future<Map<String, dynamic>> changePassword(
-      String userId,
-      String newPassword,
-      ) async {
+    String userId,
+    String newPassword,
+  ) async {
     try {
       print('🔄 Changing password for user: $userId');
 
@@ -3174,6 +3180,7 @@ class ApiService {
       throw Exception('Failed to fetch categories: ${e.message}');
     }
   }
+
   Future<Map<String, dynamic>> getDueDiligenceFiles(String reportId) async {
     try {
       print('🔄 Fetching due diligence files for report: $reportId');
@@ -3212,23 +3219,35 @@ class ApiService {
         return 'image/jpeg';
       case 'png':
         return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'webp':
+        return 'image/webp';
       case 'doc':
         return 'application/msword';
       case 'docx':
         return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       case 'txt':
         return 'text/plain';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'm4a':
+        return 'audio/mp4';
       default:
         return 'application/octet-stream';
     }
   }
 
   Future<Map<String, dynamic>> uploadDueDiligenceFile(
-      File file,
-      String reportId,
-      String categoryId,
-      String subcategoryId,
-      ) async {
+    File file,
+    String reportId,
+    String categoryId,
+    String subcategoryId,
+  ) async {
     try {
       print('🔄 Uploading due diligence file...');
       print('📁 File: ${file.path}');
@@ -3236,11 +3255,20 @@ class ApiService {
       print('🏷️ Category ID: $categoryId');
       print('📝 Subcategory ID: $subcategoryId');
 
-      // Create form data
+      // Get proper MIME type for the file
+      final fileName = file.path.split('/').last;
+      final mimeType = _getFileType(file.path);
+
+      print('🔍 File MIME type detection:');
+      print('   - File name: $fileName');
+      print('   - Detected MIME type: $mimeType');
+
+      // Create form data with proper MIME type
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(
           file.path,
-          filename: file.path.split('/').last,
+          filename: fileName,
+          contentType: DioMediaType.parse(mimeType),
         ),
         'reportId': reportId,
         'categoryId': categoryId,
@@ -3330,14 +3358,14 @@ class ApiService {
           // Generate a proper document_id if missing
           final documentId =
               responseData['document_id'] ??
-                  responseData['id'] ??
-                  DateTime.now().millisecondsSinceEpoch.toString();
+              responseData['id'] ??
+              DateTime.now().millisecondsSinceEpoch.toString();
 
           // Structure the response with complete file details
           final structuredData = {
             'document_id': documentId,
             'uploaded_at':
-            responseData['uploaded_at'] ?? DateTime.now().toIso8601String(),
+                responseData['uploaded_at'] ?? DateTime.now().toIso8601String(),
             'status': responseData['status'] ?? 'in_review',
             'comments': responseData['comments'] ?? '',
             'url': responseData['url'] ?? responseData['file_url'],
@@ -3410,8 +3438,8 @@ class ApiService {
 
   // Submit due diligence report method
   Future<Map<String, dynamic>> submitDueDiligence(
-      Map<String, dynamic> payload,
-      ) async {
+    Map<String, dynamic> payload,
+  ) async {
     try {
       print('🔄 Submitting due diligence report...');
       print('📤 Payload: ${payload.toString()}');
@@ -3532,8 +3560,8 @@ class ApiService {
 
   // Get due diligence report by ID method
   Future<Map<String, dynamic>> getDueDiligenceReportById(
-      String reportId,
-      ) async {
+    String reportId,
+  ) async {
     try {
       print('📥 Fetching due diligence report by ID: $reportId');
       print('🌐 Endpoint: /api/v1/reports/due-diligence/$reportId');
@@ -3588,9 +3616,9 @@ class ApiService {
 
   // Update due diligence report method
   Future<Map<String, dynamic>> updateDueDiligenceReport(
-      String reportId,
-      Map<String, dynamic> payload,
-      ) async {
+    String reportId,
+    Map<String, dynamic> payload,
+  ) async {
     try {
       print('📤 Updating due diligence report: $reportId');
       print('🌐 Endpoint: /api/v1/reports/due-diligence/$reportId');
@@ -3629,5 +3657,4 @@ class ApiService {
       throw Exception('Failed to update due diligence report: ${e.message}');
     }
   }
-
 }

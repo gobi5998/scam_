@@ -46,6 +46,12 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
     _loadUserProfile();
   }
 
+  // Method to refresh profile image - call this when profile image is updated
+  void refreshProfileImage() {
+    print('🔄 Drawer: Refreshing profile image...');
+    _loadUserProfile();
+  }
+
   Future<void> _loadUserProfile() async {
     try {
       setState(() {
@@ -139,11 +145,6 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
     return _user?.email ?? 'Protect & Report';
   }
 
-  // Helper method to get user roles as a readable string
-  String _getUserRolesString() {
-    return RoleUtils.getUserRolesString(_user);
-  }
-
   @override
   Widget build(BuildContext context) {
     // Get screen dimensions for responsive design
@@ -211,6 +212,8 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
                                   imageUrl: imageUrl,
                                   radius: profileImageRadius,
                                   backgroundColor: Colors.white,
+                                  forceRefresh:
+                                      false, // Don't force refresh in drawer
                                 );
                               },
                             ),
@@ -286,7 +289,6 @@ class _DashboardDrawerState extends State<DashboardDrawer> {
                     ),
 
                   // Debug section - Show current user roles (remove in production)
-                 
                   const Spacer(),
                   // Logout Section - Positioned at bottom of menu area
                   ListTile(

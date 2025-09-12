@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfileImageWidget extends StatelessWidget {
   final String? imageUrl;
@@ -6,6 +7,7 @@ class ProfileImageWidget extends StatelessWidget {
   final String fallbackAssetPath;
   final BoxBorder? border;
   final Color? backgroundColor;
+  final bool forceRefresh;
 
   const ProfileImageWidget({
     super.key,
@@ -14,27 +16,26 @@ class ProfileImageWidget extends StatelessWidget {
     this.fallbackAssetPath = '',
     this.border,
     this.backgroundColor,
+    this.forceRefresh = false,
   });
 
-  /// Clear cache for a specific URL (now using Image.network, so this is for compatibility)
+  /// Clear cache for a specific URL
   static void clearCache(String? url) {
     if (url != null && url.isNotEmpty) {
       try {
-        // Since we're using Image.network now, we don't need to clear CachedNetworkImage cache
-        // But we keep this method for compatibility
-        print('🗑️ ProfileImageWidget: Cache clearing not needed (using Image.network)');
+        CachedNetworkImage.evictFromCache(url);
+        print('🗑️ ProfileImageWidget: Cleared cache for URL: $url');
       } catch (e) {
         print('⚠️ ProfileImageWidget: Error in clearCache: $e');
       }
     }
   }
 
-  /// Clear all image cache (now using Image.network, so this is for compatibility)
+  /// Clear all image cache
   static void clearAllCache() {
     try {
-      // Since we're using Image.network now, we don't need to clear CachedNetworkImage cache
-      // But we keep this method for compatibility
-      print('🗑️ ProfileImageWidget: All cache clearing not needed (using Image.network)');
+      CachedNetworkImage.evictFromCache('');
+      print('🗑️ ProfileImageWidget: Cleared all image cache');
     } catch (e) {
       print('⚠️ ProfileImageWidget: Error in clearAllCache: $e');
     }
@@ -48,9 +49,7 @@ class ProfileImageWidget extends StatelessWidget {
         border: border,
         color: backgroundColor,
       ),
-      child: ClipOval(
-        child: _buildImage(),
-      ),
+      child: ClipOval(child: _buildImage()),
     );
   }
 
@@ -73,7 +72,8 @@ class ProfileImageWidget extends StatelessWidget {
 
     // Ensure the URL is properly formatted
     String finalUrl = cleanUrl;
-    if (finalUrl.contains('mvp.edetectives.co.bw') && !finalUrl.startsWith('https://')) {
+    if (finalUrl.contains('mvp.edetectives.co.bw') &&
+        !finalUrl.startsWith('https://')) {
       finalUrl = 'https://$finalUrl';
       print('🔄 ProfileImageWidget: Fixed URL format: $finalUrl');
     }
@@ -82,7 +82,9 @@ class ProfileImageWidget extends StatelessWidget {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final randomId = (timestamp % 1000000).toString();
     final cacheBustedUrl = '$finalUrl?t=$timestamp&r=$randomId';
-    print('🔄 ProfileImageWidget: Using aggressive cache-busted URL: $cacheBustedUrl');
+    print(
+      '🔄 ProfileImageWidget: Using aggressive cache-busted URL: $cacheBustedUrl',
+    );
 
     // Use NetworkImage instead of CachedNetworkImage for profile images to avoid caching issues
     return Image.network(
@@ -94,7 +96,9 @@ class ProfileImageWidget extends StatelessWidget {
         if (loadingProgress == null) {
           return child;
         }
-        print('🔄 ProfileImageWidget: Loading progress: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+        print(
+          '🔄 ProfileImageWidget: Loading progress: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}',
+        );
         return _buildLoadingPlaceholder();
       },
       errorBuilder: (context, error, stackTrace) {
@@ -139,11 +143,7 @@ class ProfileImageWidget extends StatelessWidget {
           width: radius * 2,
           height: radius * 2,
           color: Colors.grey[300],
-          child: Icon(
-            Icons.error_outline,
-            size: radius,
-            color: Colors.red,
-          ),
+          child: Icon(Icons.error_outline, size: radius, color: Colors.red),
         );
       },
     );
