@@ -1478,7 +1478,7 @@ class ApiService {
   }) async {
     try {
       print(
-        '📋 Parameters: searchQuery=$searchQuery, categoryIds=$categoryIds, typeIds=$typeIds, severityLevels=$severityLevels, page=$page, limit=$limit',
+        '📋 Parameters: searchQuery=$searchQuery, categoryIds=$categoryIds, typeIds=$typeIds, alertLevels=$alertLevels, page=$page, limit=$limit',
       );
 
       final queryParams = <String, dynamic>{
@@ -1495,11 +1495,26 @@ class ApiService {
       if (typeIds != null && typeIds.isNotEmpty) {
         queryParams['typeIds'] = typeIds;
       }
-      if (severityLevels != null && severityLevels.isNotEmpty) {
-        queryParams['severityLevels'] = severityLevels;
+      if (alertLevels != null && alertLevels.isNotEmpty) {
+        queryParams['alertLevels'] = alertLevels;
       }
       if (hasEvidence != null) {
         queryParams['hasEvidence'] = hasEvidence.toString();
+      }
+      if (deviceTypeId != null) {
+        queryParams['deviceTypeId'] = deviceTypeId;
+      }
+      if (detectTypeId != null) {
+        queryParams['detectTypeId'] = detectTypeId;
+      }
+      if (operatingSystemName != null) {
+        queryParams['operatingSystemName'] = operatingSystemName;
+      }
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toString();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toString();
       }
 
       final response = await _dioService.reportsGet(
@@ -3212,8 +3227,35 @@ class ApiService {
   String _getFileType(String filePath) {
     final extension = filePath.split('.').last.toLowerCase();
     switch (extension) {
+      // Document types
       case 'pdf':
         return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'ppt':
+        return 'application/vnd.ms-powerpoint';
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'txt':
+        return 'text/plain';
+      case 'rtf':
+        return 'application/rtf';
+      case 'csv':
+        return 'text/csv';
+      case 'odt':
+        return 'application/vnd.oasis.opendocument.text';
+      case 'ods':
+        return 'application/vnd.oasis.opendocument.spreadsheet';
+      case 'odp':
+        return 'application/vnd.oasis.opendocument.presentation';
+
+      // Image types
       case 'jpg':
       case 'jpeg':
         return 'image/jpeg';
@@ -3221,22 +3263,56 @@ class ApiService {
         return 'image/png';
       case 'gif':
         return 'image/gif';
-      case 'bmp':
-        return 'image/bmp';
       case 'webp':
         return 'image/webp';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'txt':
-        return 'text/plain';
+      case 'bmp':
+        return 'image/bmp';
+      case 'tiff':
+      case 'tif':
+        return 'image/tiff';
+      case 'svg':
+        return 'image/svg+xml';
+
+      // Audio types
       case 'mp3':
         return 'audio/mpeg';
       case 'wav':
         return 'audio/wav';
+      case 'aac':
+        return 'audio/aac';
+      case 'ogg':
+        return 'audio/ogg';
       case 'm4a':
         return 'audio/mp4';
+
+      // Video types
+      case 'mp4':
+        return 'video/mp4';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mov':
+        return 'video/quicktime';
+      case 'wmv':
+        return 'video/x-ms-wmv';
+      case 'flv':
+        return 'video/x-flv';
+      case 'webm':
+        return 'video/webm';
+      case 'mkv':
+        return 'video/x-matroska';
+
+      // Archive types
+      case 'zip':
+        return 'application/zip';
+      case 'rar':
+        return 'application/x-rar-compressed';
+      case '7z':
+        return 'application/x-7z-compressed';
+      case 'tar':
+        return 'application/x-tar';
+      case 'gz':
+        return 'application/gzip';
+
       default:
         return 'application/octet-stream';
     }
@@ -3255,20 +3331,19 @@ class ApiService {
       print('🏷️ Category ID: $categoryId');
       print('📝 Subcategory ID: $subcategoryId');
 
-      // Get proper MIME type for the file
-      final fileName = file.path.split('/').last;
-      final mimeType = _getFileType(file.path);
+      // Get proper MIME type from file extension
+      final properMimeType = _getFileType(file.path);
 
       print('🔍 File MIME type detection:');
-      print('   - File name: $fileName');
-      print('   - Detected MIME type: $mimeType');
+      print('   - File path: ${file.path}');
+      print('   - Detected MIME type: $properMimeType');
 
       // Create form data with proper MIME type
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(
           file.path,
-          filename: fileName,
-          contentType: DioMediaType.parse(mimeType),
+          filename: file.path.split('/').last,
+          contentType: DioMediaType.parse(properMimeType),
         ),
         'reportId': reportId,
         'categoryId': categoryId,

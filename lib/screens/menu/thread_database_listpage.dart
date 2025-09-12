@@ -53,7 +53,13 @@ class ThreadDatabaseListPage extends StatefulWidget {
     this.hasSelectedCategory = false,
     this.isOffline = false,
     this.localReports = const [],
-    this.severityLevels = const [], DateTime? endDate, DateTime? startDate, required List<Map<String, dynamic>> alertLevels, String? deviceTypeId, String? detectTypeId, String? operatingSystemName,
+    this.severityLevels = const [],
+    DateTime? endDate,
+    DateTime? startDate,
+    required List<Map<String, dynamic>> alertLevels,
+    String? deviceTypeId,
+    String? detectTypeId,
+    String? operatingSystemName,
   }) : super(key: key);
 
   @override
@@ -3944,38 +3950,51 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       }
 
       filtered = filtered.where((report) {
-        // Optimized category matching
-        final cat = report['reportCategoryId'];
-        String? catId = cat is Map
-            ? cat['_id']?.toString() ?? cat['id']?.toString()
-            : cat?.toString();
+        // Enhanced category matching for offline data
+        bool matches = false;
 
-        // Fast ID match
+        // 1. Direct ID match from reportCategoryId
+        final catId = report['reportCategoryId']?.toString();
         if (catId != null && widget.selectedCategories.contains(catId)) {
-          return true;
+          matches = true;
         }
 
-        // Fast name match
-        final categoryName = report['categoryName']?.toString().toLowerCase();
-        if (categoryName != null) {
-          for (String selectedName in selectedCategoryNames) {
-            if (categoryName.contains(selectedName)) return true;
+        // 2. Category object match (new structure)
+        final category = report['category'];
+        if (category is Map) {
+          final categoryId =
+              category['_id']?.toString() ?? category['id']?.toString();
+          if (categoryId != null &&
+              widget.selectedCategories.contains(categoryId)) {
+            matches = true;
           }
         }
 
-        // Fast type match for offline data
-        final type = report['type']?.toString().toLowerCase();
-        if (type != null) {
+        // 3. Name-based matching
+        final categoryName = report['categoryName']?.toString().toLowerCase();
+        if (categoryName != null) {
           for (String selectedName in selectedCategoryNames) {
-            if ((type == 'scam' && selectedName.contains('scam')) ||
-                (type == 'fraud' && selectedName.contains('fraud')) ||
-                (type == 'malware' && selectedName.contains('malware'))) {
-              return true;
+            if (categoryName.contains(selectedName)) {
+              matches = true;
+              break;
             }
           }
         }
 
-        // Direct category ID matching for offline data
+        // 4. Type-based matching for offline data
+        final reportType = report['reportType']?.toString().toLowerCase();
+        if (reportType != null) {
+          for (String selectedName in selectedCategoryNames) {
+            if ((reportType == 'scam' && selectedName.contains('scam')) ||
+                (reportType == 'fraud' && selectedName.contains('fraud')) ||
+                (reportType == 'malware' && selectedName.contains('malware'))) {
+              matches = true;
+              break;
+            }
+          }
+        }
+
+        // 5. Direct category ID matching for offline data
         if (catId != null) {
           if ((catId == 'scam_category' &&
                   widget.selectedCategories.any((c) => c.contains('scam'))) ||
@@ -3985,11 +4004,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
                   widget.selectedCategories.any(
                     (c) => c.contains('malware'),
                   ))) {
-            return true;
+            matches = true;
           }
         }
 
-        return false;
+        return matches;
       }).toList();
 
       print('🔍 Category results: ${filtered.length} reports');
@@ -4008,38 +4027,51 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       }
 
       filtered = filtered.where((report) {
-        // Optimized type matching
-        final type = report['reportTypeId'];
-        String? typeId = type is Map
-            ? type['_id']?.toString() ?? type['id']?.toString()
-            : type?.toString();
+        // Enhanced type matching for offline data
+        bool matches = false;
 
-        // Fast ID match
+        // 1. Direct ID match from reportTypeId
+        final typeId = report['reportTypeId']?.toString();
         if (typeId != null && widget.selectedTypes.contains(typeId)) {
-          return true;
+          matches = true;
         }
 
-        // Fast name match
-        final typeName = report['typeName']?.toString().toLowerCase();
-        if (typeName != null) {
-          for (String selectedName in selectedTypeNames) {
-            if (typeName.contains(selectedName)) return true;
+        // 2. Type object match (new structure)
+        final type = report['type'];
+        if (type is Map) {
+          final typeObjectId =
+              type['_id']?.toString() ?? type['id']?.toString();
+          if (typeObjectId != null &&
+              widget.selectedTypes.contains(typeObjectId)) {
+            matches = true;
           }
         }
 
-        // Fast type match for offline data
-        final reportType = report['type']?.toString().toLowerCase();
+        // 3. Name-based matching
+        final typeName = report['typeName']?.toString().toLowerCase();
+        if (typeName != null) {
+          for (String selectedName in selectedTypeNames) {
+            if (typeName.contains(selectedName)) {
+              matches = true;
+              break;
+            }
+          }
+        }
+
+        // 4. Type-based matching for offline data
+        final reportType = report['reportType']?.toString().toLowerCase();
         if (reportType != null) {
           for (String selectedName in selectedTypeNames) {
             if ((reportType == 'scam' && selectedName.contains('scam')) ||
                 (reportType == 'fraud' && selectedName.contains('fraud')) ||
                 (reportType == 'malware' && selectedName.contains('malware'))) {
-              return true;
+              matches = true;
+              break;
             }
           }
         }
 
-        // Direct type ID matching for offline data
+        // 5. Direct type ID matching for offline data
         if (typeId != null) {
           if ((typeId == 'scam_type' &&
                   widget.selectedTypes.any((t) => t.contains('scam'))) ||
@@ -4047,11 +4079,11 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
                   widget.selectedTypes.any((t) => t.contains('fraud'))) ||
               (typeId == 'malware_type' &&
                   widget.selectedTypes.any((t) => t.contains('malware')))) {
-            return true;
+            matches = true;
           }
         }
 
-        return false;
+        return matches;
       }).toList();
 
       print('🔍 Type results: ${filtered.length} reports');
@@ -4074,39 +4106,69 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
       }
 
       filtered = filtered.where((report) {
-        final reportSeverity = _getNormalizedAlertLevel(report);
-        final reportSeverityId = _getNormalizedAlertLevelId(report);
+        // Enhanced severity matching for offline data
+        bool matches = false;
 
-        // Fast ID match
+        // 1. Normalized severity ID match
+        final reportSeverityId = _getNormalizedAlertLevelId(report);
         if (reportSeverityId != null &&
             widget.selectedSeverities.contains(reportSeverityId)) {
-          return true;
+          matches = true;
         }
 
-        // Fast name match
+        // 2. Normalized severity name match
+        final reportSeverity = _getNormalizedAlertLevel(report);
         if (reportSeverity != null) {
           for (String selectedName in selectedSeverityNames) {
             if (reportSeverity == selectedName ||
                 reportSeverity.contains(selectedName) ||
                 selectedName.contains(reportSeverity)) {
-              return true;
+              matches = true;
+              break;
             }
           }
         }
 
-        // Raw alertLevels field match
+        // 3. Raw alertLevels field match
         final rawAlertLevels = report['alertLevels']?.toString().toLowerCase();
         if (rawAlertLevels != null) {
           for (String selectedName in selectedSeverityNames) {
             if (rawAlertLevels == selectedName ||
                 rawAlertLevels.contains(selectedName) ||
                 selectedName.contains(rawAlertLevels)) {
-              return true;
+              matches = true;
+              break;
             }
           }
         }
 
-        return false;
+        // 4. Direct severity matching for offline data
+        final alertLevels = report['alertLevels'];
+        if (alertLevels != null) {
+          if (alertLevels is String) {
+            final severity = alertLevels.toLowerCase();
+            for (String selectedName in selectedSeverityNames) {
+              if (severity == selectedName || severity.contains(selectedName)) {
+                matches = true;
+                break;
+              }
+            }
+          } else if (alertLevels is List) {
+            for (var level in alertLevels) {
+              final severity = level.toString().toLowerCase();
+              for (String selectedName in selectedSeverityNames) {
+                if (severity == selectedName ||
+                    severity.contains(selectedName)) {
+                  matches = true;
+                  break;
+                }
+              }
+              if (matches) break;
+            }
+          }
+        }
+
+        return matches;
       }).toList();
 
       print('🔍 Severity results: ${filtered.length} reports');
@@ -4154,9 +4216,15 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         'reportTypeId': report.reportTypeId,
         'categoryName': categoryName,
         'typeName': typeName,
-        'type': 'scam',
+        'reportType': 'scam',
         'isSynced': report.isSynced,
         'keycloackUserId': report.keycloackUserId,
+        // Add proper category and type mapping for filtering
+        'category': {
+          '_id': report.reportCategoryId ?? 'scam_category',
+          'name': categoryName,
+        },
+        'type': {'_id': report.reportTypeId ?? 'scam_type', 'name': typeName},
         'createdBy': report.name,
         'scammerName': report
             .description, // Use description as scammerName for local scam reports
@@ -4203,7 +4271,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         'categoryName': categoryName,
         'typeName': typeName,
         'name': report.name,
-        'type': 'fraud',
+        'reportType': 'fraud',
         'isSynced': report.isSynced,
         'keycloackUserId': report.keycloackUserId,
         'createdBy': report.name,
@@ -4213,6 +4281,12 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         'documents': report.documents ?? [],
         'voiceMessages': report.voiceMessages ?? [],
         'videofiles': report.videofiles ?? [],
+        // Add proper category and type mapping for filtering
+        'category': {
+          '_id': report.reportCategoryId ?? 'fraud_category',
+          'name': categoryName,
+        },
+        'type': {'_id': report.reportTypeId ?? 'fraud_type', 'name': typeName},
       });
     }
 
@@ -4247,7 +4321,7 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         'reportTypeId': 'malware_type',
         'categoryName': categoryName,
         'typeName': typeName,
-        'type': 'malware',
+        'reportType': 'malware',
         'isSynced': report.isSynced,
         'fileName': report.fileName,
         'malwareType': report.malwareType,
@@ -4268,6 +4342,9 @@ class _ThreadDatabaseListPageState extends State<ThreadDatabaseListPage>
         'documents': report.documents ?? [],
         'voiceMessages': report.voiceMessages ?? [],
         'videofiles': report.videofiles ?? [],
+        // Add proper category and type mapping for filtering
+        'category': {'_id': 'malware_category', 'name': categoryName},
+        'type': {'_id': 'malware_type', 'name': typeName},
       });
     }
 

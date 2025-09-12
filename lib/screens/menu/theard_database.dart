@@ -138,10 +138,22 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
 
   // Load online data
   Future<void> _loadOnlineData() async {
-    await Future.wait([_loadCategories(), _loadAlertLevels()]);
+    print('🌐 Starting comprehensive online data loading...');
 
-    // Don't load all types initially - let them be loaded dynamically when categories are selected
-    // _loadAllReportTypes() is removed from here
+    // Load all essential data in parallel
+    await Future.wait([
+      _loadCategories(),
+      _loadAlertLevels(),
+      _loadDeviceFilters(), // Load device filters immediately
+    ]);
+
+    // Load all types for all categories to ensure offline availability
+    await _loadAllTypesForOffline();
+
+    // Save all loaded data locally for offline use
+    await _saveAllDataLocally();
+
+    print('✅ All online data loaded and saved for offline use');
   }
 
   Future<void> _loadDeviceFilters() async {
@@ -161,70 +173,38 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         return;
       }
 
-      final String? categoryId = selectedCategoryIds.isNotEmpty
-          ? selectedCategoryIds.first
-          : null;
+      print('🔍 Loading device filters from API...');
 
-      print('🔍 Loading device filters for category: ${categoryId ?? 'none'}');
+      // Load all device filters in parallel for better performance
+      final results = await Future.wait([
+        _loadDeviceTypesFromAPI(),
+        _loadDetectTypesFromAPI(),
+        _loadOperatingSystemsFromAPI(),
+      ]);
 
-      final deviceRaw = await _apiService.fetchDropdownByType(
-        'device',
-        categoryId ?? '',
-      );
-      final detectRaw = await _apiService.fetchDropdownByType(
-        'detect',
-        categoryId ?? '',
-      );
-      final osRaw = await _apiService.fetchDropdownByType(
-        'operating System',
-        categoryId ?? '',
-      );
+      final deviceTypes = results[0];
+      final detectTypes = results[1];
+      final operatingSystems = results[2];
 
-      print('🔍 Raw data received:');
-      print('🔍   - Device types: ${deviceRaw.length}');
-      print('🔍   - Detect types: ${detectRaw.length}');
-      print('🔍   - Operating systems: ${osRaw.length}');
-
-      List<Map<String, dynamic>> capitalize(List<Map<String, dynamic>> list) {
-        return list.map((option) {
-          final name = option['name'] as String? ?? '';
-          if (name.isNotEmpty) {
-            return {
-              ...option,
-              'name': name[0].toUpperCase() + name.substring(1).toLowerCase(),
-            };
-          }
-          return option;
-        }).toList();
-      }
-
-      final capitalizedDeviceTypes = capitalize(
-        List<Map<String, dynamic>>.from(deviceRaw),
-      );
-      final capitalizedDetectTypes = capitalize(
-        List<Map<String, dynamic>>.from(detectRaw),
-      );
-      final capitalizedOperatingSystems = capitalize(
-        List<Map<String, dynamic>>.from(osRaw),
-      );
+      print('🔍 API data received:');
+      print('🔍   - Device types: ${deviceTypes.length}');
+      print('🔍   - Detect types: ${detectTypes.length}');
+      print('🔍   - Operating systems: ${operatingSystems.length}');
 
       setState(() {
-        _deviceTypes = capitalizedDeviceTypes;
-        _detectTypes = capitalizedDetectTypes;
-        _operatingSystems = capitalizedOperatingSystems;
+        _deviceTypes = deviceTypes;
+        _detectTypes = detectTypes;
+        _operatingSystems = operatingSystems;
       });
 
       // Save to local storage for offline use
       await _saveDeviceFiltersLocally(
-        capitalizedDeviceTypes,
-        capitalizedDetectTypes,
-        capitalizedOperatingSystems,
+        deviceTypes,
+        detectTypes,
+        operatingSystems,
       );
 
-      print('🔍 Device filters loaded successfully:');
-      print('🔍   - Device types: ${_deviceTypes.length}');
-      print('🔍   - Detect types: ${_detectTypes.length}');
-      print('🔍   - Operating systems: ${_operatingSystems.length}');
+      print('✅ Device filters loaded successfully from API');
     } catch (e) {
       print('❌ Error loading device filters: $e');
       // Fallback to local data if available
@@ -237,6 +217,189 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         });
       }
     }
+  }
+
+  // Load device types from API
+  Future<List<Map<String, dynamic>>> _loadDeviceTypesFromAPI() async {
+    try {
+      print('🔍 Loading device types from API...');
+
+      // Try multiple approaches to get device types
+      List<Map<String, dynamic>> deviceTypes = [];
+
+      // Approach 1: Use fetchDropdownByType with 'device'
+      try {
+        deviceTypes = await _apiService.fetchDropdownByType('device', '');
+        print(
+          '🔍 fetchDropdownByType returned ${deviceTypes.length} device types',
+        );
+      } catch (e) {
+        print('⚠️ fetchDropdownByType failed: $e');
+      }
+
+      // Approach 2: If no results, try with specific category ID
+      if (deviceTypes.isEmpty && selectedCategoryIds.isNotEmpty) {
+        try {
+          deviceTypes = await _apiService.fetchDropdownByType(
+            'device',
+            selectedCategoryIds.first,
+          );
+          print(
+            '🔍 fetchDropdownByType with category returned ${deviceTypes.length} device types',
+          );
+        } catch (e) {
+          print('⚠️ fetchDropdownByType with category failed: $e');
+        }
+      }
+
+      // Approach 3: Use dedicated method if available
+      if (deviceTypes.isEmpty) {
+        try {
+          deviceTypes = await _apiService.fetchDeviceTypes();
+          print(
+            '🔍 fetchDeviceTypes returned ${deviceTypes.length} device types',
+          );
+        } catch (e) {
+          print('⚠️ fetchDeviceTypes failed: $e');
+        }
+      }
+
+      // Fallback to local data if API fails
+      if (deviceTypes.isEmpty) {
+        print('🔄 Using local device types');
+        deviceTypes = _localDeviceTypes;
+      }
+
+      return _capitalizeNames(deviceTypes);
+    } catch (e) {
+      print('❌ Error loading device types: $e');
+      return _localDeviceTypes;
+    }
+  }
+
+  // Load detect types from API
+  Future<List<Map<String, dynamic>>> _loadDetectTypesFromAPI() async {
+    try {
+      print('🔍 Loading detect types from API...');
+
+      List<Map<String, dynamic>> detectTypes = [];
+
+      // Try multiple approaches
+      try {
+        detectTypes = await _apiService.fetchDropdownByType('detect', '');
+        print(
+          '🔍 fetchDropdownByType returned ${detectTypes.length} detect types',
+        );
+      } catch (e) {
+        print('⚠️ fetchDropdownByType failed: $e');
+      }
+
+      if (detectTypes.isEmpty && selectedCategoryIds.isNotEmpty) {
+        try {
+          detectTypes = await _apiService.fetchDropdownByType(
+            'detect',
+            selectedCategoryIds.first,
+          );
+          print(
+            '🔍 fetchDropdownByType with category returned ${detectTypes.length} detect types',
+          );
+        } catch (e) {
+          print('⚠️ fetchDropdownByType with category failed: $e');
+        }
+      }
+
+      if (detectTypes.isEmpty) {
+        try {
+          detectTypes = await _apiService.fetchDetectionMethods();
+          print(
+            '🔍 fetchDetectionMethods returned ${detectTypes.length} detect types',
+          );
+        } catch (e) {
+          print('⚠️ fetchDetectionMethods failed: $e');
+        }
+      }
+
+      if (detectTypes.isEmpty) {
+        print('🔄 Using local detect types');
+        detectTypes = _localDetectTypes;
+      }
+
+      return _capitalizeNames(detectTypes);
+    } catch (e) {
+      print('❌ Error loading detect types: $e');
+      return _localDetectTypes;
+    }
+  }
+
+  // Load operating systems from API
+  Future<List<Map<String, dynamic>>> _loadOperatingSystemsFromAPI() async {
+    try {
+      print('🔍 Loading operating systems from API...');
+
+      List<Map<String, dynamic>> operatingSystems = [];
+
+      // Try multiple approaches
+      try {
+        operatingSystems = await _apiService.fetchDropdownByType(
+          'operating System',
+          '',
+        );
+        print(
+          '🔍 fetchDropdownByType returned ${operatingSystems.length} operating systems',
+        );
+      } catch (e) {
+        print('⚠️ fetchDropdownByType failed: $e');
+      }
+
+      if (operatingSystems.isEmpty && selectedCategoryIds.isNotEmpty) {
+        try {
+          operatingSystems = await _apiService.fetchDropdownByType(
+            'operating System',
+            selectedCategoryIds.first,
+          );
+          print(
+            '🔍 fetchDropdownByType with category returned ${operatingSystems.length} operating systems',
+          );
+        } catch (e) {
+          print('⚠️ fetchDropdownByType with category failed: $e');
+        }
+      }
+
+      if (operatingSystems.isEmpty) {
+        try {
+          operatingSystems = await _apiService.fetchOperatingSystems();
+          print(
+            '🔍 fetchOperatingSystems returned ${operatingSystems.length} operating systems',
+          );
+        } catch (e) {
+          print('⚠️ fetchOperatingSystems failed: $e');
+        }
+      }
+
+      if (operatingSystems.isEmpty) {
+        print('🔄 Using local operating systems');
+        operatingSystems = _localOperatingSystems;
+      }
+
+      return _capitalizeNames(operatingSystems);
+    } catch (e) {
+      print('❌ Error loading operating systems: $e');
+      return _localOperatingSystems;
+    }
+  }
+
+  // Helper method to capitalize names
+  List<Map<String, dynamic>> _capitalizeNames(List<Map<String, dynamic>> list) {
+    return list.map((option) {
+      final name = option['name'] as String? ?? '';
+      if (name.isNotEmpty) {
+        return {
+          ...option,
+          'name': name[0].toUpperCase() + name.substring(1).toLowerCase(),
+        };
+      }
+      return option;
+    }).toList();
   }
 
   // Save device filters locally for offline use
@@ -273,22 +436,15 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _localCategories = categories;
         reportCategoryId = categories;
       } else {
-        // Use fallback categories
-        _localCategories = [
-          {'_id': 'scam_category', 'name': 'Report Scam'},
-          {'_id': 'malware_category', 'name': 'Report Malware'},
-          {'_id': 'fraud_category', 'name': 'Report Fraud'},
-        ];
+        // No fallback categories - must be loaded from API
+        _localCategories = [];
         reportCategoryId = _localCategories;
+        print('⚠️ No local categories found - need to load from API');
       }
     } catch (e) {
       print('Error loading local categories: $e');
-      // Use fallback categories
-      _localCategories = [
-        {'_id': 'scam_category', 'name': 'Report Scam'},
-        {'_id': 'malware_category', 'name': 'Report Malware'},
-        {'_id': 'fraud_category', 'name': 'Report Fraud'},
-      ];
+      // No fallback categories - must be loaded from API
+      _localCategories = [];
       reportCategoryId = _localCategories;
     }
   }
@@ -307,13 +463,14 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _localTypes = types;
         reportTypeId = types;
       } else {
-        // Use fallback types
+        // No fallback types - must be loaded from API
         _localTypes = [];
         reportTypeId = _localTypes;
+        print('⚠️ No local types found - need to load from API');
       }
     } catch (e) {
       print('Error loading local types: $e');
-      // Use fallback types
+      // No fallback types - must be loaded from API
       _localTypes = [];
       reportTypeId = _localTypes;
     }
@@ -336,31 +493,21 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         });
         print('✅ Loaded ${parsed.length} alert levels from local storage');
       } else {
-        // Use fallback alert levels
-        _localAlertLevels = [
-          {'_id': 'low', 'name': 'Low', 'isActive': true},
-          {'_id': 'medium', 'name': 'Medium', 'isActive': true},
-          {'_id': 'high', 'name': 'High', 'isActive': true},
-          {'_id': 'critical', 'name': 'Critical', 'isActive': true},
-        ];
+        // No fallback alert levels - must be loaded from API
+        _localAlertLevels = [];
         setState(() {
           alertLevels = _localAlertLevels;
         });
-        print('⚠️ No local alert levels found, using fallback data');
+        print('⚠️ No local alert levels found - need to load from API');
       }
     } catch (e) {
       print('❌ Error loading local alert levels: $e');
-      // Use fallback alert levels
-      _localAlertLevels = [
-        {'_id': 'low', 'name': 'Low', 'isActive': true},
-        {'_id': 'medium', 'name': 'Medium', 'isActive': true},
-        {'_id': 'high', 'name': 'High', 'isActive': true},
-        {'_id': 'critical', 'name': 'Critical', 'isActive': true},
-      ];
+      // No fallback alert levels - must be loaded from API
+      _localAlertLevels = [];
       setState(() {
         alertLevels = _localAlertLevels;
       });
-      print('⚠️ Using fallback alert levels due to error');
+      print('⚠️ No local alert levels available due to error');
     }
   }
 
@@ -463,14 +610,7 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
         _localDeviceTypes = List<Map<String, dynamic>>.from(
           jsonDecode(deviceTypesJson).map((x) => Map<String, dynamic>.from(x)),
         );
-      } else {
-        _localDeviceTypes = [
-          {'_id': 'mobile', 'name': 'Mobile'},
-          {'_id': 'desktop', 'name': 'Desktop'},
-          {'_id': 'tablet', 'name': 'Tablet'},
-          {'_id': 'laptop', 'name': 'Laptop'},
-        ];
-      }
+      } else {}
 
       // Load detect types
       final detectTypesJson = prefs.getString('local_detect_types');
@@ -479,12 +619,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           jsonDecode(detectTypesJson).map((x) => Map<String, dynamic>.from(x)),
         );
       } else {
-        _localDetectTypes = [
-          {'_id': 'antivirus', 'name': 'Antivirus'},
-          {'_id': 'manual', 'name': 'Manual Detection'},
-          {'_id': 'behavioral', 'name': 'Behavioral Analysis'},
-          {'_id': 'signature', 'name': 'Signature Based'},
-        ];
+        // No fallback detect types - must be loaded from API
+        _localDetectTypes = [];
+        print('⚠️ No local detect types found - need to load from API');
       }
 
       // Load operating systems
@@ -494,13 +631,9 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
           jsonDecode(osJson).map((x) => Map<String, dynamic>.from(x)),
         );
       } else {
-        _localOperatingSystems = [
-          {'_id': 'windows', 'name': 'Windows'},
-          {'_id': 'macos', 'name': 'macOS'},
-          {'_id': 'linux', 'name': 'Linux'},
-          {'_id': 'android', 'name': 'Android'},
-          {'_id': 'ios', 'name': 'iOS'},
-        ];
+        // No fallback operating systems - must be loaded from API
+        _localOperatingSystems = [];
+        print('⚠️ No local operating systems found - need to load from API');
       }
 
       print('✅ Loaded local device filters:');
@@ -509,26 +642,10 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
       print('📱   - Operating Systems: ${_localOperatingSystems.length}');
     } catch (e) {
       print('❌ Error loading local device filters: $e');
-      // Use fallback data
-      _localDeviceTypes = [
-        {'_id': 'mobile', 'name': 'Mobile'},
-        {'_id': 'desktop', 'name': 'Desktop'},
-        {'_id': 'tablet', 'name': 'Tablet'},
-        {'_id': 'laptop', 'name': 'Laptop'},
-      ];
-      _localDetectTypes = [
-        {'_id': 'antivirus', 'name': 'Antivirus'},
-        {'_id': 'manual', 'name': 'Manual Detection'},
-        {'_id': 'behavioral', 'name': 'Behavioral Analysis'},
-        {'_id': 'signature', 'name': 'Signature Based'},
-      ];
-      _localOperatingSystems = [
-        {'_id': 'windows', 'name': 'Windows'},
-        {'_id': 'macos', 'name': 'macOS'},
-        {'_id': 'linux', 'name': 'Linux'},
-        {'_id': 'android', 'name': 'Android'},
-        {'_id': 'ios', 'name': 'iOS'},
-      ];
+      // No fallback data - must be loaded from API
+      _localDeviceTypes = [];
+      _localDetectTypes = [];
+      _localOperatingSystems = [];
     }
   }
 
@@ -698,6 +815,94 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     }
   }
 
+  // Load all types for all categories to ensure offline availability
+  Future<void> _loadAllTypesForOffline() async {
+    try {
+      print('🔄 Loading all types for offline availability...');
+
+      if (reportCategoryId.isEmpty) {
+        print('⚠️ No categories available to load types');
+        return;
+      }
+
+      List<Map<String, dynamic>> allTypes = [];
+
+      // Load types for each category
+      for (var category in reportCategoryId) {
+        final categoryId =
+            category['_id']?.toString() ?? category['id']?.toString();
+        if (categoryId != null) {
+          try {
+            print('🔍 Loading types for category: $categoryId');
+            final types = await _apiService.fetchReportTypesByCategory(
+              categoryId,
+            );
+            allTypes.addAll(types);
+            print('✅ Loaded ${types.length} types for category $categoryId');
+          } catch (e) {
+            print('❌ Error loading types for category $categoryId: $e');
+          }
+        }
+      }
+
+      // Update the global types list
+      setState(() {
+        reportTypeId = allTypes;
+      });
+
+      print('✅ Total types loaded for offline: ${allTypes.length}');
+    } catch (e) {
+      print('❌ Error loading all types for offline: $e');
+    }
+  }
+
+  // Save all data locally for offline use
+  Future<void> _saveAllDataLocally() async {
+    try {
+      print('💾 Saving all data locally for offline use...');
+      final prefs = await SharedPreferences.getInstance();
+
+      // Save categories
+      if (reportCategoryId.isNotEmpty) {
+        await prefs.setString('local_categories', jsonEncode(reportCategoryId));
+        print('✅ Categories saved locally: ${reportCategoryId.length}');
+      }
+
+      // Save types
+      if (reportTypeId.isNotEmpty) {
+        await prefs.setString('local_types', jsonEncode(reportTypeId));
+        print('✅ Types saved locally: ${reportTypeId.length}');
+      }
+
+      // Save alert levels
+      if (alertLevels.isNotEmpty) {
+        await prefs.setString('local_alert_levels', jsonEncode(alertLevels));
+        print('✅ Alert levels saved locally: ${alertLevels.length}');
+      }
+
+      // Save device filters
+      if (_deviceTypes.isNotEmpty) {
+        await prefs.setString('local_device_types', jsonEncode(_deviceTypes));
+        print('✅ Device types saved locally: ${_deviceTypes.length}');
+      }
+      if (_detectTypes.isNotEmpty) {
+        await prefs.setString('local_detect_types', jsonEncode(_detectTypes));
+        print('✅ Detect types saved locally: ${_detectTypes.length}');
+      }
+      if (_operatingSystems.isNotEmpty) {
+        await prefs.setString(
+          'local_operating_systems',
+          jsonEncode(_operatingSystems),
+        );
+        print('✅ Operating systems saved locally: ${_operatingSystems.length}');
+      }
+
+      print('✅ All data saved locally for offline use');
+    } catch (e) {
+      print('❌ Error saving all data locally: $e');
+    }
+  }
+
   // Save reference data locally for offline use
   Future<void> _saveReferenceDataLocally() async {
     try {
@@ -748,12 +953,8 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     if (connectivityResult == ConnectivityResult.none) {
       await _loadLocalData();
     } else {
-      await Future.wait([_loadCategories(), _loadAlertLevels()]);
-
-      // Load types only if categories are already selected
-      if (selectedCategoryIds.isNotEmpty) {
-        await _loadTypesByCategory(selectedCategoryIds);
-      }
+      // Use the same comprehensive loading as initial load
+      await _loadOnlineData();
     }
   }
 
@@ -959,17 +1160,17 @@ class _ThreadDatabaseFilterPageState extends State<ThreadDatabaseFilterPage> {
     if (categoryIds.isNotEmpty) {
       print('🔍 Loading types for selected categories: $categoryIds');
       _loadTypesByCategory(categoryIds);
-      // Refresh device filters based on new category
+      // Refresh device filters based on new category (but don't clear them)
       _loadDeviceFilters();
     } else {
-      print('🔍 No categories selected - clearing types and device filters');
-      // Clear types and device filters when no category is selected
+      print(
+        '🔍 No categories selected - clearing types but keeping device filters',
+      );
+      // Clear types when no category is selected, but keep device filters
       setState(() {
         reportTypeId = [];
         selectedTypeIds = [];
-        _deviceTypes = [];
-        _detectTypes = [];
-        _operatingSystems = [];
+        // Don't clear device filters - they should remain available
       });
     }
   }

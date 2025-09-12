@@ -1217,13 +1217,13 @@ class _DueDiligenceEditScreenState extends State<DueDiligenceEditScreen> {
         }
 
         subcategoriesPayload.add({
-          'name': subcategory.label,
+          'name': subcategory.id,
           'files': filesPayload,
         });
       }
 
       categoriesPayload.add({
-        'name': category.label,
+        'name': category.id,
         'subcategories': subcategoriesPayload,
       });
     }

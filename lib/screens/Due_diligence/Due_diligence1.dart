@@ -378,12 +378,39 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
     }
   }
 
-  // Helper method to get proper MIME type from file extension
-  String _getFileMimeType(String fileName) {
-    final extension = fileName.split('.').last.toLowerCase();
+  // Helper method to get proper MIME type from file path
+  String _getProperMimeType(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
     switch (extension) {
+      // Document types
       case 'pdf':
         return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'ppt':
+        return 'application/vnd.ms-powerpoint';
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'txt':
+        return 'text/plain';
+      case 'rtf':
+        return 'application/rtf';
+      case 'csv':
+        return 'text/csv';
+      case 'odt':
+        return 'application/vnd.oasis.opendocument.text';
+      case 'ods':
+        return 'application/vnd.oasis.opendocument.spreadsheet';
+      case 'odp':
+        return 'application/vnd.oasis.opendocument.presentation';
+
+      // Image types
       case 'jpg':
       case 'jpeg':
         return 'image/jpeg';
@@ -391,22 +418,56 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         return 'image/png';
       case 'gif':
         return 'image/gif';
-      case 'bmp':
-        return 'image/bmp';
       case 'webp':
         return 'image/webp';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'txt':
-        return 'text/plain';
+      case 'bmp':
+        return 'image/bmp';
+      case 'tiff':
+      case 'tif':
+        return 'image/tiff';
+      case 'svg':
+        return 'image/svg+xml';
+
+      // Audio types
       case 'mp3':
         return 'audio/mpeg';
       case 'wav':
         return 'audio/wav';
+      case 'aac':
+        return 'audio/aac';
+      case 'ogg':
+        return 'audio/ogg';
       case 'm4a':
         return 'audio/mp4';
+
+      // Video types
+      case 'mp4':
+        return 'video/mp4';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mov':
+        return 'video/quicktime';
+      case 'wmv':
+        return 'video/x-ms-wmv';
+      case 'flv':
+        return 'video/x-flv';
+      case 'webm':
+        return 'video/webm';
+      case 'mkv':
+        return 'video/x-matroska';
+
+      // Archive types
+      case 'zip':
+        return 'application/zip';
+      case 'rar':
+        return 'application/x-rar-compressed';
+      case '7z':
+        return 'application/x-7z-compressed';
+      case 'tar':
+        return 'application/x-tar';
+      case 'gz':
+        return 'application/gzip';
+
       default:
         return 'application/octet-stream';
     }
@@ -422,19 +483,28 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
         final documentNumber = await _showDocumentNumberDialog();
 
         // Get proper MIME type from file extension
-        final fileName = file.path.split('/').last;
-        final mimeType = _getFileMimeType(fileName);
+        final properMimeType = _getProperMimeType(file.path);
 
-        debugPrint('🔍 File MIME type detection:');
-        debugPrint('   - File name: $fileName');
-        debugPrint('   - XFile.mimeType: ${file.mimeType}');
-        debugPrint('   - Detected MIME type: $mimeType');
+        // Use the proper MIME type, fallback to XFile mimeType if extension detection fails
+        final finalMimeType =
+            (properMimeType == 'application/octet-stream' &&
+                file.mimeType != null)
+            ? file.mimeType!
+            : properMimeType;
+
+        debugPrint('📁 File picked: ${file.path}');
+        debugPrint('📁 XFile mimeType: ${file.mimeType}');
+        debugPrint('📁 Detected mimeType: $properMimeType');
+        debugPrint('📁 Final mimeType: $finalMimeType');
+        debugPrint(
+          '📁 File extension: ${file.path.split('.').last.toLowerCase()}',
+        );
 
         final fileData = FileData(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           file: File(file.path),
-          fileName: fileName,
-          fileType: mimeType,
+          fileName: file.path.split('/').last,
+          fileType: finalMimeType,
           documentNumber: documentNumber ?? '',
           uploadTime: DateTime.now(),
         );
@@ -631,13 +701,13 @@ class _DueDiligenceWrapperState extends State<DueDiligenceWrapper> {
           // If no files, filesPayload remains empty array (which is valid)
 
           subcategoriesPayload.add({
-            'name': subcategory.name,
+            'name': subcategory.id,
             'files': filesPayload,
           });
         }
 
         categoriesPayload.add({
-          'name': category.name,
+          'name': category.id,
           'subcategories': subcategoriesPayload,
         });
       }
